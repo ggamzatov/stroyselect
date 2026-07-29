@@ -711,20 +711,29 @@ function StatusBlock({
   }
 
   if (status === "rejected") {
-    return (
-      <div className="rounded-2xl border border-red-200 bg-red-50 p-5">
-        <h2 className="font-semibold text-red-950">
-          Профиль требует исправлений
-        </h2>
+  return (
+    <div className="rounded-2xl border border-red-300 bg-red-50 p-5">
+      <h2 className="text-lg font-semibold text-red-950">
+        Профиль требует исправлений
+      </h2>
 
-        {comment && (
-          <p className="mt-2 text-sm text-red-800">
-            {comment}
-          </p>
-        )}
+      <p className="mt-2 text-sm text-red-800">
+        Администратор отклонил профиль. Исправьте замечания
+        и повторно отправьте данные на проверку.
+      </p>
+
+      <div className="mt-4 rounded-xl border border-red-200 bg-white p-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-red-600">
+          Комментарий администратора
+        </p>
+
+        <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-900">
+          {comment || "Комментарий не указан"}
+        </p>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
   return (
     <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5">

@@ -1,25 +1,67 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+
+import { createClient } from "@/lib/supabase/client";
 
 export function LoginForm() {
+  const router = useRouter();
+  const supabase = createClient();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  const [message, setMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  async function handleSubmit(
+    event: React.FormEvent<HTMLFormElement>
+  ) {
     event.preventDefault();
-    console.log({ email, password });
+
+    setMessage("");
+    setIsLoading(true);
+
+    const { data, error } =
+      await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+
+    if (error) {
+      console.error("Ошибка входа:", error);
+
+      setMessage(
+        translateLoginError(error.message)
+      );
+
+      setIsLoading(false);
+      return;
+    }
+
+    if (!data.user) {
+      setMessage(
+        "Пользователь не найден после входа"
+      );
+
+      setIsLoading(false);
+      return;
+    }
+
+    router.replace("/dashboard");
+    router.refresh();
   }
 
   return (
     <form
       onSubmit={handleSubmit}
-      className="w-full max-w-md space-y-4 rounded-xl border p-6 shadow-sm"
+      className="w-full max-w-md rounded-xl border bg-white p-6"
     >
-      <div>
+      <div className="space-y-2">
         <label
           htmlFor="email"
-          className="mb-2 block text-sm font-medium"
+          className="text-sm font-medium"
         >
           Электронная почта
         </label>
@@ -28,17 +70,19 @@ export function LoginForm() {
           id="email"
           type="email"
           value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          placeholder="example@mail.ru"
+          onChange={(event) =>
+            setEmail(event.target.value)
+          }
           required
-          className="w-full rounded-md border px-3 py-2 outline-none"
+          autoComplete="email"
+          className="h-11 w-full rounded-md border px-3"
         />
       </div>
 
-      <div>
+      <div className="mt-4 space-y-2">
         <label
           htmlFor="password"
-          className="mb-2 block text-sm font-medium"
+          className="text-sm font-medium"
         >
           Пароль
         </label>
@@ -47,19 +91,41 @@ export function LoginForm() {
           id="password"
           type="password"
           value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          placeholder="Введите пароль"
+          onChange={(event) =>
+            setPassword(event.target.value)
+          }
           required
-          className="w-full rounded-md border px-3 py-2 outline-none"
+          autoComplete="current-password"
+          className="h-11 w-full rounded-md border px-3"
         />
       </div>
 
       <button
         type="submit"
-        className="w-full rounded-md bg-black px-4 py-2 text-white"
+        disabled={isLoading}
+        className="mt-5 h-11 w-full rounded-md bg-black text-white disabled:cursor-not-allowed disabled:opacity-60"
       >
-        Войти
+        {isLoading ? "Выполняется вход..." : "Войти"}
       </button>
+
+      {message && (
+        <p className="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-700">
+          {message}
+        </p>
+      )}
     </form>
   );
+}
+
+function translateLoginError(message: string) {
+  switch (message) {
+    case "Invalid login credentials":
+      return "Неверная электронная почта или пароль";
+
+    case "Email not confirmed":
+      return "Подтвердите электронную почту по ссылке из письма";
+
+    default:
+      return message;
+  }
 }

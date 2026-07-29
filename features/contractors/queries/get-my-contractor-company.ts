@@ -16,6 +16,7 @@ export async function getMyContractorCompany() {
     .from("contractor_companies")
     .select(`
       *,
+       verification_comment,
       contractor_services (
         category_id
       ),
