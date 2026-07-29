@@ -151,7 +151,7 @@ export async function reviewContractor(
   const verificationComment =
     newStatus === "verified"
       ? null
-      : comment.trim();
+      : comment?.trim() ?? "";
 
   const { error: updateError } = await supabase
     .from("contractor_companies")
@@ -182,7 +182,7 @@ export async function reviewContractor(
       admin_id: user.id,
       previous_status: previousStatus,
       new_status: newStatus,
-      comment: comment.trim() || null,
+      comment: comment?.trim() ?? null,
     });
 
   if (logError) {

@@ -161,27 +161,27 @@ export default async function ContractorReviewPage({
 
           <InfoSection title="Города работы">
             <div className="flex flex-wrap gap-2">
-              {company
-                .contractor_service_areas
-                ?.length ? (
-                company
-                  .contractor_service_areas
-                  .map((area) => (
-                    <span
-                      key={area.id}
-                      className="rounded-full bg-slate-100 px-3 py-2 text-sm"
-                    >
-                      {area.city}
-                      {area.is_primary
-                        ? " — основной"
-                        : ""}
-                    </span>
-                  ))
-              ) : (
-                <p className="text-slate-500">
-                  Города не указаны
-                </p>
-              )}
+              {company.contractor_service_areas?.length ? (
+  company.contractor_service_areas.map(
+    (
+      area: {
+        id: number;
+        city: string;
+      }
+    ) => (
+      <span
+        key={area.id}
+        className="rounded-full bg-slate-100 px-3 py-2 text-sm"
+      >
+        {area.city}
+      </span>
+    )
+  )
+) : (
+  <p className="text-slate-500">
+    Города работы не указаны
+  </p>
+)}
             </div>
           </InfoSection>
 
