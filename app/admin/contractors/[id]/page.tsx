@@ -132,26 +132,30 @@ export default async function ContractorReviewPage({
 
           <InfoSection title="Специализации">
             <div className="flex flex-wrap gap-2">
-              {company.contractor_services
-                ?.length ? (
-                company.contractor_services.map(
-                  (service) => (
-                    <span
-                      key={service.category_id}
-                      className="rounded-full bg-blue-50 px-3 py-2 text-sm text-blue-800"
-                    >
-                      {service
-                        .service_categories
-                        ?.name ??
-                        `Категория ${service.category_id}`}
-                    </span>
-                  )
-                )
-              ) : (
-                <p className="text-slate-500">
-                  Специализации не указаны
-                </p>
-              )}
+              {company.contractor_services?.length ? (
+  company.contractor_services.map(
+    (
+      service: {
+        category_id: number;
+        service_categories: {
+          name: string;
+        } | null;
+      }
+    ) => (
+      <span
+        key={service.category_id}
+        className="rounded-full bg-blue-50 px-3 py-2 text-sm text-blue-800"
+      >
+        {service.service_categories?.name ??
+          `Категория ${service.category_id}`}
+      </span>
+    )
+  )
+) : (
+  <p className="text-slate-500">
+    Специализации не указаны
+  </p>
+)}
             </div>
           </InfoSection>
 
