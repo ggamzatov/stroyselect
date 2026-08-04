@@ -6,6 +6,10 @@ import { getCurrentProfile } from
 
 import { getMyContractorCompany } from
   "@/features/contractors/queries/get-my-contractor-company";
+import { getMyBidsCount } from
+  "@/features/bids/queries/get-my-bids-count";
+import { getAvailableProjectsCount } from
+  "@/features/projects/queries/get-available-projects-count";
 
 export default async function ContractorDashboardPage() {
   const { profile } =
@@ -15,8 +19,12 @@ export default async function ContractorDashboardPage() {
     redirect("/dashboard");
   }
 
-  const company =
-    await getMyContractorCompany();
+ const [company, bidsCount, projectsCount] =
+  await Promise.all([
+    getMyContractorCompany(),
+    getMyBidsCount(),
+    getAvailableProjectsCount(),
+  ]);
 
   const status =
     company?.verification_status ?? "not_created";
@@ -48,36 +56,72 @@ export default async function ContractorDashboardPage() {
         </h1>
 
         <section className="mt-8 grid gap-5 md:grid-cols-3">
-          <div className="rounded-2xl border bg-white p-6">
-            <p className="text-sm text-slate-500">
-              Статус профиля
-            </p>
+  <div className="rounded-2xl border bg-white p-6">
+    <p className="text-sm text-slate-500">
+      Статус профиля
+    </p>
 
-            <p className="mt-2 text-xl font-semibold">
-              {getStatusText(status)}
-            </p>
-          </div>
+    <p className="mt-2 text-xl font-semibold">
+      {getStatusText(status)}
+    </p>
+  </div>
 
-          <div className="rounded-2xl border bg-white p-6">
-            <p className="text-sm text-slate-500">
-              Новые проекты
-            </p>
+  <Link
+    href="/contractor/projects"
+    className="group rounded-2xl border bg-white p-6 transition hover:border-blue-300 hover:shadow-sm"
+  >
+    <div className="flex items-start justify-between gap-4">
+      <div>
+        <p className="text-sm text-slate-500">
+          Новые проекты
+        </p>
 
-            <p className="mt-2 text-3xl font-bold">
-              0
-            </p>
-          </div>
+        <p className="mt-2 text-3xl font-bold">
+          {projectsCount}
+        </p>
+      </div>
 
-          <div className="rounded-2xl border bg-white p-6">
-            <p className="text-sm text-slate-500">
-              Предложения
-            </p>
+      <span className="text-xl text-slate-400 transition group-hover:translate-x-1 group-hover:text-blue-700">
+        →
+      </span>
+    </div>
 
-            <p className="mt-2 text-3xl font-bold">
-              0
-            </p>
-          </div>
-        </section>
+    <p className="mt-3 text-sm text-blue-700">
+      Посмотреть проекты
+    </p>
+  </Link>
+
+  <Link
+    href="/contractor/bids"
+    className="group rounded-2xl border bg-white p-6 transition hover:border-blue-300 hover:shadow-sm"
+  >
+    <div className="flex items-start justify-between gap-4">
+      <div>
+        <p className="text-sm text-slate-500">
+          Предложения
+        </p>
+
+        <p className="mt-2 text-3xl font-bold">
+          {bidsCount}
+        </p>
+      </div>
+
+      <span className="text-xl text-slate-400 transition group-hover:translate-x-1 group-hover:text-blue-700">
+        →
+      </span>
+    </div>
+
+    <p className="mt-3 text-sm text-blue-700">
+      Мои предложения
+    </p>
+  </Link>
+  <Link
+  href="/contractor/work"
+  className="rounded-xl border bg-white px-5 py-3 font-semibold"
+>
+  Мои объекты
+</Link>
+</section>
 
         <div className="mt-8 rounded-2xl border bg-white p-6">
           <h2 className="text-xl font-semibold">

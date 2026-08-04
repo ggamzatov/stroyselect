@@ -50,23 +50,49 @@ export async function registerUser(
   });
 
   if (error) {
-    return {
-      success: false,
-      message: translateAuthError(error.message),
-    };
-  }
+  console.error("SUPABASE SIGNUP ERROR:", {
+    message: error.message,
+    code: error.code,
+    status: error.status,
+    name: error.name,
+  });
+
+  return {
+    success: false,
+    message: translateAuthError(error.code, error.message),
+  };
+}
 
   redirect("/registration-success");
 }
 
-function translateAuthError(message: string): string {
-  if (message.toLowerCase().includes("already registered")) {
-    return "Пользователь с такой почтой уже зарегистрирован";
-  }
+function translateAuthError(
+  code: string | undefined,
+  message: string
+): string {
+  console.error("AUTH ERROR CODE:", code);
+  console.error("AUTH ERROR MESSAGE:", message);
 
-  if (message.toLowerCase().includes("password")) {
-    return "Пароль не соответствует требованиям";
-  }
+  switch (code) {
+    case "email_rate_limit_exceeded":
+      return "Превышен лимит отправки писем. Подождите около часа или подключите собственный SMTP.";
 
-  return "Не удалось создать учетную запись";
+    case "over_email_send_rate_limit":
+      return "Слишком много писем отправлено за короткое время. Попробуйте позже.";
+
+    case "user_already_exists":
+      return "Пользователь с такой почтой уже зарегистрирован.";
+
+    case "email_address_invalid":
+      return "Указан недействительный адрес электронной почты.";
+
+    case "weak_password":
+      return "Пароль слишком простой.";
+
+    case "signup_disabled":
+      return "Регистрация пользователей временно отключена.";
+
+    default:
+      return `Ошибка регистрации: ${message}`;
+  }
 }
