@@ -61,35 +61,42 @@ export async function getAvailableProjects() {
   }
 
   const { data: projects, error: projectsError } =
-    await supabase
-      .from("projects")
-      .select(`
-  id,
-  category_id,
-  title,
-  description,
-  property_type,
-  region,
-  city,
-  budget_min,
-  budget_max,
-  desired_start_date,
-  desired_end_date,
-  status,
-  published_at,
-  created_at,
-  service_categories (
-    id,
-    name
-  )
-`)
-      .in("status", [
-        "published",
-        "collecting_bids",
-      ])
-      .order("published_at", {
-        ascending: false,
-      });
+  await supabase
+    .from("projects")
+    .select(`
+      id,
+      category_id,
+      title,
+      description,
+      property_type,
+      region,
+      city,
+      budget_min,
+      budget_max,
+      desired_start_date,
+      desired_end_date,
+      status,
+      published_at,
+      created_at,
+
+      service_categories (
+        id,
+        name
+      ),
+
+      project_bids!project_bids_project_id_fkey (
+        id,
+        contractor_id,
+        status
+      )
+    `)
+    .in("status", [
+      "published",
+      "collecting_bids",
+    ])
+    .order("published_at", {
+      ascending: false,
+    });
 
   console.log(
     "Опубликованные проекты:",

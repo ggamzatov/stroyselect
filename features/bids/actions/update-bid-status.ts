@@ -33,9 +33,10 @@ export async function updateBidStatus(
 
   const {
     data: { user },
+    error: userError,
   } = await supabase.auth.getUser();
 
-  if (!user) {
+  if (userError || !user) {
     return {
       success: false,
       message: "Необходимо войти",
@@ -44,6 +45,11 @@ export async function updateBidStatus(
 
   const { bidId, decision } = parsed.data;
 
+  /*
+   * Сначала загружаем само предложение.
+   * Не используем вложенный projects!inner,
+   * чтобы избежать ошибки типов Supabase.
+   */
   const { data: bid, error: bidError } =
     await supabase
       .from("project_bids")
@@ -51,32 +57,80 @@ export async function updateBidStatus(
         id,
         project_id,
         contractor_id,
-        status,
-        projects!project_bids_project_id_fkey!inner (...) (
-          id,
-          customer_id,
-          status
-        )
+        status
       `)
       .eq("id", bidId)
-      .eq("projects.customer_id", user.id)
       .maybeSingle();
 
-  if (bidError || !bid) {
+  if (bidError) {
+    console.error(
+      "Ошибка загрузки предложения:",
+      bidError
+    );
+
     return {
       success: false,
       message:
-        "Предложение не найдено или недоступно",
+        "Не удалось загрузить предложение",
     };
   }
 
-  if (
-    ![
-      "submitted",
-      "viewed",
-      "shortlisted",
-    ].includes(bid.status)
-  ) {
+  if (!bid) {
+    return {
+      success: false,
+      message:
+        "Предложение не найдено",
+    };
+  }
+
+  /*
+   * Отдельно проверяем, что проект принадлежит
+   * текущему заказчику.
+   */
+  const {
+    data: project,
+    error: projectError,
+  } = await supabase
+    .from("projects")
+    .select(`
+      id,
+      customer_id,
+      status,
+      selected_contractor_id,
+      selected_bid_id
+    `)
+    .eq("id", bid.project_id)
+    .eq("customer_id", user.id)
+    .maybeSingle();
+
+  if (projectError) {
+    console.error(
+      "Ошибка загрузки проекта:",
+      projectError
+    );
+
+    return {
+      success: false,
+      message:
+        "Не удалось проверить проект",
+    };
+  }
+
+  if (!project) {
+    return {
+      success: false,
+      message:
+        "Проект не найден или у вас нет доступа",
+    };
+  }
+
+  const editableStatuses = [
+    "submitted",
+    "viewed",
+    "shortlisted",
+  ];
+
+  if (!editableStatuses.includes(bid.status)) {
     return {
       success: false,
       message:
@@ -84,52 +138,44 @@ export async function updateBidStatus(
     };
   }
 
-  if (decision === "accepted") {
   const now = new Date().toISOString();
 
-  const { data: currentProject, error: projectCheckError } =
-    await supabase
-      .from("projects")
-      .select(`
-        id,
-        status,
-        selected_contractor_id,
-        selected_bid_id
-      `)
-      .eq("id", bid.project_id)
-      .eq("customer_id", user.id)
-      .maybeSingle();
+  /*
+   * Принятие предложения.
+   */
+  if (decision === "accepted") {
+    if (project.selected_contractor_id) {
+      return {
+        success: false,
+        message:
+          "По этому проекту уже выбран подрядчик",
+      };
+    }
 
-  if (projectCheckError || !currentProject) {
-    return {
-      success: false,
-      message: "Проект не найден",
-    };
-  }
-
-  if (currentProject.selected_contractor_id) {
-    return {
-      success: false,
-      message:
-        "По этому проекту уже выбран подрядчик",
-    };
-  }
-
-  if (
-    ![
+    const allowedProjectStatuses = [
       "published",
       "collecting_bids",
-    ].includes(currentProject.status)
-  ) {
-    return {
-      success: false,
-      message:
-        "Текущий статус проекта не позволяет выбрать подрядчика",
-    };
-  }
+    ];
 
-  const { error: projectError } =
-    await supabase
+    if (
+      !allowedProjectStatuses.includes(
+        project.status
+      )
+    ) {
+      return {
+        success: false,
+        message:
+          "Текущий статус проекта не позволяет выбрать подрядчика",
+      };
+    }
+
+    /*
+     * Сначала назначаем подрядчика проекту.
+     */
+    const {
+      data: updatedProject,
+      error: assignError,
+    } = await supabase
       .from("projects")
       .update({
         status: "contractor_selected",
@@ -139,54 +185,69 @@ export async function updateBidStatus(
         contractor_selected_at: now,
         updated_at: now,
       })
-      .eq("id", bid.project_id)
+      .eq("id", project.id)
       .eq("customer_id", user.id)
-      .is("selected_contractor_id", null);
+      .is("selected_contractor_id", null)
+      .select(`
+        id,
+        status,
+        selected_contractor_id
+      `)
+      .maybeSingle();
 
-  if (projectError) {
-    console.error(
-      "Ошибка назначения подрядчика:",
-      projectError
-    );
+    if (assignError || !updatedProject) {
+      console.error(
+        "Ошибка назначения подрядчика:",
+        assignError
+      );
 
-    return {
-      success: false,
-      message:
-        "Не удалось назначить подрядчика",
-    };
-  }
+      return {
+        success: false,
+        message:
+          "Не удалось назначить подрядчика",
+      };
+    }
 
-  const { error: acceptedBidError } =
-    await supabase
+    /*
+     * Принимаем выбранное предложение.
+     */
+    const {
+      error: acceptedBidError,
+    } = await supabase
       .from("project_bids")
       .update({
         status: "accepted",
         updated_at: now,
       })
       .eq("id", bid.id)
-      .eq("project_id", bid.project_id);
+      .eq("project_id", project.id);
 
-  if (acceptedBidError) {
-    console.error(
-      "Ошибка принятия предложения:",
-      acceptedBidError
-    );
+    if (acceptedBidError) {
+      console.error(
+        "Ошибка принятия предложения:",
+        acceptedBidError
+      );
 
-    return {
-      success: false,
-      message:
-        "Подрядчик назначен, но не удалось обновить предложение",
-    };
-  }
+      return {
+        success: false,
+        message:
+          "Подрядчик назначен, но не удалось обновить статус предложения",
+      };
+    }
 
-  const { error: rejectOthersError } =
-    await supabase
+    /*
+     * Отклоняем остальные активные предложения
+     * по этому проекту.
+     */
+    const {
+      error: rejectOthersError,
+    } = await supabase
       .from("project_bids")
       .update({
         status: "rejected",
         updated_at: now,
       })
-      .eq("project_id", bid.project_id)
+      .eq("project_id", project.id)
       .neq("id", bid.id)
       .in("status", [
         "submitted",
@@ -194,54 +255,75 @@ export async function updateBidStatus(
         "shortlisted",
       ]);
 
-  if (rejectOthersError) {
-    console.error(
-      "Ошибка отклонения остальных предложений:",
-      rejectOthersError
-    );
+    if (rejectOthersError) {
+      console.error(
+        "Ошибка отклонения остальных предложений:",
+        rejectOthersError
+      );
+    }
+
+    revalidateBidPaths(project.id);
+
+    return {
+      success: true,
+      message:
+        "Предложение принято. Подрядчик назначен на проект.",
+    };
   }
 
-  revalidatePath("/customer/dashboard");
-  revalidatePath("/customer/bids");
-  revalidatePath(
-    `/customer/projects/${bid.project_id}`
-  );
-  revalidatePath("/contractor/dashboard");
-  revalidatePath("/contractor/bids");
-  revalidatePath(
-    `/contractor/projects/${bid.project_id}`
-  );
+  /*
+   * Обычная смена статуса:
+   * viewed, shortlisted или rejected.
+   */
+  const { error: updateError } =
+    await supabase
+      .from("project_bids")
+      .update({
+        status: decision,
+        updated_at: now,
+      })
+      .eq("id", bid.id)
+      .eq("project_id", project.id);
+
+  if (updateError) {
+    console.error(
+      "Ошибка изменения статуса предложения:",
+      updateError
+    );
+
+    return {
+      success: false,
+      message:
+        "Не удалось изменить статус предложения",
+    };
+  }
+
+  revalidateBidPaths(project.id);
 
   return {
     success: true,
-    message:
-      "Предложение принято. Подрядчик назначен на проект.",
+    message: getDecisionMessage(decision),
   };
 }
-const { error: updateError } = await supabase
-  .from("project_bids")
-  .update({
-    status: decision,
-    updated_at: new Date().toISOString(),
-  })
-  .eq("id", bidId);
 
+function revalidateBidPaths(
+  projectId: string
+) {
   revalidatePath("/customer/dashboard");
   revalidatePath("/customer/bids");
   revalidatePath(
-    `/customer/projects/${bid.project_id}`
-  );
-  revalidatePath("/contractor/dashboard");
-  revalidatePath("/contractor/bids");
-  revalidatePath(
-    `/contractor/projects/${bid.project_id}`
+    `/customer/projects/${projectId}`
   );
 
-  return {
-    success: true,
-    message:
-      getDecisionMessage(decision),
-  };
+  revalidatePath("/contractor/dashboard");
+  revalidatePath("/contractor/bids");
+  revalidatePath("/contractor/work");
+  revalidatePath(
+    `/contractor/projects/${projectId}`
+  );
+  revalidatePath(
+    `/contractor/work/${projectId}`
+  );
 }
 
 function getDecisionMessage(

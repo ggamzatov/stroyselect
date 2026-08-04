@@ -1,9 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import {
+  useState,
+  useTransition,
+} from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 
 import {
   projectSchema,
@@ -12,6 +16,10 @@ import {
 
 import { saveProject } from
   "@/features/projects/actions/save-project";
+
+type ProjectFormInput = z.input<
+  typeof projectSchema
+>;
 
 type Category = {
   id: number;
@@ -23,7 +31,8 @@ type ExistingProject = {
   category_id: number;
   title: string;
   description: string;
-  property_type: ProjectInput["propertyType"];
+  property_type:
+    ProjectInput["propertyType"];
   region: string;
   city: string;
   address: string | null;
@@ -58,17 +67,25 @@ export function ProjectForm({
   const [message, setMessage] =
     useState("");
 
-  const [errorMessage, setErrorMessage] =
-    useState("");
+  const [
+    errorMessage,
+    setErrorMessage,
+  ] = useState("");
 
-  const [isPending, startTransition] =
-    useTransition();
+  const [
+    isPending,
+    startTransition,
+  ] = useTransition();
 
   const {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<ProjectInput>({
+  } = useForm<
+    ProjectFormInput,
+    unknown,
+    ProjectInput
+  >({
     resolver: zodResolver(projectSchema),
 
     defaultValues: {
@@ -91,7 +108,8 @@ export function ProjectForm({
 
       city: project?.city ?? "",
 
-      address: project?.address ?? "",
+      address:
+        project?.address ?? "",
 
       budgetMin:
         project?.budget_min ??
@@ -111,29 +129,36 @@ export function ProjectForm({
     },
   });
 
-  function onSubmit(values: ProjectInput) {
+  function onSubmit(
+    values: ProjectInput
+  ) {
     setMessage("");
     setErrorMessage("");
 
     startTransition(async () => {
-      const result = await saveProject(
-        values,
-        project?.id
-      );
+      const result =
+        await saveProject(
+          values,
+          project?.id
+        );
 
       if (!result.success) {
-        setErrorMessage(result.message);
+        setErrorMessage(
+          result.message
+        );
         return;
       }
 
       setMessage(result.message);
 
       if (result.projectId) {
-  router.replace(
-    `/customer/projects/${result.projectId}`
-  );
-  router.refresh();
-}
+        router.replace(
+          `/customer/projects/${result.projectId}`
+        );
+
+        router.refresh();
+        return;
+      }
 
       router.refresh();
     });
@@ -148,23 +173,31 @@ export function ProjectForm({
         <Field label="Категория работ">
           <select
             className="h-11 w-full rounded-lg border px-3"
-            {...register("categoryId", {
-              valueAsNumber: true,
-            })}
+            {...register(
+              "categoryId",
+              {
+                valueAsNumber: true,
+              }
+            )}
           >
-            {categories.map((category) => (
-              <option
-                key={category.id}
-                value={category.id}
-              >
-                {category.name}
-              </option>
-            ))}
+            {categories.map(
+              (category) => (
+                <option
+                  key={category.id}
+                  value={category.id}
+                >
+                  {category.name}
+                </option>
+              )
+            )}
           </select>
 
           <ErrorText
             message={
-              errors.categoryId?.message
+              getErrorMessage(
+                errors.categoryId
+                  ?.message
+              )
             }
           />
         </Field>
@@ -177,7 +210,11 @@ export function ProjectForm({
           />
 
           <ErrorText
-            message={errors.title?.message}
+            message={
+              getErrorMessage(
+                errors.title?.message
+              )
+            }
           />
         </Field>
 
@@ -186,12 +223,17 @@ export function ProjectForm({
             rows={8}
             className="w-full rounded-lg border p-3"
             placeholder="Опишите объект, объём работ, материалы и ожидаемый результат"
-            {...register("description")}
+            {...register(
+              "description"
+            )}
           />
 
           <ErrorText
             message={
-              errors.description?.message
+              getErrorMessage(
+                errors.description
+                  ?.message
+              )
             }
           />
         </Field>
@@ -199,7 +241,9 @@ export function ProjectForm({
         <Field label="Тип объекта">
           <select
             className="h-11 w-full rounded-lg border px-3"
-            {...register("propertyType")}
+            {...register(
+              "propertyType"
+            )}
           >
             <option value="private_house">
               Частный дом
@@ -256,7 +300,11 @@ export function ProjectForm({
           </select>
 
           <ErrorText
-            message={errors.city?.message}
+            message={
+              getErrorMessage(
+                errors.city?.message
+              )
+            }
           />
         </Field>
 
@@ -275,14 +323,20 @@ export function ProjectForm({
             <input
               type="number"
               className="h-11 w-full rounded-lg border px-3"
-              {...register("budgetMin", {
-                valueAsNumber: true,
-              })}
+              {...register(
+                "budgetMin",
+                {
+                  valueAsNumber: true,
+                }
+              )}
             />
 
             <ErrorText
               message={
-                errors.budgetMin?.message
+                getErrorMessage(
+                  errors.budgetMin
+                    ?.message
+                )
               }
             />
           </Field>
@@ -291,14 +345,20 @@ export function ProjectForm({
             <input
               type="number"
               className="h-11 w-full rounded-lg border px-3"
-              {...register("budgetMax", {
-                valueAsNumber: true,
-              })}
+              {...register(
+                "budgetMax",
+                {
+                  valueAsNumber: true,
+                }
+              )}
             />
 
             <ErrorText
               message={
-                errors.budgetMax?.message
+                getErrorMessage(
+                  errors.budgetMax
+                    ?.message
+                )
               }
             />
           </Field>
@@ -324,8 +384,11 @@ export function ProjectForm({
 
             <ErrorText
               message={
-                errors.desiredEndDate
-                  ?.message
+                getErrorMessage(
+                  errors
+                    .desiredEndDate
+                    ?.message
+                )
               }
             />
           </Field>
@@ -411,4 +474,12 @@ function ErrorText({
       {message}
     </p>
   );
+}
+
+function getErrorMessage(
+  value: unknown
+): string | undefined {
+  return typeof value === "string"
+    ? value
+    : undefined;
 }

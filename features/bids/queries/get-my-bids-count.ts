@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 
-export async function getCustomerNewBidsCount() {
+export async function getMyBidsCount(): Promise<number> {
   const supabase = await createClient();
 
   const {
@@ -12,32 +12,34 @@ export async function getCustomerNewBidsCount() {
     return 0;
   }
 
+  const { data: company, error: companyError } =
+    await supabase
+      .from("contractor_companies")
+      .select("id")
+      .eq("owner_id", user.id)
+      .maybeSingle();
+
+  if (companyError || !company) {
+    console.error(
+      "Ошибка загрузки компании для подсчёта предложений:",
+      companyError
+    );
+
+    return 0;
+  }
+
   const { count, error } = await supabase
     .from("project_bids")
-    .select(
-      `
-        id,
-        projects!project_bids_project_id_fkey!inner (
-          customer_id
-        )
-      `,
-      {
-        count: "exact",
-        head: true,
-      }
-    )
-    .eq("projects.customer_id", user.id)
-    .eq("status", "submitted");
+    .select("id", {
+      count: "exact",
+      head: true,
+    })
+    .eq("contractor_id", company.id);
 
   if (error) {
     console.error(
-      "Ошибка подсчёта новых предложений:",
-      {
-        message: error.message,
-        code: error.code,
-        details: error.details,
-        hint: error.hint,
-      }
+      "Ошибка подсчёта предложений подрядчика:",
+      error
     );
 
     return 0;
