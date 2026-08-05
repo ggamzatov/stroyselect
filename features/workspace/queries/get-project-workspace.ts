@@ -148,20 +148,24 @@ export async function getProjectWorkspace(
     supabase
       .from("project_stages")
       .select(`
-        id,
-        project_id,
-        title,
-        description,
+       id,
+      project_id,
+       title,
+       description,
         price,
-        progress_weight,
-        sort_order,
+       progress_weight,
+       sort_order,
         status,
         planned_start_date,
         planned_end_date,
         actual_started_at,
         actual_completed_at,
+        submitted_for_review_at,
+        reviewed_at,
+        reviewed_by,
+        customer_review_comment,
         created_at,
-       updated_at
+        updated_at
       `)
       .eq("project_id", projectId)
       .order("sort_order", {

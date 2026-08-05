@@ -9,6 +9,8 @@ type Stage = {
   planned_end_date: string | null;
   actual_started_at?: string | null;
   actual_completed_at?: string | null;
+  customer_review_comment: string | null;
+  submitted_for_review_at: string | null;
 };
 
 type Props = {
@@ -101,6 +103,14 @@ export function WorkspaceStageList({
                       Фактически завершён:{" "}
                       {formatDateTime(
                         stage.actual_completed_at
+                      )}
+                      {stage.customer_review_comment && (
+                        <div className="mt-3 rounded-lg bg-orange-50 p-3 text-sm text-orange-800">
+                          <span className="font-semibold">
+                            Замечание заказчика:
+                          </span>{" "}
+                          {stage.customer_review_comment}
+                        </div>
                       )}
                     </p>
                   )}
@@ -213,6 +223,19 @@ function getStageStatusConfig(
           "bg-red-100 text-red-800",
       };
 
+    case "awaiting_review":
+      return {
+        label: "Ожидает приёмки",
+        className:
+          "bg-purple-100 text-purple-800",
+      };
+
+    case "revision_required":
+      return {
+        label: "Требует исправления",
+        className:
+          "bg-orange-100 text-orange-800",
+      };
     default:
       return {
         label: status,

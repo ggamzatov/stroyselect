@@ -12,6 +12,8 @@ import { WorkspaceStageList } from
 
 import { WorkspaceTimeline } from
   "@/features/workspace/components/workspace-timeline";
+  import { CustomerStageReview } from
+  "@/features/workspace/components/customer-stage-review";
 
 type Props = {
   params: Promise<{
@@ -77,9 +79,14 @@ export default async function CustomerWorkspacePage({
 
         <div className="mt-8 grid gap-6 xl:grid-cols-[1fr_360px]">
           <div className="space-y-6">
-            <WorkspaceProgress
-              stages={stages}
+           <WorkspaceProgress stages={stages} />
+
+            <CustomerStageReview
+            projectId={project.id}
+            stages={stages}
             />
+
+            <WorkspaceStageList stages={stages} />
        
             <WorkspaceStageList
               stages={stages}

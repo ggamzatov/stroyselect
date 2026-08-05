@@ -6,7 +6,8 @@ import { createClient } from "@/lib/supabase/server";
 
 type StageAction =
   | "start"
-  | "complete";
+  | "submit"
+  | "resume";
 
 export type UpdateProjectStageStatusResult = {
   success: boolean;
@@ -32,14 +33,12 @@ export async function updateProjectStageStatus(
     };
   }
 
-  const {
-    data: company,
-    error: companyError,
-  } = await supabase
-    .from("contractor_companies")
-    .select("id")
-    .eq("owner_id", user.id)
-    .maybeSingle();
+  const { data: company, error: companyError } =
+    await supabase
+      .from("contractor_companies")
+      .select("id")
+      .eq("owner_id", user.id)
+      .maybeSingle();
 
   if (companyError || !company) {
     return {
@@ -48,22 +47,17 @@ export async function updateProjectStageStatus(
     };
   }
 
-  const {
-    data: project,
-    error: projectError,
-  } = await supabase
-    .from("projects")
-    .select(`
-      id,
-      status,
-      selected_contractor_id
-    `)
-    .eq("id", projectId)
-    .eq(
-      "selected_contractor_id",
-      company.id
-    )
-    .maybeSingle();
+  const { data: project, error: projectError } =
+    await supabase
+      .from("projects")
+      .select(`
+        id,
+        status,
+        selected_contractor_id
+      `)
+      .eq("id", projectId)
+      .eq("selected_contractor_id", company.id)
+      .maybeSingle();
 
   if (projectError || !project) {
     return {
@@ -86,19 +80,17 @@ export async function updateProjectStageStatus(
     };
   }
 
-  const {
-    data: stage,
-    error: stageError,
-  } = await supabase
-    .from("project_stages")
-    .select(`
-      id,
-      title,
-      status
-    `)
-    .eq("id", stageId)
-    .eq("project_id", projectId)
-    .maybeSingle();
+  const { data: stage, error: stageError } =
+    await supabase
+      .from("project_stages")
+      .select(`
+        id,
+        title,
+        status
+      `)
+      .eq("id", stageId)
+      .eq("project_id", projectId)
+      .maybeSingle();
 
   if (stageError || !stage) {
     return {
@@ -118,162 +110,217 @@ export async function updateProjectStageStatus(
       };
     }
 
-    const {
-      error: updateError,
-    } = await supabase
+    const { error } = await supabase
       .from("project_stages")
       .update({
         status: "in_progress",
         actual_started_at: now,
         actual_completed_at: null,
+        submitted_for_review_at: null,
+        reviewed_at: null,
+        reviewed_by: null,
+        customer_review_comment: null,
         updated_at: now,
       })
       .eq("id", stageId)
       .eq("project_id", projectId)
       .eq("status", "planned");
 
-    if (updateError) {
+    if (error) {
       console.error(
         "Ошибка начала этапа:",
-        updateError
+        error
       );
 
       return {
         success: false,
-        message:
-          "Не удалось начать этап",
+        message: "Не удалось начать этап",
       };
     }
 
-    /*
-     * Если это первый начатый этап,
-     * переводим весь проект в статус
-     * «В работе».
-     */
-    if (
-      project.status ===
-      "contractor_selected"
-    ) {
-      const {
-        error: projectUpdateError,
-      } = await supabase
-        .from("projects")
-        .update({
-          status: "in_progress",
-          work_started_at: now,
-          updated_at: now,
-        })
-        .eq("id", projectId)
-        .eq(
-          "selected_contractor_id",
-          company.id
-        )
-        .eq(
-          "status",
-          "contractor_selected"
-        );
+    if (project.status === "contractor_selected") {
+      const { error: projectUpdateError } =
+        await supabase
+          .from("projects")
+          .update({
+            status: "in_progress",
+            work_started_at: now,
+            updated_at: now,
+          })
+          .eq("id", projectId)
+          .eq("selected_contractor_id", company.id)
+          .eq("status", "contractor_selected");
 
       if (projectUpdateError) {
         console.error(
-          "Ошибка обновления проекта:",
+          "Ошибка запуска проекта:",
           projectUpdateError
         );
       }
     }
 
-    const {
-      error: eventError,
-    } = await supabase
-      .from("project_events")
-      .insert({
-        project_id: projectId,
-        author_id: user.id,
-        event_type: "stage_started",
-        title: "Этап начат",
-        description: stage.title,
-        metadata: {
-          stage_id: stage.id,
-        },
-      });
+    await createStageEvent({
+      supabase,
+      projectId,
+      authorId: user.id,
+      eventType: "stage_started",
+      title: "Этап начат",
+      description: stage.title,
+      stageId,
+    });
 
-    if (eventError) {
-      console.error(
-        "Ошибка создания события:",
-        eventError
-      );
+    revalidateWorkspace(projectId);
+
+    return {
+      success: true,
+      message: "Этап переведён в работу",
+    };
+  }
+
+  if (action === "submit") {
+    if (stage.status !== "in_progress") {
+      return {
+        success: false,
+        message:
+          "На проверку можно отправить только выполняемый этап",
+      };
     }
+
+    const { error } = await supabase
+      .from("project_stages")
+      .update({
+        status: "awaiting_review",
+        submitted_for_review_at: now,
+        customer_review_comment: null,
+        reviewed_at: null,
+        reviewed_by: null,
+        updated_at: now,
+      })
+      .eq("id", stageId)
+      .eq("project_id", projectId)
+      .eq("status", "in_progress");
+
+    if (error) {
+      console.error(
+        "Ошибка отправки этапа на проверку:",
+        error
+      );
+
+      return {
+        success: false,
+        message:
+          "Не удалось отправить этап на проверку",
+      };
+    }
+
+    await createStageEvent({
+      supabase,
+      projectId,
+      authorId: user.id,
+      eventType: "stage_submitted_for_review",
+      title: "Этап отправлен на проверку",
+      description: stage.title,
+      stageId,
+    });
 
     revalidateWorkspace(projectId);
 
     return {
       success: true,
       message:
-        "Этап переведён в работу",
+        "Этап отправлен заказчику на проверку",
     };
   }
 
-  if (stage.status !== "in_progress") {
+  if (stage.status !== "revision_required") {
     return {
       success: false,
       message:
-        "Завершить можно только выполняемый этап",
+        "Возобновить можно только этап с замечанием",
     };
   }
 
-  const {
-    error: completeError,
-  } = await supabase
+  const { error } = await supabase
     .from("project_stages")
     .update({
-      status: "completed",
-      actual_completed_at: now,
+      status: "in_progress",
+      submitted_for_review_at: null,
+      reviewed_at: null,
+      reviewed_by: null,
       updated_at: now,
     })
     .eq("id", stageId)
     .eq("project_id", projectId)
-    .eq("status", "in_progress");
+    .eq("status", "revision_required");
 
-  if (completeError) {
+  if (error) {
     console.error(
-      "Ошибка завершения этапа:",
-      completeError
+      "Ошибка возобновления этапа:",
+      error
     );
 
     return {
       success: false,
       message:
-        "Не удалось завершить этап",
+        "Не удалось возобновить этап",
     };
   }
 
-  const {
-    error: eventError,
-  } = await supabase
-    .from("project_events")
-    .insert({
-      project_id: projectId,
-      author_id: user.id,
-      event_type: "stage_completed",
-      title: "Этап завершён",
-      description: stage.title,
-      metadata: {
-        stage_id: stage.id,
-      },
-    });
-
-  if (eventError) {
-    console.error(
-      "Ошибка создания события:",
-      eventError
-    );
-  }
+  await createStageEvent({
+    supabase,
+    projectId,
+    authorId: user.id,
+    eventType: "stage_started",
+    title: "Исправление замечаний начато",
+    description: stage.title,
+    stageId,
+  });
 
   revalidateWorkspace(projectId);
 
   return {
     success: true,
-    message: "Этап завершён",
+    message:
+      "Этап возвращён в работу",
   };
+}
+
+async function createStageEvent({
+  supabase,
+  projectId,
+  authorId,
+  eventType,
+  title,
+  description,
+  stageId,
+}: {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  projectId: string;
+  authorId: string;
+  eventType: string;
+  title: string;
+  description: string;
+  stageId: string;
+}) {
+  const { error } = await supabase
+    .from("project_events")
+    .insert({
+      project_id: projectId,
+      author_id: authorId,
+      event_type: eventType,
+      title,
+      description,
+      metadata: {
+        stage_id: stageId,
+      },
+    });
+
+  if (error) {
+    console.error(
+      "Ошибка создания события:",
+      error
+    );
+  }
 }
 
 function revalidateWorkspace(
@@ -288,10 +335,9 @@ function revalidateWorkspace(
   );
 
   revalidatePath(
-    `/contractor/dashboard`
-  );
-
-  revalidatePath(
     `/customer/projects/${projectId}`
   );
+
+  revalidatePath("/contractor/dashboard");
+  revalidatePath("/customer/dashboard");
 }

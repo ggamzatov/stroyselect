@@ -149,12 +149,17 @@ export function ContractorStageManager({
 
   function handleStageAction(
     stage: Stage,
-    action: "start" | "complete"
+    action:
+  | "start"
+  | "submit"
+  | "resume"
   ) {
     const actionLabel =
-      action === "start"
-        ? "Начать"
-        : "Завершить";
+  action === "start"
+    ? "Начать"
+    : action === "submit"
+      ? "Отправить на проверку"
+      : "Начать исправление";
 
     const confirmed =
       window.confirm(
@@ -400,24 +405,46 @@ export function ContractorStageManager({
                         </>
                       )}
 
-                      {stage.status ===
-                        "in_progress" && (
-                        <button
-                          type="button"
-                          disabled={isPending}
-                          onClick={() =>
-                            handleStageAction(
-                              stage,
-                              "complete"
-                            )
-                          }
-                          className="rounded-lg bg-green-700 px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {isCurrentPending
-                            ? "Сохраняем..."
-                            : "Завершить этап"}
-                        </button>
-                      )}
+                      {stage.status === "in_progress" && (
+  <button
+    type="button"
+    disabled={isPending}
+    onClick={() =>
+      handleStageAction(
+        stage,
+        "submit"
+      )
+    }
+    className="rounded-lg bg-green-700 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+  >
+    {isCurrentPending
+      ? "Отправляем..."
+      : "Отправить на проверку"}
+  </button>
+)}
+{stage.status === "awaiting_review" && (
+  <span className="rounded-lg bg-purple-50 px-3 py-2 text-sm font-semibold text-purple-800">
+    Ожидает проверки заказчика
+  </span>
+)}
+
+{stage.status === "revision_required" && (
+  <button
+    type="button"
+    disabled={isPending}
+    onClick={() =>
+      handleStageAction(
+        stage,
+        "resume"
+      )
+    }
+    className="rounded-lg bg-amber-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+  >
+    {isCurrentPending
+      ? "Сохраняем..."
+      : "Исправить замечания"}
+  </button>
+)}
 
                       {stage.status ===
                         "completed" && (
