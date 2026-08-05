@@ -54,6 +54,21 @@ export default async function CustomerProjectPage({
               Создан: {formatDate(project.created_at)}
             </p>
           </div>
+          {[
+  "contractor_selected",
+  "in_progress",
+  "completed",
+  "disputed",
+].includes(project.status) && (
+  <div className="mt-6">
+    <Link
+      href={`/customer/work/${project.id}`}
+      className="inline-flex rounded-xl bg-blue-700 px-5 py-3 font-semibold text-white transition hover:bg-blue-800"
+    >
+      Открыть рабочее пространство
+    </Link>
+  </div>
+)}
 
           <ProjectStatusBadge
             status={project.status}
