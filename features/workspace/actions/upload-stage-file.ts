@@ -208,14 +208,14 @@ export async function uploadStageFile(
     };
   }
 
-  const safeFileName =
-    sanitizeFileName(
-      fileValue.name
-    );
+  const fileExtension =
+  getSafeFileExtension(
+    fileValue.name
+  );
 
-  const storagePath =
-    `${projectId}/${stageId}/` +
-    `${crypto.randomUUID()}-${safeFileName}`;
+const storagePath =
+  `${projectId}/${stageId}/` +
+  `${crypto.randomUUID()}${fileExtension}`;;
 
   const arrayBuffer =
     await fileValue.arrayBuffer();
@@ -360,42 +360,39 @@ export async function uploadStageFile(
   };
 }
 
-function sanitizeFileName(
-  value: string
+function getSafeFileExtension(
+  fileName: string
 ) {
   const extensionIndex =
-    value.lastIndexOf(".");
+    fileName.lastIndexOf(".");
 
-  const rawName =
-    extensionIndex >= 0
-      ? value.slice(
-          0,
-          extensionIndex
-        )
-      : value;
+  if (extensionIndex < 0) {
+    return "";
+  }
 
-  const extension =
-    extensionIndex >= 0
-      ? value
-          .slice(extensionIndex)
-          .toLowerCase()
-      : "";
+  const extension = fileName
+    .slice(extensionIndex)
+    .toLowerCase();
 
-  const safeName = rawName
-    .normalize("NFKD")
-    .replace(
-      /[^a-zA-Z0-9а-яА-ЯёЁ_-]+/g,
-      "-"
-    )
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 100);
+  const allowedExtensions =
+    new Set([
+      ".jpg",
+      ".jpeg",
+      ".png",
+      ".webp",
+      ".pdf",
+      ".doc",
+      ".docx",
+      ".xls",
+      ".xlsx",
+    ]);
 
-  return `${
-    safeName || "file"
-  }${extension}`;
+  return allowedExtensions.has(
+    extension
+  )
+    ? extension
+    : "";
 }
-
 function revalidateWorkspace(
   projectId: string
 ) {
