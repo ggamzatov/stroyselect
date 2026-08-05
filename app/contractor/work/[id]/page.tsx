@@ -15,6 +15,11 @@ import { WorkspaceTimeline } from
 
 import { ContractorStageManager } from
   "@/features/workspace/components/contractor-stage-manager";
+  import { StageFileUpload } from
+  "@/features/workspace/components/stage-file-upload";
+
+import { StageFileGallery } from
+  "@/features/workspace/components/stage-file-gallery";
 
 type Props = {
   params: Promise<{
@@ -39,6 +44,7 @@ export default async function ContractorWorkspacePage({
     selectedBid,
     stages,
     events,
+    files,
   } = workspace;
 
   return (
@@ -80,6 +86,53 @@ export default async function ContractorWorkspacePage({
               projectId={project.id}
               stages={stages}
             />
+            <section className="rounded-2xl border bg-white p-6">
+  <h2 className="text-xl font-semibold">
+    Материалы по этапам
+  </h2>
+
+  <div className="mt-6 space-y-6">
+    {stages.map((stage) => {
+      const stageFiles =
+        files.filter(
+          (file) =>
+            file.stage_id ===
+            stage.id
+        );
+
+      return (
+        <article
+          key={stage.id}
+          className="rounded-xl border p-5"
+        >
+          <h3 className="font-semibold">
+            {stage.title}
+          </h3>
+
+          {stage.status !==
+            "completed" && (
+            <StageFileUpload
+              projectId={project.id}
+              stageId={stage.id}
+            />
+          )}
+
+          <StageFileGallery
+            projectId={project.id}
+            files={stageFiles}
+            currentUserId={
+              workspace.currentUser.id
+            }
+            allowDelete={
+              stage.status !==
+              "completed"
+            }
+          />
+        </article>
+      );
+    })}
+  </div>
+</section>
 
             <WorkspaceStageList stages={stages} />
 

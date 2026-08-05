@@ -14,6 +14,8 @@ import { WorkspaceTimeline } from
   "@/features/workspace/components/workspace-timeline";
   import { CustomerStageReview } from
   "@/features/workspace/components/customer-stage-review";
+  import { StageFileGallery } from
+  "@/features/workspace/components/stage-file-gallery";
 
 type Props = {
   params: Promise<{
@@ -42,6 +44,7 @@ export default async function CustomerWorkspacePage({
     selectedBid,
     stages,
     events,
+    files,
   } = workspace;
 
   return (
@@ -91,6 +94,47 @@ export default async function CustomerWorkspacePage({
             <WorkspaceStageList
               stages={stages}
             />
+            <section className="rounded-2xl border bg-white p-6">
+  <h2 className="text-xl font-semibold">
+    Фото и документы
+  </h2>
+
+  {stages.length === 0 ? (
+    <p className="mt-4 text-sm text-slate-500">
+      Этапы пока не созданы.
+    </p>
+  ) : (
+    <div className="mt-6 space-y-6">
+      {stages.map((stage) => {
+        const stageFiles =
+          files.filter(
+            (file) =>
+              file.stage_id ===
+              stage.id
+          );
+
+        return (
+          <article
+            key={stage.id}
+            className="rounded-xl border p-5"
+          >
+            <h3 className="font-semibold">
+              {stage.title}
+            </h3>
+
+            <StageFileGallery
+              projectId={project.id}
+              files={stageFiles}
+              currentUserId={
+                workspace.currentUser.id
+              }
+            />
+          </article>
+        );
+      })}
+    </div>
+  )}
+</section>
 
             <WorkspaceTimeline
               events={events}
