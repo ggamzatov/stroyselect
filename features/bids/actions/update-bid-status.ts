@@ -2,12 +2,19 @@
 
 import { revalidatePath } from "next/cache";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from
+  "@/lib/supabase/server";
 
 import {
   customerBidDecisionSchema,
   type CustomerBidDecisionInput,
-} from "@/features/bids/schemas/customer-bid-decision-schema";
+} from
+  "@/features/bids/schemas/customer-bid-decision-schema";
+
+import {
+  notifyContractorBidAccepted,
+} from
+  "@/features/notifications/server/notify-contractor-bid-accepted";
 
 export type UpdateBidStatusResult = {
   success: boolean;
@@ -18,49 +25,61 @@ export async function updateBidStatus(
   input: CustomerBidDecisionInput
 ): Promise<UpdateBidStatusResult> {
   const parsed =
-    customerBidDecisionSchema.safeParse(input);
+    customerBidDecisionSchema.safeParse(
+      input
+    );
 
   if (!parsed.success) {
     return {
       success: false,
       message:
-        parsed.error.issues[0]?.message ??
+        parsed.error.issues[0]
+          ?.message ??
         "Некорректное решение",
     };
   }
 
-  const supabase = await createClient();
+  const supabase =
+    await createClient();
 
   const {
     data: { user },
     error: userError,
-  } = await supabase.auth.getUser();
+  } =
+    await supabase.auth.getUser();
 
-  if (userError || !user) {
+  if (
+    userError ||
+    !user
+  ) {
     return {
       success: false,
-      message: "Необходимо войти",
+      message:
+        "Необходимо войти",
     };
   }
 
-  const { bidId, decision } = parsed.data;
+  const {
+    bidId,
+    decision,
+  } = parsed.data;
 
   /*
-   * Сначала загружаем само предложение.
-   * Не используем вложенный projects!inner,
-   * чтобы избежать ошибки типов Supabase.
+   * Загружаем предложение.
    */
-  const { data: bid, error: bidError } =
-    await supabase
-      .from("project_bids")
-      .select(`
-        id,
-        project_id,
-        contractor_id,
-        status
-      `)
-      .eq("id", bidId)
-      .maybeSingle();
+  const {
+    data: bid,
+    error: bidError,
+  } = await supabase
+    .from("project_bids")
+    .select(`
+      id,
+      project_id,
+      contractor_id,
+      status
+    `)
+    .eq("id", bidId)
+    .maybeSingle();
 
   if (bidError) {
     console.error(
@@ -84,7 +103,7 @@ export async function updateBidStatus(
   }
 
   /*
-   * Отдельно проверяем, что проект принадлежит
+   * Проверяем, что проект принадлежит
    * текущему заказчику.
    */
   const {
@@ -99,8 +118,14 @@ export async function updateBidStatus(
       selected_contractor_id,
       selected_bid_id
     `)
-    .eq("id", bid.project_id)
-    .eq("customer_id", user.id)
+    .eq(
+      "id",
+      bid.project_id
+    )
+    .eq(
+      "customer_id",
+      user.id
+    )
     .maybeSingle();
 
   if (projectError) {
@@ -130,7 +155,11 @@ export async function updateBidStatus(
     "shortlisted",
   ];
 
-  if (!editableStatuses.includes(bid.status)) {
+  if (
+    !editableStatuses.includes(
+      bid.status
+    )
+  ) {
     return {
       success: false,
       message:
@@ -138,13 +167,18 @@ export async function updateBidStatus(
     };
   }
 
-  const now = new Date().toISOString();
+  const now =
+    new Date().toISOString();
 
   /*
    * Принятие предложения.
    */
-  if (decision === "accepted") {
-    if (project.selected_contractor_id) {
+  if (
+    decision === "accepted"
+  ) {
+    if (
+      project.selected_contractor_id
+    ) {
       return {
         success: false,
         message:
@@ -170,7 +204,7 @@ export async function updateBidStatus(
     }
 
     /*
-     * Сначала назначаем подрядчика проекту.
+     * Назначаем подрядчика проекту.
      */
     const {
       data: updatedProject,
@@ -178,16 +212,33 @@ export async function updateBidStatus(
     } = await supabase
       .from("projects")
       .update({
-        status: "contractor_selected",
+        status:
+          "contractor_selected",
+
         selected_contractor_id:
           bid.contractor_id,
-        selected_bid_id: bid.id,
-        contractor_selected_at: now,
-        updated_at: now,
+
+        selected_bid_id:
+          bid.id,
+
+        contractor_selected_at:
+          now,
+
+        updated_at:
+          now,
       })
-      .eq("id", project.id)
-      .eq("customer_id", user.id)
-      .is("selected_contractor_id", null)
+      .eq(
+        "id",
+        project.id
+      )
+      .eq(
+        "customer_id",
+        user.id
+      )
+      .is(
+        "selected_contractor_id",
+        null
+      )
       .select(`
         id,
         status,
@@ -195,7 +246,10 @@ export async function updateBidStatus(
       `)
       .maybeSingle();
 
-    if (assignError || !updatedProject) {
+    if (
+      assignError ||
+      !updatedProject
+    ) {
       console.error(
         "Ошибка назначения подрядчика:",
         assignError
@@ -204,6 +258,7 @@ export async function updateBidStatus(
       return {
         success: false,
         message:
+          assignError?.message ??
           "Не удалось назначить подрядчика",
       };
     }
@@ -216,11 +271,20 @@ export async function updateBidStatus(
     } = await supabase
       .from("project_bids")
       .update({
-        status: "accepted",
-        updated_at: now,
+        status:
+          "accepted",
+
+        updated_at:
+          now,
       })
-      .eq("id", bid.id)
-      .eq("project_id", project.id);
+      .eq(
+        "id",
+        bid.id
+      )
+      .eq(
+        "project_id",
+        project.id
+      );
 
     if (acceptedBidError) {
       console.error(
@@ -236,24 +300,35 @@ export async function updateBidStatus(
     }
 
     /*
-     * Отклоняем остальные активные предложения
-     * по этому проекту.
+     * Отклоняем остальные активные предложения.
      */
     const {
       error: rejectOthersError,
     } = await supabase
       .from("project_bids")
       .update({
-        status: "rejected",
-        updated_at: now,
+        status:
+          "rejected",
+
+        updated_at:
+          now,
       })
-      .eq("project_id", project.id)
-      .neq("id", bid.id)
-      .in("status", [
-        "submitted",
-        "viewed",
-        "shortlisted",
-      ]);
+      .eq(
+        "project_id",
+        project.id
+      )
+      .neq(
+        "id",
+        bid.id
+      )
+      .in(
+        "status",
+        [
+          "submitted",
+          "viewed",
+          "shortlisted",
+        ]
+      );
 
     if (rejectOthersError) {
       console.error(
@@ -262,7 +337,95 @@ export async function updateBidStatus(
       );
     }
 
-    revalidateBidPaths(project.id);
+    /*
+     * Создаём событие проекта.
+     *
+     * Ошибка события не отменяет
+     * уже выполненный выбор подрядчика.
+     */
+    const {
+      error: eventError,
+    } = await supabase
+      .from("project_events")
+      .insert({
+        project_id:
+          project.id,
+
+        author_id:
+          user.id,
+
+        event_type:
+          "contractor_selected",
+
+        title:
+          "Подрядчик выбран",
+
+        description:
+          "Заказчик принял предложение подрядчика",
+
+        metadata: {
+          bid_id:
+            bid.id,
+
+          contractor_id:
+            bid.contractor_id,
+
+          selected_at:
+            now,
+        },
+      });
+
+    if (eventError) {
+      console.error(
+        "Ошибка создания события выбора подрядчика:",
+        eventError
+      );
+    }
+
+    /*
+     * Уведомляем выбранного подрядчика.
+     *
+     * Ошибка уведомления не должна
+     * отменять уже выполненный выбор.
+     */
+    try {
+      const notificationResult =
+        await notifyContractorBidAccepted({
+          projectId:
+            project.id,
+
+          bidId:
+            bid.id,
+
+          customerId:
+            user.id,
+        });
+
+      console.log(
+        "Результат уведомления выбранного подрядчика:",
+        notificationResult
+      );
+
+      if (
+        !notificationResult.success
+      ) {
+        console.error(
+          "Не удалось уведомить подрядчика:",
+          notificationResult.message
+        );
+      }
+    } catch (
+      notificationError
+    ) {
+      console.error(
+        "Непредвиденная ошибка уведомления подрядчика:",
+        notificationError
+      );
+    }
+
+    revalidateBidPaths(
+      project.id
+    );
 
     return {
       success: true,
@@ -275,15 +438,25 @@ export async function updateBidStatus(
    * Обычная смена статуса:
    * viewed, shortlisted или rejected.
    */
-  const { error: updateError } =
-    await supabase
-      .from("project_bids")
-      .update({
-        status: decision,
-        updated_at: now,
-      })
-      .eq("id", bid.id)
-      .eq("project_id", project.id);
+  const {
+    error: updateError,
+  } = await supabase
+    .from("project_bids")
+    .update({
+      status:
+        decision,
+
+      updated_at:
+        now,
+    })
+    .eq(
+      "id",
+      bid.id
+    )
+    .eq(
+      "project_id",
+      project.id
+    );
 
   if (updateError) {
     console.error(
@@ -298,29 +471,54 @@ export async function updateBidStatus(
     };
   }
 
-  revalidateBidPaths(project.id);
+  revalidateBidPaths(
+    project.id
+  );
 
   return {
     success: true,
-    message: getDecisionMessage(decision),
+    message:
+      getDecisionMessage(
+        decision
+      ),
   };
 }
 
 function revalidateBidPaths(
   projectId: string
 ) {
-  revalidatePath("/customer/dashboard");
-  revalidatePath("/customer/bids");
+  revalidatePath(
+    "/customer/dashboard"
+  );
+
+  revalidatePath(
+    "/customer/bids"
+  );
+
   revalidatePath(
     `/customer/projects/${projectId}`
   );
 
-  revalidatePath("/contractor/dashboard");
-  revalidatePath("/contractor/bids");
-  revalidatePath("/contractor/work");
+  revalidatePath(
+    `/customer/work/${projectId}`
+  );
+
+  revalidatePath(
+    "/contractor/dashboard"
+  );
+
+  revalidatePath(
+    "/contractor/bids"
+  );
+
+  revalidatePath(
+    "/contractor/work"
+  );
+
   revalidatePath(
     `/contractor/projects/${projectId}`
   );
+
   revalidatePath(
     `/contractor/work/${projectId}`
   );
@@ -335,15 +533,23 @@ function getDecisionMessage(
 ) {
   switch (decision) {
     case "viewed":
-      return "Предложение отмечено как просмотренное";
+      return (
+        "Предложение отмечено как просмотренное"
+      );
 
     case "shortlisted":
-      return "Подрядчик добавлен в короткий список";
+      return (
+        "Подрядчик добавлен в короткий список"
+      );
 
     case "accepted":
-      return "Предложение принято";
+      return (
+        "Предложение принято"
+      );
 
     case "rejected":
-      return "Предложение отклонено";
+      return (
+        "Предложение отклонено"
+      );
   }
 }

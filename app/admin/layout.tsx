@@ -6,13 +6,24 @@ import { requireStaffUser } from
 import { LogoutButton } from
   "@/features/auth/components/logout-button";
 
+import { getMyNotifications } from
+  "@/features/notifications/queries/get-my-notifications";
+
+import { NotificationPopover } from
+  "@/features/notifications/components/notification-popover";
+
 export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { profile } =
+  const { user, profile } =
     await requireStaffUser();
+
+  const {
+    notifications,
+    unreadCount,
+  } = await getMyNotifications();
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -26,6 +37,16 @@ export default async function AdminLayout({
           </Link>
 
           <div className="flex items-center gap-5">
+            <NotificationPopover
+              userId={user.id}
+              notifications={
+                notifications
+              }
+              unreadCount={
+                unreadCount
+              }
+            />
+
             <span className="text-sm text-slate-600">
               {profile.first_name}
             </span>

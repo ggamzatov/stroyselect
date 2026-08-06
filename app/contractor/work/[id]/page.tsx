@@ -20,6 +20,12 @@ import { ContractorStageManager } from
 
 import { StageFileGallery } from
   "@/features/workspace/components/stage-file-gallery";
+  import { getProjectMessages } from
+  "@/features/chat/queries/get-project-messages";
+
+import { ProjectChat } from
+  "@/features/chat/components/project-chat";
+  
 
 type Props = {
   params: Promise<{
@@ -33,6 +39,8 @@ export default async function ContractorWorkspacePage({
   const { id } = await params;
 
   const workspace = await getProjectWorkspace(id);
+  const chatData =
+  await getProjectMessages(id);
 
   if (workspace.currentUser.role !== "contractor") {
     redirect("/dashboard");
@@ -135,7 +143,26 @@ export default async function ContractorWorkspacePage({
 </section>
 
             <WorkspaceStageList stages={stages} />
+<ProjectChat
+  projectId={project.id}
+  currentUserId={
+    workspace.currentUser.id
+  }
+  initialMessages={
+    chatData.messages
+  }
+  initialUnreadCount={
+    chatData.unreadCount
+  }
+  otherUserLastReadAt={
+    chatData.otherUserReadState
+      ?.last_read_at ?? null
+  }
+/>
 
+<WorkspaceTimeline
+  events={events}
+/>
             <WorkspaceTimeline events={events} />
           </div>
 

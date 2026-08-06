@@ -13,6 +13,7 @@ import { zodResolver } from
   "@hookform/resolvers/zod";
 
 import {
+  BidFormInput,
   bidSchema,
   type BidInput,
 } from "@/features/bids/schemas/bid-schema";
@@ -59,8 +60,12 @@ export function BidForm({
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<BidInput>({
-    resolver: zodResolver(bidSchema),
+  } =useForm<
+    BidFormInput,
+  unknown,
+  BidInput
+>({
+  resolver: zodResolver(bidSchema),
 
     defaultValues: {
       projectId,

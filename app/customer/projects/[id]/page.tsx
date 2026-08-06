@@ -28,7 +28,8 @@ export default async function CustomerProjectPage({
     redirect("/dashboard");
   }
 
-  const project = await getMyProject(id);
+  const project =
+    await getMyProject(id);
 
   return (
     <main className="min-h-screen bg-slate-50">
@@ -51,24 +52,12 @@ export default async function CustomerProjectPage({
             </h1>
 
             <p className="mt-3 text-sm text-slate-500">
-              Создан: {formatDate(project.created_at)}
+              Создан:{" "}
+              {formatDate(
+                project.created_at
+              )}
             </p>
           </div>
-          {[
-  "contractor_selected",
-  "in_progress",
-  "completed",
-  "disputed",
-].includes(project.status) && (
-  <div className="mt-6">
-    <Link
-      href={`/customer/work/${project.id}`}
-      className="inline-flex rounded-xl bg-blue-700 px-5 py-3 font-semibold text-white transition hover:bg-blue-800"
-    >
-      Открыть рабочее пространство
-    </Link>
-  </div>
-)}
 
           <ProjectStatusBadge
             status={project.status}
@@ -147,7 +136,7 @@ export default async function CustomerProjectPage({
             </InfoSection>
           </div>
 
-          <aside>
+          <aside className="space-y-6">
             <ProjectActions
               projectId={project.id}
               status={project.status}
@@ -184,7 +173,10 @@ function InfoRow({
   value,
 }: {
   label: string;
-  value: string | null | undefined;
+  value:
+    | string
+    | null
+    | undefined;
 }) {
   return (
     <div className="grid gap-1 border-b pb-3 last:border-0 md:grid-cols-[220px_1fr]">
@@ -204,7 +196,8 @@ function ProjectStatusBadge({
 }: {
   status: string;
 }) {
-  const config = getStatusConfig(status);
+  const config =
+    getStatusConfig(status);
 
   return (
     <span
@@ -215,7 +208,9 @@ function ProjectStatusBadge({
   );
 }
 
-function getStatusConfig(status: string) {
+function getStatusConfig(
+  status: string
+) {
   switch (status) {
     case "draft":
       return {
@@ -233,14 +228,16 @@ function getStatusConfig(status: string) {
 
     case "matching":
       return {
-        label: "Подбор подрядчиков",
+        label:
+          "Подбор подрядчиков",
         className:
           "bg-purple-100 text-purple-800",
       };
 
     case "contractor_selected":
       return {
-        label: "Подрядчик выбран",
+        label:
+          "Подрядчик выбран",
         className:
           "bg-indigo-100 text-indigo-800",
       };
@@ -259,6 +256,13 @@ function getStatusConfig(status: string) {
           "bg-slate-200 text-slate-800",
       };
 
+    case "disputed":
+      return {
+        label: "Открыт спор",
+        className:
+          "bg-orange-100 text-orange-800",
+      };
+
     case "cancelled":
       return {
         label: "Отменён",
@@ -275,25 +279,34 @@ function getStatusConfig(status: string) {
   }
 }
 
-function getCategoryName(project: {
-  service_categories:
-    | {
-        name: string;
-      }
-    | Array<{
-        name: string;
-      }>
-    | null;
-}) {
-  if (Array.isArray(project.service_categories)) {
+function getCategoryName(
+  project: {
+    service_categories:
+      | {
+          name: string;
+        }
+      | Array<{
+          name: string;
+        }>
+      | null;
+  }
+) {
+  if (
+    Array.isArray(
+      project.service_categories
+    )
+  ) {
     return (
-      project.service_categories[0]?.name ??
+      project
+        .service_categories[0]
+        ?.name ??
       "Строительные работы"
     );
   }
 
   return (
-    project.service_categories?.name ??
+    project.service_categories
+      ?.name ??
     "Строительные работы"
   );
 }
@@ -326,23 +339,45 @@ function formatPropertyType(
 }
 
 function formatMoney(
-  value: number | string | null
+  value:
+    | number
+    | string
+    | null
 ) {
   if (value === null) {
     return null;
   }
 
-  return new Intl.NumberFormat("ru-RU", {
-    style: "currency",
-    currency: "RUB",
-    maximumFractionDigits: 0,
-  }).format(Number(value));
+  const numericValue =
+    Number(value);
+
+  if (
+    !Number.isFinite(
+      numericValue
+    )
+  ) {
+    return null;
+  }
+
+  return new Intl.NumberFormat(
+    "ru-RU",
+    {
+      style: "currency",
+      currency: "RUB",
+      maximumFractionDigits: 0,
+    }
+  ).format(numericValue);
 }
 
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat("ru-RU", {
-    dateStyle: "medium",
-  }).format(new Date(value));
+function formatDate(
+  value: string
+) {
+  return new Intl.DateTimeFormat(
+    "ru-RU",
+    {
+      dateStyle: "medium",
+    }
+  ).format(new Date(value));
 }
 
 function formatOptionalDate(
@@ -352,9 +387,16 @@ function formatOptionalDate(
     return null;
   }
 
-  return new Intl.DateTimeFormat("ru-RU", {
-    dateStyle: "long",
-  }).format(new Date(`${value}T00:00:00`));
+  return new Intl.DateTimeFormat(
+    "ru-RU",
+    {
+      dateStyle: "long",
+    }
+  ).format(
+    new Date(
+      `${value}T00:00:00`
+    )
+  );
 }
 
 function formatOptionalDateTime(
@@ -364,8 +406,11 @@ function formatOptionalDateTime(
     return null;
   }
 
-  return new Intl.DateTimeFormat("ru-RU", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
+  return new Intl.DateTimeFormat(
+    "ru-RU",
+    {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }
+  ).format(new Date(value));
 }

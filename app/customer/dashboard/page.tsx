@@ -1,4 +1,5 @@
 import Link from "next/link";
+
 import { redirect } from "next/navigation";
 
 import { getCurrentProfile } from
@@ -6,9 +7,11 @@ import { getCurrentProfile } from
 
 import { getMyProjects } from
   "@/features/projects/queries/get-my-projects";
-import { getCustomerBidsCounts } from
+
+  import { getCustomerBidsCounts } from
   "@/features/bids/queries/get-customer-new-bids-count";
-export default async function CustomerDashboardPage() {
+
+  export default async function CustomerDashboardPage() {
   const { profile } =
     await getCurrentProfile();
 
@@ -36,6 +39,7 @@ export default async function CustomerDashboardPage() {
 
   return (
     <main className="min-h-screen bg-slate-50">
+     
       <div className="mx-auto max-w-6xl px-6 py-10">
         <p className="text-sm text-slate-500">
           Кабинет заказчика

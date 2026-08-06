@@ -1,17 +1,11 @@
 import type { Metadata } from "next";
-import "./globals.css";
-import { Geist } from "next/font/google";
-import { cn } from "@/lib/utils";
 
-const geist = Geist({subsets:['latin'],variable:'--font-sans'});
+import "./globals.css";
 
 export const metadata: Metadata = {
-  title: {
-    default: "СтройВыбор",
-    template: "%s | СтройВыбор",
-  },
+  title: "StroySelect",
   description:
-    "Сервис подбора и проверки подрядчиков для строительства и ремонта.",
+    "Сервис подбора подрядчиков и управления строительными проектами",
 };
 
 export default function RootLayout({
@@ -20,8 +14,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ru" className={cn("font-sans", geist.variable)}>
-      <body>{children}</body>
+    <html lang="ru">
+      <body className="antialiased">
+        {children}
+      </body>
     </html>
   );
 }
