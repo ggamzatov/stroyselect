@@ -35,64 +35,71 @@ export async function getPublicContractorCompany(
       "contractor_companies"
     )
     .select(`
+  id,
+  public_name,
+  legal_name,
+  company_type,
+  inn,
+  ogrn,
+  description,
+  founded_year,
+  employee_count,
+  minimum_project_budget,
+  maximum_project_budget,
+  contact_phone,
+  contact_email,
+  website,
+  telegram,
+
+  rating,
+  rating_count,
+
+  quality_rating,
+  deadline_rating,
+  communication_rating,
+  completed_projects_count,
+
+  verification_status,
+  created_at,
+
+  contractor_services (
+    category_id,
+    service_categories (
       id,
-      public_name,
-      legal_name,
-      company_type,
-      inn,
-      ogrn,
-      description,
-      founded_year,
-      employee_count,
-      minimum_project_budget,
-      maximum_project_budget,
-      contact_phone,
-      contact_email,
-      website,
-      telegram,
-      rating,
-      rating_count,
-      verification_status,
-      created_at,
+      name
+    )
+  ),
 
-      contractor_services (
-        category_id,
-        service_categories (
-          id,
-          name
-        )
-      ),
+  contractor_service_areas (
+    city,
+    region,
+    travel_radius_km,
+    is_primary
+  ),
 
-      contractor_service_areas (
-        city,
-        region,
-        travel_radius_km,
-        is_primary
-      ),
+  contractor_portfolio_projects (
+    id,
+    contractor_id,
+    title,
+    description,
+    city,
+    completed_year,
+    created_at,
 
-      contractor_portfolio_projects (
-        id,
-        contractor_id,
-        title,
-        description,
-        city,
-        completed_year,
-        created_at,
-
-        contractor_portfolio_files (
-          id,
-          portfolio_project_id,
-          uploaded_by,
-          storage_bucket,
-          storage_path,
-          file_name,
-          file_size,
-          mime_type,
-          sort_order,
-          created_at
-        )
-      )
-    `)
+    contractor_portfolio_files (
+      id,
+      portfolio_project_id,
+      uploaded_by,
+      storage_bucket,
+      storage_path,
+      file_name,
+      file_size,
+      mime_type,
+      sort_order,
+      created_at
+    )
+  )
+`)
     .eq(
       "id",
       companyId

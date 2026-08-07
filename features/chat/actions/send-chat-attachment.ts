@@ -1,9 +1,16 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath } from
+  "next/cache";
 
 import { createClient } from
   "@/lib/supabase/server";
+
+import { requireActiveUser } from
+  "@/lib/auth/require-active-user";
+
+import { requireActiveProject } from
+  "@/lib/projects/require-active-project";
 
 import { chatAttachmentSchema } from
   "@/features/chat/schemas/chat-attachment-schema";
@@ -45,18 +52,17 @@ const ALLOWED_MIME_TYPES =
 export async function sendChatAttachment(
   formData: FormData
 ): Promise<SendChatAttachmentResult> {
-  /*
-   * Проверяем идентификатор проекта
-   * и необязательный текст сообщения.
-   */
   const parsed =
     chatAttachmentSchema.safeParse({
       projectId:
-        formData.get("projectId"),
+        formData.get(
+          "projectId"
+        ),
 
       messageText:
-        formData.get("messageText") ??
-        "",
+        formData.get(
+          "messageText"
+        ) ?? "",
     });
 
   if (!parsed.success) {
@@ -69,23 +75,26 @@ export async function sendChatAttachment(
     };
   }
 
-  /*
-   * Получаем файл из FormData.
-   */
   const fileValue =
     formData.get("file");
 
-  if (!(fileValue instanceof File)) {
+  if (
+    !(fileValue instanceof File)
+  ) {
     return {
       success: false,
-      message: "Выберите файл",
+      message:
+        "Выберите файл",
     };
   }
 
-  if (fileValue.size <= 0) {
+  if (
+    fileValue.size <= 0
+  ) {
     return {
       success: false,
-      message: "Файл пустой",
+      message:
+        "Файл пустой",
     };
   }
 
@@ -112,82 +121,74 @@ export async function sendChatAttachment(
     };
   }
 
-  const supabase =
-    await createClient();
-
-  /*
-   * Проверяем авторизацию.
-   */
-  const {
-    data: { user },
-    error: userError,
-  } =
-    await supabase.auth.getUser();
-
-  if (userError || !user) {
-    return {
-      success: false,
-      message: "Необходимо войти",
-    };
-  }
-
   const {
     projectId,
     messageText,
   } = parsed.data;
 
-  /*
-   * Загружаем проект и проверяем,
-   * имеет ли пользователь доступ к чату.
-   */
-  const {
-    data: project,
-    error: projectError,
-  } = await supabase
-    .from("projects")
-    .select(`
-      id,
-      customer_id,
-      selected_contractor_id,
-      status
-    `)
-    .eq("id", projectId)
-    .maybeSingle();
+  const activeUser =
+    await requireActiveUser();
 
-  if (
-    projectError ||
-    !project
-  ) {
-    console.error(
-      "Ошибка проверки проекта перед загрузкой файла:",
-      projectError
-    );
-
+  if (!activeUser.success) {
     return {
       success: false,
       message:
-        "Проект не найден или недоступен",
+        activeUser.message,
     };
   }
+
+  const {
+    user,
+    profile,
+  } = activeUser;
+
+  if (
+    ![
+      "customer",
+      "contractor",
+    ].includes(profile.role)
+  ) {
+    return {
+      success: false,
+      message:
+        "У вас нет доступа к чату проекта",
+    };
+  }
+
+  const activeProject =
+    await requireActiveProject(
+      projectId
+    );
+
+  if (!activeProject.success) {
+    return {
+      success: false,
+      message:
+        activeProject.message,
+    };
+  }
+
+  const project =
+    activeProject.project;
+
+  const supabase =
+    await createClient();
 
   let hasAccess =
     project.customer_id ===
     user.id;
 
-  /*
-   * Если пользователь не заказчик,
-   * проверяем, является ли он владельцем
-   * выбранной компании подрядчика.
-   */
   if (
     !hasAccess &&
     project.selected_contractor_id
   ) {
     const {
-      data: contractorCompany,
+      data: company,
       error: companyError,
     } = await supabase
-      .from("contractor_companies")
+      .from(
+        "contractor_companies"
+      )
       .select(`
         id,
         owner_id
@@ -206,8 +207,8 @@ export async function sendChatAttachment(
     }
 
     hasAccess =
-      contractorCompany
-        ?.owner_id === user.id;
+      company?.owner_id ===
+      user.id;
   }
 
   if (!hasAccess) {
@@ -218,11 +219,7 @@ export async function sendChatAttachment(
     };
   }
 
-  /*
-   * Разрешаем отправлять файлы только
-   * после выбора подрядчика.
-   */
-  const allowedProjectStatuses =
+  const allowedStatuses =
     new Set([
       "contractor_selected",
       "in_progress",
@@ -231,7 +228,7 @@ export async function sendChatAttachment(
     ]);
 
   if (
-    !allowedProjectStatuses.has(
+    !allowedStatuses.has(
       project.status
     )
   ) {
@@ -242,13 +239,6 @@ export async function sendChatAttachment(
     };
   }
 
-  /*
-   * Если пользователь не написал текст,
-   * используем имя файла.
-   *
-   * Это необходимо, потому что поле
-   * message_text в базе не должно быть пустым.
-   */
   const normalizedText =
     messageText?.trim() ||
     fileValue.name;
@@ -260,7 +250,9 @@ export async function sendChatAttachment(
     data: createdMessage,
     error: messageError,
   } = await supabase
-    .from("project_messages")
+    .from(
+      "project_messages"
+    )
     .insert({
       project_id:
         projectId,
@@ -299,11 +291,6 @@ export async function sendChatAttachment(
     messageError ||
     !createdMessage
   ) {
-    console.error(
-      "Ошибка создания сообщения с файлом:",
-      messageError
-    );
-
     return {
       success: false,
       message:
@@ -312,11 +299,6 @@ export async function sendChatAttachment(
     };
   }
 
-  /*
-   * Формируем безопасный путь:
-   *
-   * projectId/messageId/randomUuid.ext
-   */
   const extension =
     getSafeFileExtension(
       fileValue.name
@@ -327,10 +309,6 @@ export async function sendChatAttachment(
     `${createdMessage.id}/` +
     `${crypto.randomUUID()}${extension}`;
 
-  /*
-   * Преобразуем File в ArrayBuffer
-   * для загрузки в Supabase Storage.
-   */
   const arrayBuffer =
     await fileValue.arrayBuffer();
 
@@ -354,17 +332,10 @@ export async function sendChatAttachment(
     );
 
   if (uploadError) {
-    console.error(
-      "Ошибка загрузки файла чата:",
-      uploadError
-    );
-
-    /*
-     * Если файл не загрузился,
-     * удаляем созданное сообщение.
-     */
     await supabase
-      .from("project_messages")
+      .from(
+        "project_messages"
+      )
       .delete()
       .eq(
         "id",
@@ -388,15 +359,13 @@ export async function sendChatAttachment(
       fileValue.type
     );
 
-  /*
-   * Записываем информацию о файле
-   * в project_message_files.
-   */
   const {
     data: createdFile,
     error: fileInsertError,
   } = await supabase
-    .from("project_message_files")
+    .from(
+      "project_message_files"
+    )
     .insert({
       project_id:
         projectId,
@@ -436,26 +405,18 @@ export async function sendChatAttachment(
     fileInsertError ||
     !createdFile
   ) {
-    console.error(
-      "Ошибка записи вложения:",
-      fileInsertError
-    );
-
-    /*
-     * Если запись о файле не создалась,
-     * удаляем сам файл из Storage.
-     */
     await supabase.storage
-      .from("chat-files")
+      .from(
+        "chat-files"
+      )
       .remove([
         storagePath,
       ]);
 
-    /*
-     * Также удаляем сообщение.
-     */
     await supabase
-      .from("project_messages")
+      .from(
+        "project_messages"
+      )
       .delete()
       .eq(
         "id",
@@ -474,13 +435,6 @@ export async function sendChatAttachment(
     };
   }
 
-  /*
-   * Создаём уведомление второму
-   * участнику проекта.
-   *
-   * Ошибка уведомления не должна
-   * отменять уже загруженный файл.
-   */
   try {
     const recipient =
       await getProjectNotificationRecipient(
@@ -491,11 +445,11 @@ export async function sendChatAttachment(
     if (recipient) {
       const notificationUrl =
         recipient.recipientRole ===
-          "customer"
+        "customer"
           ? `/customer/work/${projectId}`
           : `/contractor/work/${projectId}`;
 
-      const notificationResult =
+      const result =
         await createNotification({
           userId:
             recipient.recipientUserId,
@@ -547,21 +501,17 @@ export async function sendChatAttachment(
           },
         });
 
-      if (
-        !notificationResult.success
-      ) {
+      if (!result.success) {
         console.error(
           "Не удалось создать уведомление о файле:",
-          notificationResult.message
+          result.message
         );
       }
     }
-  } catch (
-    notificationError
-  ) {
+  } catch (error) {
     console.error(
-      "Непредвиденная ошибка создания уведомления о файле:",
-      notificationError
+      "Ошибка создания уведомления о файле:",
+      error
     );
   }
 
@@ -573,10 +523,8 @@ export async function sendChatAttachment(
     success: true,
     message:
       "Файл отправлен",
-
     messageId:
       createdMessage.id,
-
     fileId:
       createdFile.id,
   };
@@ -604,13 +552,25 @@ function revalidateChatPages(
   revalidatePath(
     "/contractor/dashboard"
   );
+
+  revalidatePath(
+    "/customer",
+    "layout"
+  );
+
+  revalidatePath(
+    "/contractor",
+    "layout"
+  );
 }
 
 function getSafeFileExtension(
   fileName: string
 ) {
   const index =
-    fileName.lastIndexOf(".");
+    fileName.lastIndexOf(
+      "."
+    );
 
   if (index < 0) {
     return "";
@@ -627,15 +587,11 @@ function getSafeFileExtension(
       ".jpeg",
       ".png",
       ".webp",
-
       ".pdf",
-
       ".doc",
       ".docx",
-
       ".xls",
       ".xlsx",
-
       ".zip",
     ]);
 
@@ -676,14 +632,14 @@ function getFileNotificationPreview(
   const normalizedText =
     messageText
       .trim()
-      .replace(/\s+/g, " ");
+      .replace(
+        /\s+/g,
+        " "
+      );
 
-  /*
-   * Если текст совпадает с именем файла,
-   * показываем только имя.
-   */
   if (
-    normalizedText === fileName
+    normalizedText ===
+    fileName
   ) {
     return fileName;
   }
@@ -692,7 +648,8 @@ function getFileNotificationPreview(
     `${normalizedText} — ${fileName}`;
 
   if (
-    preview.length <= 120
+    preview.length <=
+    120
   ) {
     return preview;
   }

@@ -1,3 +1,9 @@
+import { redirect } from
+  "next/navigation";
+
+import { getCurrentProfile } from
+  "@/lib/auth/get-current-profile";
+
 import { DashboardHeader } from
   "@/features/layout/components/dashboard-header";
 
@@ -6,9 +12,24 @@ type Props = {
     React.ReactNode;
 };
 
-export default function CustomerLayout({
+
+export default async function CustomerLayout({
   children,
 }: Props) {
+  const {
+    profile,
+  } =
+    await getCurrentProfile();
+
+  if (
+    profile.role !==
+    "customer"
+  ) {
+    redirect(
+      "/dashboard"
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <DashboardHeader />

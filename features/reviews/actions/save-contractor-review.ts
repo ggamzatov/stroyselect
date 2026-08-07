@@ -6,17 +6,23 @@ import { revalidatePath } from
 import { createClient } from
   "@/lib/supabase/server";
 
-import { createNotification } from
-  "@/features/notifications/server/create-notification";
+import { requireActiveUser } from
+  "@/lib/auth/require-active-user";
 
-import { getProjectNotificationRecipient } from
-  "@/features/notifications/server/get-project-notification-recipient";
+import { requireActiveProject } from
+  "@/lib/projects/require-active-project";
 
 import {
   contractorReviewSchema,
   type ContractorReviewInput,
 } from
   "@/features/reviews/schemas/contractor-review-schema";
+
+import { createNotification } from
+  "@/features/notifications/server/create-notification";
+
+import { getProjectNotificationRecipient } from
+  "@/features/notifications/server/get-project-notification-recipient";
 
 export type SaveContractorReviewResult = {
   success: boolean;
@@ -41,53 +47,55 @@ export async function saveContractorReview(
     };
   }
 
-  const supabase =
-    await createClient();
+  const values =
+    parsed.data;
+
+  const activeUser =
+    await requireActiveUser();
+
+  if (!activeUser.success) {
+    return {
+      success: false,
+      message:
+        activeUser.message,
+    };
+  }
 
   const {
-    data: { user },
-    error: userError,
-  } =
-    await supabase.auth.getUser();
+    user,
+    profile,
+  } = activeUser;
 
   if (
-    userError ||
-    !user
+    profile.role !==
+    "customer"
   ) {
     return {
       success: false,
       message:
-        "Необходимо войти",
+        "Оставить отзыв может только заказчик",
     };
   }
 
-  const values =
-    parsed.data;
-
-  const {
-    data: project,
-    error: projectError,
-  } = await supabase
-    .from("projects")
-    .select(`
-      id,
-      customer_id,
-      selected_contractor_id,
-      status
-    `)
-    .eq(
-      "id",
+  const activeProject =
+    await requireActiveProject(
       values.projectId
-    )
-    .eq(
-      "customer_id",
-      user.id
-    )
-    .maybeSingle();
+    );
+
+  if (!activeProject.success) {
+    return {
+      success: false,
+      message:
+        activeProject.message,
+    };
+  }
+
+  const project =
+    activeProject.project;
 
   if (
-    projectError ||
-    !project
+    project.customer_id !==
+    user.id
   ) {
     return {
       success: false,
@@ -118,17 +126,20 @@ export async function saveContractorReview(
   }
 
   const projectId =
-  project.id;
+    project.id;
 
-    const contractorId =
-  project.selected_contractor_id;
+  const contractorId =
+    project.selected_contractor_id;
+
+  const supabase =
+    await createClient();
 
   const payload = {
     project_id:
-      project.id,
+      projectId,
 
     contractor_id:
-      project.selected_contractor_id,
+      contractorId,
 
     customer_id:
       user.id,
@@ -164,10 +175,12 @@ export async function saveContractorReview(
     .from(
       "contractor_reviews"
     )
-    .select("id")
+    .select(
+      "id"
+    )
     .eq(
       "project_id",
-      project.id
+      projectId
     )
     .eq(
       "customer_id",
@@ -183,6 +196,10 @@ export async function saveContractorReview(
     };
   }
 
+  /*
+   * Редактирование существующего
+   * отзыва — без повторного уведомления.
+   */
   if (existingReview) {
     const {
       error,
@@ -199,11 +216,6 @@ export async function saveContractorReview(
       );
 
     if (error) {
-      console.error(
-        "Ошибка обновления отзыва:",
-        error
-      );
-
       return {
         success: false,
         message:
@@ -212,8 +224,8 @@ export async function saveContractorReview(
     }
 
     revalidateReviewPages(
-      project.id,
-      project.selected_contractor_id
+      projectId,
+      contractorId
     );
 
     return {
@@ -224,6 +236,7 @@ export async function saveContractorReview(
   }
 
   const {
+    data: createdReview,
     error: insertError,
   } = await supabase
     .from(
@@ -231,14 +244,16 @@ export async function saveContractorReview(
     )
     .insert(
       payload
-    );
+    )
+    .select(
+      "id"
+    )
+    .single();
 
-  if (insertError) {
-    console.error(
-      "Ошибка создания отзыва:",
-      insertError
-    );
-
+  if (
+    insertError ||
+    !createdReview
+  ) {
     return {
       success: false,
       message:
@@ -246,25 +261,71 @@ export async function saveContractorReview(
     };
   }
 
-  /* ← ВСТАВИТЬ ЗДЕСЬ БЛОК УВЕДОМЛЕНИЯ */
+  /*
+   * Уведомление только
+   * о новом отзыве.
+   */
+  try {
+    const recipient =
+      await getProjectNotificationRecipient(
+        projectId,
+        user.id
+      );
 
-    revalidateReviewPages(
-    project.id,
-    project.selected_contractor_id
+    if (recipient) {
+      await createNotification({
+        userId:
+          recipient.recipientUserId,
+
+        actorId:
+          user.id,
+
+        notificationType:
+          "contractor_review_received",
+
+        title:
+          "Получен новый отзыв",
+
+        body:
+          `Заказчик оценил вашу работу на ${values.rating} из 5.`,
+
+        projectId,
+
+        url:
+          `/contractor/work/${projectId}`,
+
+        metadata: {
+          review_id:
+            createdReview.id,
+
+          rating:
+            values.rating,
+
+          quality_rating:
+            values.qualityRating ??
+            null,
+
+          deadline_rating:
+            values.deadlineRating ??
+            null,
+
+          communication_rating:
+            values.communicationRating ??
+            null,
+        },
+      });
+    }
+  } catch (error) {
+    console.error(
+      "Ошибка уведомления о новом отзыве:",
+      error
     );
+  }
 
-    return {
-    success: true,
-    message:
-        "Отзыв опубликован",
-    };
-  
-  
-
- revalidateReviewPages(
-  projectId,
-  contractorId
-);
+  revalidateReviewPages(
+    projectId,
+    contractorId
+  );
 
   return {
     success: true,
@@ -291,5 +352,10 @@ function revalidateReviewPages(
 
   revalidatePath(
     "/customer/bids"
+  );
+
+  revalidatePath(
+    "/contractor",
+    "layout"
   );
 }

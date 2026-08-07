@@ -6,6 +6,12 @@ import { z } from "zod";
 import { createClient } from
   "@/lib/supabase/server";
 
+import { requireActiveUser } from
+  "@/lib/auth/require-active-user";
+
+import { requireActiveProject } from
+  "@/lib/projects/require-active-project";
+
 import { createNotification } from
   "@/features/notifications/server/create-notification";
 
@@ -32,26 +38,25 @@ const sendProjectMessageSchema =
         "Сообщение слишком длинное"
       ),
 
-    replyToId: z
-      .preprocess(
-        (value) => {
-          if (
-            value === "" ||
-            value === null ||
-            value === undefined
-          ) {
-            return undefined;
-          }
+    replyToId: z.preprocess(
+      (value) => {
+        if (
+          value === "" ||
+          value === null ||
+          value === undefined
+        ) {
+          return undefined;
+        }
 
-          return value;
-        },
-        z
-          .string()
-          .uuid(
-            "Некорректное сообщение для ответа"
-          )
-          .optional()
-      ),
+        return value;
+      },
+      z
+        .string()
+        .uuid(
+          "Некорректное сообщение для ответа"
+        )
+        .optional()
+    ),
   });
 
 export type SendProjectMessageInput =
@@ -83,25 +88,6 @@ export async function sendProjectMessage(
     };
   }
 
-  const supabase =
-    await createClient();
-
-  const {
-    data: { user },
-    error: userError,
-  } =
-    await supabase.auth.getUser();
-
-  if (
-    userError ||
-    !user
-  ) {
-    return {
-      success: false,
-      message: "Необходимо войти",
-    };
-  }
-
   const {
     projectId,
     messageText,
@@ -109,48 +95,69 @@ export async function sendProjectMessage(
   } = parsed.data;
 
   /*
-   * Проверяем проект и участие
-   * текущего пользователя.
+   * 1. Аккаунт не должен
+   * быть заблокирован.
    */
-  const {
-    data: project,
-    error: projectError,
-  } = await supabase
-    .from("projects")
-    .select(`
-      id,
-      customer_id,
-      selected_contractor_id,
-      status
-    `)
-    .eq("id", projectId)
-    .maybeSingle();
+  const activeUser =
+    await requireActiveUser();
 
-  if (
-    projectError ||
-    !project
-  ) {
-    console.error(
-      "Ошибка проверки проекта перед отправкой сообщения:",
-      projectError
-    );
-
+  if (!activeUser.success) {
     return {
       success: false,
       message:
-        "Проект не найден или недоступен",
+        activeUser.message,
     };
   }
 
+  const {
+    user,
+    profile,
+  } = activeUser;
+
+  if (
+    ![
+      "customer",
+      "contractor",
+    ].includes(profile.role)
+  ) {
+    return {
+      success: false,
+      message:
+        "У вас нет доступа к чату проектов",
+    };
+  }
+
+  /*
+   * 2. Проект не должен быть
+   * заблокирован администрацией.
+   */
+  const activeProject =
+    await requireActiveProject(
+      projectId
+    );
+
+  if (!activeProject.success) {
+    return {
+      success: false,
+      message:
+        activeProject.message,
+    };
+  }
+
+  const project =
+    activeProject.project;
+
+  const supabase =
+    await createClient();
+
+  /*
+   * 3. Проверяем участие
+   * пользователя в проекте.
+   */
   let hasAccess =
     project.customer_id ===
     user.id;
 
-  /*
-   * Если пользователь не заказчик,
-   * проверяем, является ли он владельцем
-   * выбранной компании подрядчика.
-   */
   if (
     !hasAccess &&
     project.selected_contractor_id
@@ -159,7 +166,9 @@ export async function sendProjectMessage(
       data: contractorCompany,
       error: companyError,
     } = await supabase
-      .from("contractor_companies")
+      .from(
+        "contractor_companies"
+      )
       .select(`
         id,
         owner_id
@@ -179,7 +188,8 @@ export async function sendProjectMessage(
 
     hasAccess =
       contractorCompany
-        ?.owner_id === user.id;
+        ?.owner_id ===
+      user.id;
   }
 
   if (!hasAccess) {
@@ -190,10 +200,6 @@ export async function sendProjectMessage(
     };
   }
 
-  /*
-   * Разрешаем переписку только
-   * после выбора подрядчика.
-   */
   const allowedProjectStatuses =
     new Set([
       "contractor_selected",
@@ -215,25 +221,26 @@ export async function sendProjectMessage(
   }
 
   /*
-   * Если пользователь отвечает
-   * на сообщение, проверяем:
-   *
-   * 1. сообщение существует;
-   * 2. относится к этому проекту;
-   * 3. не было удалено.
+   * Проверяем сообщение,
+   * на которое отвечает пользователь.
    */
   if (replyToId) {
     const {
       data: repliedMessage,
       error: replyError,
     } = await supabase
-      .from("project_messages")
+      .from(
+        "project_messages"
+      )
       .select(`
         id,
         project_id,
         is_deleted
       `)
-      .eq("id", replyToId)
+      .eq(
+        "id",
+        replyToId
+      )
       .eq(
         "project_id",
         projectId
@@ -244,11 +251,6 @@ export async function sendProjectMessage(
       replyError ||
       !repliedMessage
     ) {
-      console.error(
-        "Ошибка проверки сообщения для ответа:",
-        replyError
-      );
-
       return {
         success: false,
         message:
@@ -274,7 +276,9 @@ export async function sendProjectMessage(
     data: createdMessage,
     error: messageError,
   } = await supabase
-    .from("project_messages")
+    .from(
+      "project_messages"
+    )
     .insert({
       project_id:
         projectId,
@@ -328,11 +332,8 @@ export async function sendProjectMessage(
   }
 
   /*
-   * Определяем второго участника проекта
-   * и создаём для него уведомление.
-   *
-   * Ошибка уведомления не должна отменять
-   * уже отправленное сообщение.
+   * Уведомление второму
+   * участнику.
    */
   try {
     const recipient =
@@ -344,11 +345,11 @@ export async function sendProjectMessage(
     if (recipient) {
       const notificationUrl =
         recipient.recipientRole ===
-          "customer"
+        "customer"
           ? `/customer/work/${projectId}`
           : `/contractor/work/${projectId}`;
 
-      const notificationResult =
+      const result =
         await createNotification({
           userId:
             recipient.recipientUserId,
@@ -380,25 +381,22 @@ export async function sendProjectMessage(
               user.id,
 
             reply_to_id:
-              replyToId ?? null,
+              replyToId ??
+              null,
           },
         });
 
-      if (
-        !notificationResult.success
-      ) {
+      if (!result.success) {
         console.error(
           "Не удалось создать уведомление о новом сообщении:",
-          notificationResult.message
+          result.message
         );
       }
     }
-  } catch (
-    notificationError
-  ) {
+  } catch (error) {
     console.error(
-      "Непредвиденная ошибка создания уведомления:",
-      notificationError
+      "Ошибка создания уведомления о сообщении:",
+      error
     );
   }
 
@@ -437,6 +435,16 @@ function revalidateChatPages(
   revalidatePath(
     "/contractor/dashboard"
   );
+
+  revalidatePath(
+    "/customer",
+    "layout"
+  );
+
+  revalidatePath(
+    "/contractor",
+    "layout"
+  );
 }
 
 function getNotificationPreview(
@@ -445,10 +453,14 @@ function getNotificationPreview(
   const normalized =
     value
       .trim()
-      .replace(/\s+/g, " ");
+      .replace(
+        /\s+/g,
+        " "
+      );
 
   if (
-    normalized.length <= 120
+    normalized.length <=
+    120
   ) {
     return normalized;
   }

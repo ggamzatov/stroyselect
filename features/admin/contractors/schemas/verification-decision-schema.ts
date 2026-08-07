@@ -1,77 +1,70 @@
 import { z } from "zod";
 
 export const verificationDecisionSchema =
-  z.discriminatedUnion("decision", [
-    z.object({
-      contractorId: z.string().uuid(),
+  z
+    .object({
+      contractorId: z
+        .string()
+        .uuid(
+          "Некорректный идентификатор подрядчика"
+        ),
 
-      decision: z.literal("approve"),
+      decision: z.enum([
+        "approve",
+        "reject",
+        "suspend",
+        "resume",
+        "return_to_draft",
+      ]),
 
       comment: z
         .string()
         .trim()
         .max(
-          2000,
+          3000,
           "Комментарий слишком длинный"
         )
         .optional()
         .or(z.literal("")),
-    }),
+    })
+    .superRefine(
+      (
+        values,
+        ctx
+      ) => {
+        const requiresComment =
+          [
+            "reject",
+            "suspend",
+            "return_to_draft",
+          ].includes(
+            values.decision
+          );
 
-    z.object({
-      contractorId: z.string().uuid(),
+        if (
+          requiresComment &&
+          (
+            !values.comment ||
+            values.comment.trim()
+              .length < 3
+          )
+        ) {
+          ctx.addIssue({
+            code:
+              z.ZodIssueCode.custom,
 
-      decision: z.literal("reject"),
+            path: [
+              "comment",
+            ],
 
-      comment: z
-        .string()
-        .trim()
-        .min(
-          10,
-          "Укажите причину отклонения минимум из 10 символов"
-        )
-        .max(
-          2000,
-          "Комментарий слишком длинный"
-        ),
-    }),
-
-    z.object({
-      contractorId: z.string().uuid(),
-
-      decision: z.literal("suspend"),
-
-      comment: z
-        .string()
-        .trim()
-        .min(
-          10,
-          "Укажите причину приостановки"
-        )
-        .max(
-          2000,
-          "Комментарий слишком длинный"
-        ),
-    }),
-
-    z.object({
-      contractorId: z.string().uuid(),
-
-      decision: z.literal("return_to_draft"),
-
-      comment: z
-        .string()
-        .trim()
-        .min(
-          10,
-          "Укажите, что необходимо исправить"
-        )
-        .max(
-          2000,
-          "Комментарий слишком длинный"
-        ),
-    }),
-  ]);
+            message:
+              "Укажите причину решения",
+          });
+        }
+      }
+    );
 
 export type VerificationDecisionInput =
-  z.infer<typeof verificationDecisionSchema>;
+  z.infer<
+    typeof verificationDecisionSchema
+  >;

@@ -1,15 +1,19 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath } from
+  "next/cache";
 
 import { createClient } from
   "@/lib/supabase/server";
 
+import { requireActiveUser } from
+  "@/lib/auth/require-active-user";
+
+import { requireActiveProject } from
+  "@/lib/projects/require-active-project";
+
 import { createNotification } from
   "@/features/notifications/server/create-notification";
-
-import { getProjectNotificationRecipient } from
-  "@/features/notifications/server/get-project-notification-recipient";
 
 export type CompleteProjectResult = {
   success: boolean;
@@ -19,81 +23,53 @@ export type CompleteProjectResult = {
 export async function completeProject(
   projectId: string
 ): Promise<CompleteProjectResult> {
-  /*
-   * 1. Supabase.
-   */
-  const supabase =
-    await createClient();
+  const activeUser =
+    await requireActiveUser();
 
-  /*
-   * 2. Проверяем авторизацию.
-   */
+  if (!activeUser.success) {
+    return {
+      success: false,
+      message:
+        activeUser.message,
+    };
+  }
+
   const {
-    data: { user },
-    error: userError,
-  } =
-    await supabase.auth.getUser();
+    user,
+    profile,
+  } = activeUser;
 
   if (
-    userError ||
-    !user
+    profile.role !==
+    "customer"
   ) {
     return {
       success: false,
       message:
-        "Необходимо войти",
+        "Завершить проект может только заказчик",
     };
   }
 
-  /*
-   * 3. Получаем проект.
-   *
-   * Завершить проект может
-   * только его заказчик.
-   */
-  const {
-    data: project,
-    error: projectError,
-  } = await supabase
-    .from("projects")
-    .select(`
-      id,
-      title,
-      customer_id,
-      selected_contractor_id,
-      status
-    `)
-    .eq(
-      "id",
+  const activeProject =
+    await requireActiveProject(
       projectId
-    )
-    .eq(
-      "customer_id",
-      user.id
-    )
-    .maybeSingle();
-
-  if (
-    projectError ||
-    !project
-  ) {
-    console.error(
-      "Ошибка загрузки проекта перед завершением:",
-      {
-        message:
-          projectError?.message,
-
-        details:
-          projectError?.details,
-
-        hint:
-          projectError?.hint,
-
-        code:
-          projectError?.code,
-      }
     );
 
+  if (!activeProject.success) {
+    return {
+      success: false,
+      message:
+        activeProject.message,
+    };
+  }
+
+  const project =
+    activeProject.project;
+
+  if (
+    project.customer_id !==
+    user.id
+  ) {
     return {
       success: false,
       message:
@@ -101,9 +77,6 @@ export async function completeProject(
     };
   }
 
-  /*
-   * 4. Проверяем статус.
-   */
   if (
     project.status ===
     "completed"
@@ -121,30 +94,14 @@ export async function completeProject(
   ) {
     return {
       success: false,
-
       message:
         "На текущем статусе проект нельзя завершить",
     };
   }
 
-  /*
-   * 5. У проекта должен быть
-   * выбран подрядчик.
-   */
-  if (
-    !project.selected_contractor_id
-  ) {
-    return {
-      success: false,
+  const supabase =
+    await createClient();
 
-      message:
-        "У проекта не выбран подрядчик",
-    };
-  }
-
-  /*
-   * 6. Загружаем этапы.
-   */
   const {
     data: stages,
     error: stagesError,
@@ -154,7 +111,6 @@ export async function completeProject(
     )
     .select(`
       id,
-      title,
       status,
       progress_weight
     `)
@@ -164,51 +120,24 @@ export async function completeProject(
     );
 
   if (stagesError) {
-    console.error(
-      "Ошибка загрузки этапов:",
-      {
-        message:
-          stagesError.message,
-
-        details:
-          stagesError.details,
-
-        hint:
-          stagesError.hint,
-
-        code:
-          stagesError.code,
-      }
-    );
-
     return {
       success: false,
-
       message:
         "Не удалось проверить этапы проекта",
     };
   }
 
-  /*
-   * Без этапов завершать
-   * проект нельзя.
-   */
   if (
     !stages ||
     stages.length === 0
   ) {
     return {
       success: false,
-
       message:
         "Нельзя завершить проект без этапов",
     };
   }
 
-  /*
-   * 7. Проверяем, что все этапы
-   * действительно приняты заказчиком.
-   */
   const incompleteStages =
     stages.filter(
       (stage) =>
@@ -222,18 +151,11 @@ export async function completeProject(
   ) {
     return {
       success: false,
-
       message:
         `Нельзя завершить проект: не завершено этапов — ${incompleteStages.length}.`,
     };
   }
 
-  /*
-   * 8. Проверяем сумму долей.
-   *
-   * Для окончательного завершения
-   * должно быть ровно 100%.
-   */
   const totalWeight =
     stages.reduce(
       (
@@ -243,7 +165,7 @@ export async function completeProject(
         sum +
         Number(
           stage.progress_weight ??
-            0
+          0
         ),
       0
     );
@@ -253,20 +175,15 @@ export async function completeProject(
   ) {
     return {
       success: false,
-
       message:
         `Нельзя завершить проект: сумма долей этапов составляет ${totalWeight}%, необходимо 100%.`,
     };
   }
 
-  /*
-   * 9. Завершаем проект.
-   */
   const completedAt =
     new Date().toISOString();
 
   const {
-    data: completedProject,
     error: updateError,
   } = await supabase
     .from("projects")
@@ -288,47 +205,19 @@ export async function completeProject(
       "customer_id",
       user.id
     )
-    .select(`
-      id,
-      title,
-      status,
-      completed_at
-    `)
-    .maybeSingle();
-
-  if (
-    updateError ||
-    !completedProject
-  ) {
-    console.error(
-      "Ошибка завершения проекта:",
-      {
-        message:
-          updateError?.message,
-
-        details:
-          updateError?.details,
-
-        hint:
-          updateError?.hint,
-
-        code:
-          updateError?.code,
-      }
+    .eq(
+      "status",
+      "in_progress"
     );
 
+  if (updateError) {
     return {
       success: false,
-
       message:
         "Не удалось завершить проект",
     };
   }
 
-  /*
-   * 10. Записываем событие
-   * в историю проекта.
-   */
   const {
     error: eventError,
   } = await supabase
@@ -351,61 +240,45 @@ export async function completeProject(
       description:
         "Заказчик подтвердил завершение проекта.",
 
-      metadata: {
-        completed_at:
-          completedAt,
-
-        stages_count:
-          stages.length,
-
-        total_progress_weight:
-          totalWeight,
-      },
+      metadata: {},
     });
 
   if (eventError) {
     console.error(
       "Ошибка создания события завершения проекта:",
-      {
-        message:
-          eventError.message,
-
-        details:
-          eventError.details,
-
-        hint:
-          eventError.hint,
-
-        code:
-          eventError.code,
-      }
+      eventError
     );
   }
 
   /*
-   * 11. Уведомляем подрядчика.
-   *
-   * Ошибка уведомления не должна
-   * отменять уже завершённый проект.
+   * Уведомляем подрядчика.
    */
-  try {
-    const recipient =
-      await getProjectNotificationRecipient(
-        projectId,
-        user.id
-      );
+  if (
+    project.selected_contractor_id
+  ) {
+    try {
+      const {
+        data: company,
+      } = await supabase
+        .from(
+          "contractor_companies"
+        )
+        .select(`
+          id,
+          owner_id
+        `)
+        .eq(
+          "id",
+          project.selected_contractor_id
+        )
+        .maybeSingle();
 
-    if (recipient) {
-      const notificationUrl =
-        recipient.recipientRole ===
-        "customer"
-          ? `/customer/work/${projectId}`
-          : `/contractor/work/${projectId}`;
-
-      const notificationResult =
+      if (
+        company?.owner_id
+      ) {
         await createNotification({
           userId:
-            recipient.recipientUserId,
+            company.owner_id,
 
           actorId:
             user.id,
@@ -422,54 +295,28 @@ export async function completeProject(
           projectId,
 
           url:
-            notificationUrl,
+            `/contractor/work/${projectId}`,
 
           metadata: {
-            project_title:
-              project.title,
-
             completed_at:
               completedAt,
-
-            stages_count:
-              stages.length,
-
-            total_progress_weight:
-              totalWeight,
-
-            contractor_id:
-              project.selected_contractor_id,
           },
         });
-
-      if (
-        !notificationResult.success
-      ) {
-        console.error(
-          "Не удалось создать уведомление о завершении проекта:",
-          notificationResult.message
-        );
       }
+    } catch (error) {
+      console.error(
+        "Ошибка уведомления о завершении проекта:",
+        error
+      );
     }
-  } catch (
-    notificationError
-  ) {
-    console.error(
-      "Непредвиденная ошибка создания уведомления о завершении проекта:",
-      notificationError
-    );
   }
 
-  /*
-   * 12. Обновляем страницы.
-   */
   revalidateProject(
     projectId
   );
 
   return {
     success: true,
-
     message:
       "Проект успешно завершён",
   };
@@ -478,9 +325,6 @@ export async function completeProject(
 function revalidateProject(
   projectId: string
 ) {
-  /*
-   * Рабочие пространства.
-   */
   revalidatePath(
     `/customer/work/${projectId}`
   );
@@ -489,27 +333,10 @@ function revalidateProject(
     `/contractor/work/${projectId}`
   );
 
-  /*
-   * Карточка проекта.
-   */
   revalidatePath(
     `/customer/projects/${projectId}`
   );
 
-  /*
-   * Списки проектов.
-   */
-  revalidatePath(
-    "/customer/projects"
-  );
-
-  revalidatePath(
-    "/contractor/work"
-  );
-
-  /*
-   * Кабинеты.
-   */
   revalidatePath(
     "/customer/dashboard"
   );
@@ -518,13 +345,6 @@ function revalidateProject(
     "/contractor/dashboard"
   );
 
-  /*
-   * В layout находится
-   * NotificationCenter.
-   *
-   * Это обновляет счётчик
-   * возле колокольчика.
-   */
   revalidatePath(
     "/customer",
     "layout"

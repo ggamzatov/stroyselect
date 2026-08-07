@@ -1,105 +1,59 @@
-import Link from "next/link";
-
 import { requireStaffUser } from
   "@/lib/auth/require-staff-user";
-
-import { LogoutButton } from
-  "@/features/auth/components/logout-button";
 
 import { getMyNotifications } from
   "@/features/notifications/queries/get-my-notifications";
 
-import { NotificationPopover } from
-  "@/features/notifications/components/notification-popover";
+import { AdminHeader } from
+  "@/features/admin/components/admin-header";
+
+import { AdminSidebar } from
+  "@/features/admin/components/admin-sidebar";
 
 export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { user, profile } =
+  const {
+    user,
+    profile,
+  } =
     await requireStaffUser();
 
   const {
     notifications,
     unreadCount,
-  } = await getMyNotifications();
+  } =
+    await getMyNotifications();
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="border-b bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <Link
-            href="/admin/dashboard"
-            className="text-xl font-bold"
-          >
-            СтройВыбор
-          </Link>
+    <div className="min-h-screen bg-background">
+      <AdminHeader
+        userId={user.id}
+        firstName={
+          profile.first_name
+        }
+        lastName={
+          profile.last_name
+        }
+        notifications={
+          notifications
+        }
+        unreadCount={
+          unreadCount
+        }
+      />
 
-          <div className="flex items-center gap-5">
-            <NotificationPopover
-              userId={user.id}
-              notifications={
-                notifications
-              }
-              unreadCount={
-                unreadCount
-              }
-            />
+      <div className="app-container py-6 md:py-8">
+        <div className="grid items-start gap-6 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[260px_minmax(0,1fr)]">
+          <AdminSidebar />
 
-            <span className="text-sm text-slate-600">
-              {profile.first_name}
-            </span>
-
-            <LogoutButton />
-          </div>
+          <main className="min-w-0">
+            {children}
+          </main>
         </div>
-      </header>
-
-      <div className="mx-auto grid max-w-7xl gap-8 px-6 py-8 lg:grid-cols-[240px_1fr]">
-        <aside className="rounded-2xl border bg-white p-4">
-          <nav className="space-y-1">
-            <AdminLink
-              href="/admin/dashboard"
-              label="Обзор"
-            />
-
-            <AdminLink
-              href="/admin/contractors"
-              label="Подрядчики"
-            />
-
-            <AdminLink
-              href="/admin/projects"
-              label="Проекты"
-            />
-
-            <AdminLink
-              href="/admin/users"
-              label="Пользователи"
-            />
-          </nav>
-        </aside>
-
-        <main>{children}</main>
       </div>
     </div>
-  );
-}
-
-function AdminLink({
-  href,
-  label,
-}: {
-  href: string;
-  label: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className="block rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
-    >
-      {label}
-    </Link>
   );
 }

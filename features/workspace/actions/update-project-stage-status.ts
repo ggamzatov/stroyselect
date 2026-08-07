@@ -1,9 +1,16 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath } from
+  "next/cache";
 
 import { createClient } from
   "@/lib/supabase/server";
+
+import { requireActiveUser } from
+  "@/lib/auth/require-active-user";
+
+import { requireActiveProject } from
+  "@/lib/projects/require-active-project";
 
 import { createNotification } from
   "@/features/notifications/server/create-notification";
@@ -26,32 +33,49 @@ export async function updateProjectStageStatus(
   projectId: string,
   action: StageAction
 ): Promise<UpdateProjectStageStatusResult> {
-  const supabase =
-    await createClient();
+  const activeUser =
+    await requireActiveUser();
 
-  /*
-   * Авторизация.
-   */
+  if (!activeUser.success) {
+    return {
+      success: false,
+      message:
+        activeUser.message,
+    };
+  }
+
   const {
-    data: { user },
-    error: userError,
-  } =
-    await supabase.auth.getUser();
+    user,
+    profile,
+  } = activeUser;
 
   if (
-    userError ||
-    !user
+    profile.role !==
+    "contractor"
   ) {
     return {
       success: false,
       message:
-        "Необходимо войти",
+        "Управлять этапами может только подрядчик",
     };
   }
 
-  /*
-   * Компания подрядчика.
-   */
+  const activeProject =
+    await requireActiveProject(
+      projectId
+    );
+
+  if (!activeProject.success) {
+    return {
+      success: false,
+      message:
+        activeProject.message,
+    };
+  }
+
+  const supabase =
+    await createClient();
+
   const {
     data: company,
     error: companyError,
@@ -59,10 +83,9 @@ export async function updateProjectStageStatus(
     .from(
       "contractor_companies"
     )
-    .select(`
-      id,
-      public_name
-    `)
+    .select(
+      "id"
+    )
     .eq(
       "owner_id",
       user.id
@@ -73,35 +96,13 @@ export async function updateProjectStageStatus(
     companyError ||
     !company
   ) {
-    console.error(
-      "Ошибка загрузки компании подрядчика:",
-      {
-        message:
-          companyError?.message,
-
-        details:
-          companyError?.details,
-
-        hint:
-          companyError?.hint,
-
-        code:
-          companyError?.code,
-      }
-    );
-
     return {
       success: false,
-
       message:
         "Компания подрядчика не найдена",
     };
   }
 
-  /*
-   * Проект должен быть назначен
-   * текущей компании.
-   */
   const {
     data: project,
     error: projectError,
@@ -109,8 +110,6 @@ export async function updateProjectStageStatus(
     .from("projects")
     .select(`
       id,
-      title,
-      customer_id,
       status,
       selected_contractor_id
     `)
@@ -128,36 +127,13 @@ export async function updateProjectStageStatus(
     projectError ||
     !project
   ) {
-    console.error(
-      "Ошибка загрузки проекта:",
-      {
-        message:
-          projectError?.message,
-
-        details:
-          projectError?.details,
-
-        hint:
-          projectError?.hint,
-
-        code:
-          projectError?.code,
-      }
-    );
-
     return {
       success: false,
-
       message:
         "Проект не найден или не назначен вашей компании",
     };
   }
 
-  /*
-   * Управлять этапами можно только
-   * после назначения подрядчика
-   * и во время выполнения проекта.
-   */
   if (
     ![
       "contractor_selected",
@@ -168,15 +144,11 @@ export async function updateProjectStageStatus(
   ) {
     return {
       success: false,
-
       message:
         "На текущем статусе проекта нельзя управлять этапами",
     };
   }
 
-  /*
-   * Загружаем этап.
-   */
   const {
     data: stage,
     error: stageError,
@@ -203,23 +175,6 @@ export async function updateProjectStageStatus(
     stageError ||
     !stage
   ) {
-    console.error(
-      "Ошибка загрузки этапа:",
-      {
-        message:
-          stageError?.message,
-
-        details:
-          stageError?.details,
-
-        hint:
-          stageError?.hint,
-
-        code:
-          stageError?.code,
-      }
-    );
-
     return {
       success: false,
       message:
@@ -230,22 +185,13 @@ export async function updateProjectStageStatus(
   const now =
     new Date().toISOString();
 
-  /*
-   * =====================================
-   * НАЧАТЬ ЭТАП
-   * =====================================
-   */
-  if (
-    action ===
-    "start"
-  ) {
+  if (action === "start") {
     if (
       stage.status !==
       "planned"
     ) {
       return {
         success: false,
-
         message:
           "Начать можно только запланированный этап",
       };
@@ -296,23 +242,6 @@ export async function updateProjectStageStatus(
       );
 
     if (error) {
-      console.error(
-        "Ошибка начала этапа:",
-        {
-          message:
-            error.message,
-
-          details:
-            error.details,
-
-          hint:
-            error.hint,
-
-          code:
-            error.code,
-        }
-      );
-
       return {
         success: false,
         message:
@@ -320,18 +249,11 @@ export async function updateProjectStageStatus(
       };
     }
 
-    /*
-     * Если это первый запущенный этап,
-     * переводим весь проект в работу.
-     */
     if (
       project.status ===
       "contractor_selected"
     ) {
-      const {
-        error:
-          projectUpdateError,
-      } = await supabase
+      await supabase
         .from("projects")
         .update({
           status:
@@ -355,78 +277,33 @@ export async function updateProjectStageStatus(
           "status",
           "contractor_selected"
         );
-
-      if (
-        projectUpdateError
-      ) {
-        console.error(
-          "Ошибка запуска проекта:",
-          {
-            message:
-              projectUpdateError.message,
-
-            details:
-              projectUpdateError.details,
-
-            hint:
-              projectUpdateError.hint,
-
-            code:
-              projectUpdateError.code,
-          }
-        );
-      }
     }
 
-    /*
-     * История проекта.
-     */
     await createStageEvent({
       supabase,
       projectId,
       authorId:
         user.id,
-
       eventType:
         "stage_started",
-
       title:
         "Этап начат",
-
       description:
         stage.title,
-
       stageId,
     });
 
-    /*
-     * Уведомляем заказчика,
-     * что подрядчик начал этап.
-     */
-    await notifySecondParticipant({
+    await notifyParticipant({
       projectId,
       actorId:
         user.id,
-
-      notificationType:
+      type:
         "stage_started",
-
       title:
         "Начат новый этап",
-
       body:
-        `Подрядчик начал выполнение этапа «${stage.title}».`,
-
-      metadata: {
-        stage_id:
-          stage.id,
-
-        stage_title:
-          stage.title,
-
-        started_at:
-          now,
-      },
+        `Подрядчик начал этап «${stage.title}».`,
+      stageId,
     });
 
     revalidateWorkspace(
@@ -435,28 +312,18 @@ export async function updateProjectStageStatus(
 
     return {
       success: true,
-
       message:
         "Этап переведён в работу",
     };
   }
 
-  /*
-   * =====================================
-   * ОТПРАВИТЬ ЭТАП НА ПРОВЕРКУ
-   * =====================================
-   */
-  if (
-    action ===
-    "submit"
-  ) {
+  if (action === "submit") {
     if (
       stage.status !==
       "in_progress"
     ) {
       return {
         success: false,
-
         message:
           "На проверку можно отправить только выполняемый этап",
       };
@@ -501,81 +368,38 @@ export async function updateProjectStageStatus(
       );
 
     if (error) {
-      console.error(
-        "Ошибка отправки этапа на проверку:",
-        {
-          message:
-            error.message,
-
-          details:
-            error.details,
-
-          hint:
-            error.hint,
-
-          code:
-            error.code,
-        }
-      );
-
       return {
         success: false,
-
         message:
           "Не удалось отправить этап на проверку",
       };
     }
 
-    /*
-     * История проекта.
-     */
     await createStageEvent({
       supabase,
       projectId,
-
       authorId:
         user.id,
-
       eventType:
         "stage_submitted_for_review",
-
       title:
         "Этап отправлен на проверку",
-
       description:
         stage.title,
-
       stageId,
     });
 
-    /*
-     * Главное уведомление заказчику.
-     */
-    await notifySecondParticipant({
+    await notifyParticipant({
       projectId,
-
       actorId:
         user.id,
-
-      notificationType:
+      type:
         "stage_submitted",
-
       title:
         "Этап готов к приёмке",
-
       body:
         `Подрядчик завершил этап «${stage.title}» и отправил его на проверку.`,
-
-      metadata: {
-        stage_id:
-          stage.id,
-
-        stage_title:
-          stage.title,
-
-        submitted_for_review_at:
-          now,
-      },
+      stageId,
     });
 
     revalidateWorkspace(
@@ -584,17 +408,10 @@ export async function updateProjectStageStatus(
 
     return {
       success: true,
-
       message:
         "Этап отправлен заказчику на проверку",
     };
   }
-
-  /*
-   * =====================================
-   * ВОЗОБНОВИТЬ ПОСЛЕ ЗАМЕЧАНИЯ
-   * =====================================
-   */
 
   if (
     stage.status !==
@@ -602,7 +419,6 @@ export async function updateProjectStageStatus(
   ) {
     return {
       success: false,
-
       message:
         "Возобновить можно только этап с замечанием",
     };
@@ -644,84 +460,38 @@ export async function updateProjectStageStatus(
     );
 
   if (error) {
-    console.error(
-      "Ошибка возобновления этапа:",
-      {
-        message:
-          error.message,
-
-        details:
-          error.details,
-
-        hint:
-          error.hint,
-
-        code:
-          error.code,
-      }
-    );
-
     return {
       success: false,
-
       message:
         "Не удалось возобновить этап",
     };
   }
 
-  /*
-   * История.
-   */
   await createStageEvent({
     supabase,
-
     projectId,
-
     authorId:
       user.id,
-
     eventType:
       "stage_started",
-
     title:
       "Исправление замечаний начато",
-
     description:
       stage.title,
-
     stageId,
   });
 
-  /*
-   * Уведомляем заказчика,
-   * что подрядчик приступил
-   * к исправлению замечаний.
-   */
-  await notifySecondParticipant({
+  await notifyParticipant({
     projectId,
-
     actorId:
       user.id,
-
-    notificationType:
+    type:
       "stage_started",
-
     title:
       "Подрядчик начал доработку",
-
     body:
       `Подрядчик возобновил этап «${stage.title}» и приступил к устранению замечаний.`,
-
-    metadata: {
-      stage_id:
-        stage.id,
-
-      stage_title:
-        stage.title,
-
-      resumed_at:
-        now,
-    },
+    stageId,
   });
 
   revalidateWorkspace(
@@ -730,39 +500,25 @@ export async function updateProjectStageStatus(
 
   return {
     success: true,
-
     message:
       "Этап возвращён в работу",
   };
 }
 
-/*
- * Универсальная отправка уведомления
- * второму участнику проекта.
- */
-async function notifySecondParticipant({
+async function notifyParticipant({
   projectId,
   actorId,
-  notificationType,
+  type,
   title,
   body,
-  metadata,
+  stageId,
 }: {
   projectId: string;
-
   actorId: string;
-
-  notificationType: string;
-
+  type: string;
   title: string;
-
   body: string;
-
-  metadata:
-    Record<
-      string,
-      unknown
-    >;
+  stageId: string;
 }) {
   try {
     const recipient =
@@ -775,57 +531,40 @@ async function notifySecondParticipant({
       return;
     }
 
-    const notificationUrl =
-      recipient.recipientRole ===
-      "customer"
-        ? `/customer/work/${projectId}`
-        : `/contractor/work/${projectId}`;
+    await createNotification({
+      userId:
+        recipient.recipientUserId,
 
-    const result =
-      await createNotification({
-        userId:
-          recipient.recipientUserId,
+      actorId,
 
-        actorId,
+      notificationType:
+        type,
 
-        notificationType,
+      title,
 
-        title,
+      body,
 
-        body,
+      projectId,
 
-        projectId,
+      url:
+        recipient.recipientRole ===
+        "customer"
+          ? `/customer/work/${projectId}`
+          : `/contractor/work/${projectId}`,
 
-        url:
-          notificationUrl,
-
-        metadata,
-      });
-
-    if (!result.success) {
-      console.error(
-        "Не удалось создать уведомление этапа:",
-        result.message
-      );
-    }
-  } catch (
-    notificationError
-  ) {
-    /*
-     * Ошибка уведомления
-     * не должна отменять
-     * изменение статуса этапа.
-     */
+      metadata: {
+        stage_id:
+          stageId,
+      },
+    });
+  } catch (error) {
     console.error(
-      "Непредвиденная ошибка уведомления этапа:",
-      notificationError
+      "Ошибка уведомления об этапе:",
+      error
     );
   }
 }
 
-/*
- * История проекта.
- */
 async function createStageEvent({
   supabase,
   projectId,
@@ -841,17 +580,11 @@ async function createStageEvent({
         typeof createClient
       >
     >;
-
   projectId: string;
-
   authorId: string;
-
   eventType: string;
-
   title: string;
-
   description: string;
-
   stageId: string;
 }) {
   const {
@@ -883,26 +616,11 @@ async function createStageEvent({
   if (error) {
     console.error(
       "Ошибка создания события:",
-      {
-        message:
-          error.message,
-
-        details:
-          error.details,
-
-        hint:
-          error.hint,
-
-        code:
-          error.code,
-      }
+      error
     );
   }
 }
 
-/*
- * Обновление страниц.
- */
 function revalidateWorkspace(
   projectId: string
 ) {
@@ -926,17 +644,13 @@ function revalidateWorkspace(
     "/customer/dashboard"
   );
 
-  /*
-   * Колокольчик находится
-   * в layout.
-   */
   revalidatePath(
-    "/contractor",
+    "/customer",
     "layout"
   );
 
   revalidatePath(
-    "/customer",
+    "/contractor",
     "layout"
   );
 }

@@ -6,6 +6,7 @@ import {
   FileText,
   FolderKanban,
   Home,
+  Search,
   UserRound,
 } from "lucide-react";
 
@@ -88,6 +89,15 @@ export async function DashboardHeader() {
                   >
                     Предложения
                   </NavItem>
+                 
+                  <NavItem
+                    href="/customer/contractors"
+                    icon={
+                        <Search className="h-4 w-4" />
+                    }
+                    >
+                    Подрядчики
+                    </NavItem>
                 </>
               ) : (
                 <>
@@ -208,6 +218,11 @@ export async function DashboardHeader() {
               >
                 Предложения
               </MobileNavItem>
+              <MobileNavItem
+                href="/customer/contractors"
+                >
+                Подрядчики
+                </MobileNavItem>
             </>
           ) : (
             <>

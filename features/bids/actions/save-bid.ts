@@ -1,9 +1,16 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath } from
+  "next/cache";
 
 import { createClient } from
   "@/lib/supabase/server";
+
+import { requireActiveUser } from
+  "@/lib/auth/require-active-user";
+
+import { requireActiveProject } from
+  "@/lib/projects/require-active-project";
 
 import {
   bidSchema,
@@ -23,11 +30,10 @@ export type SaveBidResult = {
 export async function saveBid(
   input: BidInput
 ): Promise<SaveBidResult> {
-  /*
-   * Проверяем входные данные через Zod.
-   */
   const parsed =
-    bidSchema.safeParse(input);
+    bidSchema.safeParse(
+      input
+    );
 
   if (!parsed.success) {
     console.error(
@@ -44,63 +50,24 @@ export async function saveBid(
     };
   }
 
-  const supabase =
-    await createClient();
+  const values =
+    parsed.data;
 
-  /*
-   * Проверяем авторизацию.
-   */
-  const {
-    data: { user },
-    error: userError,
-  } =
-    await supabase.auth.getUser();
+  const activeUser =
+    await requireActiveUser();
 
-  if (
-    userError ||
-    !user
-  ) {
-    return {
-      success: false,
-      message: "Необходимо войти",
-    };
-  }
-
-  const values = parsed.data;
-
-  /*
-   * Загружаем профиль пользователя
-   * и проверяем его роль.
-   */
-  const {
-    data: profile,
-    error: profileError,
-  } = await supabase
-    .from("profiles")
-    .select(`
-      id,
-      role,
-      first_name,
-      last_name
-    `)
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (
-    profileError ||
-    !profile
-  ) {
-    console.error(
-      "Ошибка загрузки профиля подрядчика:",
-      profileError
-    );
-
+  if (!activeUser.success) {
     return {
       success: false,
       message:
-        "Профиль пользователя не найден",
+        activeUser.message,
     };
   }
+
+  const {
+    user,
+    profile,
+  } = activeUser;
 
   if (
     profile.role !==
@@ -113,15 +80,32 @@ export async function saveBid(
     };
   }
 
-  /*
-   * Находим компанию текущего
-   * подрядчика.
-   */
+  const activeProject =
+    await requireActiveProject(
+      values.projectId
+    );
+
+  if (!activeProject.success) {
+    return {
+      success: false,
+      message:
+        activeProject.message,
+    };
+  }
+
+  const project =
+    activeProject.project;
+
+  const supabase =
+    await createClient();
+
   const {
     data: company,
     error: companyError,
   } = await supabase
-    .from("contractor_companies")
+    .from(
+      "contractor_companies"
+    )
     .select(`
       id,
       owner_id,
@@ -129,18 +113,16 @@ export async function saveBid(
       verification_status,
       accepts_new_projects
     `)
-    .eq("owner_id", user.id)
+    .eq(
+      "owner_id",
+      user.id
+    )
     .maybeSingle();
 
   if (
     companyError ||
     !company
   ) {
-    console.error(
-      "Ошибка загрузки компании подрядчика:",
-      companyError
-    );
-
     return {
       success: false,
       message:
@@ -148,10 +130,6 @@ export async function saveBid(
     };
   }
 
-  /*
-   * Непроверенная компания
-   * не может отправлять отклики.
-   */
   if (
     company.verification_status !==
     "verified"
@@ -173,50 +151,6 @@ export async function saveBid(
     };
   }
 
-  /*
-   * Проверяем проект.
-   */
-  const {
-    data: project,
-    error: projectError,
-  } = await supabase
-    .from("projects")
-    .select(`
-      id,
-      customer_id,
-      title,
-      status,
-      city,
-      budget_min,
-      budget_max,
-      selected_contractor_id
-    `)
-    .eq(
-      "id",
-      values.projectId
-    )
-    .maybeSingle();
-
-  if (
-    projectError ||
-    !project
-  ) {
-    console.error(
-      "Ошибка загрузки проекта для отклика:",
-      projectError
-    );
-
-    return {
-      success: false,
-      message:
-        "Проект не найден или недоступен",
-    };
-  }
-
-  /*
-   * Подрядчик не может откликаться
-   * на собственный проект.
-   */
   if (
     project.customer_id ===
     user.id
@@ -228,12 +162,9 @@ export async function saveBid(
     };
   }
 
-  /*
-   * Отклики принимаются только
-   * на опубликованные проекты.
-   */
   if (
-    project.status !== "published"
+    project.status !==
+    "published"
   ) {
     return {
       success: false,
@@ -252,15 +183,13 @@ export async function saveBid(
     };
   }
 
-  /*
-   * Проверяем, существует ли уже
-   * отклик этой компании на проект.
-   */
   const {
     data: existingBid,
     error: existingBidError,
   } = await supabase
-    .from("project_bids")
+    .from(
+      "project_bids"
+    )
     .select(`
       id,
       status,
@@ -277,11 +206,6 @@ export async function saveBid(
     .maybeSingle();
 
   if (existingBidError) {
-    console.error(
-      "Ошибка проверки существующего предложения:",
-      existingBidError
-    );
-
     return {
       success: false,
       message:
@@ -289,10 +213,6 @@ export async function saveBid(
     };
   }
 
-  /*
-   * Нельзя редактировать уже принятое
-   * или отклонённое предложение.
-   */
   if (
     existingBid &&
     [
@@ -328,7 +248,8 @@ export async function saveBid(
       null,
 
     message:
-      values.message?.trim() ||
+      values.message
+        ?.trim() ||
       null,
 
     updated_at:
@@ -336,19 +257,20 @@ export async function saveBid(
   };
 
   let savedBidId: string;
-  let isNewBid = false;
+  let isNewBid =
+    false;
 
-  /*
-   * Если отклик уже есть —
-   * обновляем его.
-   */
   if (existingBid) {
     const {
       data: updatedBid,
-      error: updateError,
+      error,
     } = await supabase
-      .from("project_bids")
-      .update(bidPayload)
+      .from(
+        "project_bids"
+      )
+      .update(
+        bidPayload
+      )
       .eq(
         "id",
         existingBid.id
@@ -357,22 +279,19 @@ export async function saveBid(
         "contractor_id",
         company.id
       )
-      .select("id")
+      .select(
+        "id"
+      )
       .maybeSingle();
 
     if (
-      updateError ||
+      error ||
       !updatedBid
     ) {
-      console.error(
-        "Ошибка обновления предложения:",
-        updateError
-      );
-
       return {
         success: false,
         message:
-          updateError?.message ??
+          error?.message ??
           "Не удалось обновить предложение",
       };
     }
@@ -380,38 +299,29 @@ export async function saveBid(
     savedBidId =
       updatedBid.id;
   } else {
-    /*
-     * Если отклика ещё нет —
-     * создаём новый.
-     */
     const {
-  data: createdBid,
-  error: insertError,
-} = await supabase
-  .from("project_bids")
-  .insert({
-    ...bidPayload,
-
-    status: "submitted",
-  })
-  .select("id")
-  .single();
+      data: createdBid,
+      error,
+    } = await supabase
+      .from(
+        "project_bids"
+      )
+      .insert({
+        ...bidPayload,
+        status:
+          "submitted",
+      })
+      .select(
+        "id"
+      )
+      .single();
 
     if (
-      insertError ||
+      error ||
       !createdBid
     ) {
-      console.error(
-        "Ошибка создания предложения:",
-        insertError
-      );
-
-      /*
-       * Обрабатываем возможное
-       * ограничение уникальности.
-       */
       if (
-        insertError?.code ===
+        error?.code ===
         "23505"
       ) {
         return {
@@ -424,7 +334,7 @@ export async function saveBid(
       return {
         success: false,
         message:
-          insertError?.message ??
+          error?.message ??
           "Не удалось отправить предложение",
       };
     }
@@ -432,19 +342,17 @@ export async function saveBid(
     savedBidId =
       createdBid.id;
 
-    isNewBid = true;
+    isNewBid =
+      true;
   }
 
-  /*
-   * Создаём событие проекта.
-   * Ошибка события не должна отменять
-   * сохранённое предложение.
-   */
   if (isNewBid) {
     const {
       error: eventError,
     } = await supabase
-      .from("project_events")
+      .from(
+        "project_events"
+      )
       .insert({
         project_id:
           values.projectId,
@@ -484,16 +392,7 @@ export async function saveBid(
         eventError
       );
     }
-  }
 
-  /*
-   * Создаём уведомление заказчику.
-   *
-   * Только при первом создании отклика.
-   * При обычном редактировании новый
-   * красный счётчик не появляется.
-   */
-  if (isNewBid) {
     try {
       const contractorName =
         getContractorDisplayName({
@@ -507,73 +406,56 @@ export async function saveBid(
             profile.last_name,
         });
 
-      const notificationResult =
-        await createNotification({
-          userId:
-            project.customer_id,
+      await createNotification({
+        userId:
+          project.customer_id,
 
-          actorId:
-            user.id,
+        actorId:
+          user.id,
 
-          notificationType:
-            "new_bid",
+        notificationType:
+          "new_bid",
 
-          title:
-            "Новое предложение",
+        title:
+          "Новое предложение",
 
-          body:
-            `${contractorName} оставил предложение по проекту «${project.title}»`,
+        body:
+          `${contractorName} оставил предложение по проекту «${project.title}»`,
 
-          projectId:
-            values.projectId,
+        projectId:
+          values.projectId,
 
-          url:
-            `/customer/projects/${values.projectId}`,
+        url:
+          `/customer/projects/${values.projectId}`,
 
-          metadata: {
-            bid_id:
-              savedBidId,
+        metadata: {
+          bid_id:
+            savedBidId,
 
-            contractor_id:
-              company.id,
+          contractor_id:
+            company.id,
 
-            contractor_name:
-              contractorName,
+          contractor_name:
+            contractorName,
 
-            project_title:
-              project.title,
+          project_title:
+            project.title,
 
-            price:
-              values.price,
+          price:
+            values.price,
 
-            duration_days:
-              values.durationDays,
+          duration_days:
+            values.durationDays,
 
-            proposed_start_date:
-              values.proposedStartDate ||
-              null,
-          },
-        });
-
-      if (
-        !notificationResult.success
-      ) {
-        console.error(
-          "Не удалось создать уведомление о новом предложении:",
-          notificationResult.message
-        );
-      }
-    } catch (
-      notificationError
-    ) {
-      /*
-       * Отклик уже сохранён, поэтому
-       * ошибка уведомления не должна
-       * возвращать ошибку подрядчику.
-       */
+          proposed_start_date:
+            values.proposedStartDate ||
+            null,
+        },
+      });
+    } catch (error) {
       console.error(
-        "Непредвиденная ошибка уведомления о предложении:",
-        notificationError
+        "Ошибка уведомления о новом предложении:",
+        error
       );
     }
   }
@@ -629,6 +511,11 @@ function revalidateBidPages(
   revalidatePath(
     "/customer/dashboard"
   );
+
+  revalidatePath(
+    "/customer",
+    "layout"
+  );
 }
 
 function getContractorDisplayName({
@@ -655,13 +542,14 @@ function getContractorDisplayName({
     return normalizedPublicName;
   }
 
-  const personalName = [
-    firstName,
-    lastName,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .trim();
+  const personalName =
+    [
+      firstName,
+      lastName,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
 
   return (
     personalName ||

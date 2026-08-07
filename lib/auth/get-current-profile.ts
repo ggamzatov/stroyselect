@@ -1,31 +1,60 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
 
-export const getCurrentProfile = cache(async () => {
-  const supabase = await createClient();
+import { createClient } from
+  "@/lib/supabase/server";
 
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
+export const getCurrentProfile =
+  cache(async () => {
+    const supabase =
+      await createClient();
 
-  if (userError || !user) {
-    redirect("/login");
-  }
+    const {
+      data: { user },
+      error: userError,
+    } =
+      await supabase.auth.getUser();
 
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single();
+    if (
+      userError ||
+      !user
+    ) {
+      redirect("/login");
+    }
 
-  if (profileError || !profile) {
-    throw new Error("Профиль пользователя не найден");
-  }
+    const {
+      data: profile,
+      error: profileError,
+    } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id)
+      .single();
 
-  return {
-    user,
-    profile,
-  };
-});
+    if (
+      profileError ||
+      !profile
+    ) {
+      throw new Error(
+        "Профиль пользователя не найден"
+      );
+    }
+
+    /*
+     * Заблокированный пользователь
+     * не должен попадать
+     * в обычные кабинеты.
+     */
+    if (
+      profile.is_blocked
+    ) {
+      redirect(
+        "/account-blocked"
+      );
+    }
+
+    return {
+      user,
+      profile,
+    };
+  });

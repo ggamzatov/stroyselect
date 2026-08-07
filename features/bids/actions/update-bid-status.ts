@@ -5,6 +5,12 @@ import { revalidatePath } from "next/cache";
 import { createClient } from
   "@/lib/supabase/server";
 
+import { requireActiveUser } from
+  "@/lib/auth/require-active-user";
+
+import { requireActiveProject } from
+  "@/lib/projects/require-active-project";
+
 import {
   customerBidDecisionSchema,
   type CustomerBidDecisionInput,
@@ -48,36 +54,51 @@ export async function updateBidStatus(
     };
   }
 
-  /*
-   * 2. Supabase.
-   */
-  const supabase =
-    await createClient();
-
-  /*
-   * 3. Авторизация.
-   */
-  const {
-    data: { user },
-    error: userError,
-  } =
-    await supabase.auth.getUser();
-
-  if (
-    userError ||
-    !user
-  ) {
-    return {
-      success: false,
-      message:
-        "Необходимо войти",
-    };
-  }
-
   const {
     bidId,
     decision,
   } = parsed.data;
+
+  /*
+   * 2. Проверяем активность
+   * учётной записи.
+   */
+  const activeUser =
+    await requireActiveUser();
+
+  if (!activeUser.success) {
+    return {
+      success: false,
+      message:
+        activeUser.message,
+    };
+  }
+
+  const {
+    user,
+    profile,
+  } = activeUser;
+
+  /*
+   * Решения по предложениям
+   * принимает только заказчик.
+   */
+  if (
+    profile.role !==
+    "customer"
+  ) {
+    return {
+      success: false,
+      message:
+        "Управлять предложениями может только заказчик",
+    };
+  }
+
+  /*
+   * 3. Supabase.
+   */
+  const supabase =
+    await createClient();
 
   /*
    * 4. Загружаем предложение.
@@ -136,7 +157,24 @@ export async function updateBidStatus(
   }
 
   /*
-   * 5. Проверяем, что проект
+   * 5. Проверяем административную
+   * блокировку проекта.
+   */
+  const activeProject =
+    await requireActiveProject(
+      bid.project_id
+    );
+
+  if (!activeProject.success) {
+    return {
+      success: false,
+      message:
+        activeProject.message,
+    };
+  }
+
+  /*
+   * 6. Проверяем, что проект
    * принадлежит текущему заказчику.
    */
   const {
@@ -197,7 +235,23 @@ export async function updateBidStatus(
   }
 
   /*
-   * 6. Изменять можно только
+   * Дополнительная защита:
+   * проект из helper должен совпасть
+   * с проектом предложения.
+   */
+  if (
+    activeProject.project.id !==
+    project.id
+  ) {
+    return {
+      success: false,
+      message:
+        "Проект предложения не найден",
+    };
+  }
+
+  /*
+   * 7. Изменять можно только
    * активные предложения.
    */
   const editableStatuses =
@@ -266,7 +320,7 @@ export async function updateBidStatus(
     }
 
     /*
-     * 7. Назначаем подрядчика.
+     * 8. Назначаем подрядчика.
      */
     const {
       data: updatedProject,
@@ -300,6 +354,16 @@ export async function updateBidStatus(
       .is(
         "selected_contractor_id",
         null
+      )
+      /*
+       * Защита от гонки:
+       * проект должен оставаться
+       * административно активным
+       * на момент UPDATE.
+       */
+      .eq(
+        "is_admin_blocked",
+        false
       )
       .select(`
         id,
@@ -339,7 +403,7 @@ export async function updateBidStatus(
     }
 
     /*
-     * 8. Принимаем выбранное предложение.
+     * 9. Принимаем выбранное предложение.
      */
     const {
       error: acceptedBidError,
@@ -390,7 +454,7 @@ export async function updateBidStatus(
     }
 
     /*
-     * 9. Отклоняем остальные
+     * 10. Отклоняем остальные
      * активные предложения.
      */
     const {
@@ -444,7 +508,7 @@ export async function updateBidStatus(
     }
 
     /*
-     * 10. История проекта.
+     * 11. История проекта.
      */
     const {
       error: eventError,
@@ -504,10 +568,8 @@ export async function updateBidStatus(
     }
 
     /*
-     * 11. Уведомляем выбранного
+     * 12. Уведомляем выбранного
      * подрядчика.
-     *
-     * Эта функция у тебя уже была.
      */
     try {
       const notificationResult =
@@ -556,6 +618,29 @@ export async function updateBidStatus(
    * VIEWED / SHORTLISTED / REJECTED
    * ===================================
    */
+
+  /*
+   * Повторно проверяем административную
+   * блокировку непосредственно перед
+   * изменением предложения.
+   *
+   * Это уменьшает окно гонки между
+   * первой проверкой и UPDATE.
+   */
+  const latestProjectCheck =
+    await requireActiveProject(
+      project.id
+    );
+
+  if (
+    !latestProjectCheck.success
+  ) {
+    return {
+      success: false,
+      message:
+        latestProjectCheck.message,
+    };
+  }
 
   const {
     error: updateError,
@@ -702,11 +787,9 @@ export async function updateBidStatus(
 
   /*
    * Для viewed и shortlisted
-   * пока не создаём отдельные
-   * уведомления подрядчику.
-   *
-   * Это специально, чтобы
-   * не создавать лишний шум.
+   * отдельные уведомления
+   * подрядчику не создаём,
+   * чтобы не создавать лишний шум.
    */
 
   revalidateBidPaths(
