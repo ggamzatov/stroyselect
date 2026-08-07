@@ -1,6 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import {
+  useEffect,
+  useState,
+} from "react";
+
+import {
+  ExternalLink,
+  File,
+  FileArchive,
+  FileSpreadsheet,
+  FileText,
+  ImageIcon,
+  X,
+} from "lucide-react";
 
 export type ChatAttachmentData = {
   id: string;
@@ -24,8 +37,10 @@ type Props = {
 export function ChatAttachment({
   attachment,
 }: Props) {
-  const [isImageOpen, setIsImageOpen] =
-    useState(false);
+  const [
+    isImageOpen,
+    setIsImageOpen,
+  ] = useState(false);
 
   const isImage =
     attachment.mime_type.startsWith(
@@ -35,14 +50,16 @@ export function ChatAttachment({
   if (isImage) {
     return (
       <>
-        <div className="mt-3 overflow-hidden rounded-xl border border-black/10 bg-slate-100">
+        <div className="overflow-hidden rounded-[1.15rem] border border-black/10 bg-background/90 text-foreground shadow-sm">
           {attachment.signed_url ? (
             <button
               type="button"
               onClick={() =>
-                setIsImageOpen(true)
+                setIsImageOpen(
+                  true
+                )
               }
-              className="group block w-full"
+              className="group relative block w-full overflow-hidden bg-secondary/40"
             >
               <img
                 src={
@@ -51,18 +68,33 @@ export function ChatAttachment({
                 alt={
                   attachment.original_name
                 }
-                className="max-h-80 w-full object-cover transition group-hover:opacity-90"
+                className="max-h-[360px] w-full object-cover transition duration-300 group-hover:scale-[1.02]"
               />
+
+              <div className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition group-hover:bg-black/25 group-hover:opacity-100">
+                <span className="inline-flex items-center gap-2 rounded-full bg-white/95 px-4 py-2 text-xs font-semibold text-slate-900 shadow-sm">
+                  <ImageIcon className="h-4 w-4" />
+                  Открыть фото
+                </span>
+              </div>
             </button>
           ) : (
-            <div className="flex min-h-40 items-center justify-center p-5 text-sm text-slate-500">
-              Не удалось загрузить
-              изображение
+            <div className="flex min-h-40 flex-col items-center justify-center gap-3 p-6 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary text-primary">
+                <ImageIcon className="h-5 w-5" />
+              </div>
+
+              <p className="text-sm text-muted-foreground">
+                Не удалось загрузить
+                изображение
+              </p>
             </div>
           )}
 
           <AttachmentDetails
-            attachment={attachment}
+            attachment={
+              attachment
+            }
           />
         </div>
 
@@ -73,7 +105,9 @@ export function ChatAttachment({
                 attachment
               }
               onClose={() =>
-                setIsImageOpen(false)
+                setIsImageOpen(
+                  false
+                )
               }
             />
           )}
@@ -82,21 +116,27 @@ export function ChatAttachment({
   }
 
   return (
-    <div className="mt-3 rounded-xl border border-black/10 bg-white/95 p-4 text-slate-900">
+    <div className="rounded-[1.15rem] border border-black/10 bg-background/95 p-4 text-foreground shadow-sm">
       <div className="flex items-start gap-3">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-2xl">
-          {getFileIcon(
-            attachment.mime_type,
-            attachment.file_category
-          )}
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-secondary text-primary">
+          <FileTypeIcon
+            mimeType={
+              attachment.mime_type
+            }
+            category={
+              attachment.file_category
+            }
+          />
         </div>
 
         <div className="min-w-0 flex-1">
-          <p className="break-words text-sm font-semibold">
-            {attachment.original_name}
+          <p className="break-words text-sm font-bold leading-5">
+            {
+              attachment.original_name
+            }
           </p>
 
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
             {getFileTypeLabel(
               attachment.mime_type,
               attachment.file_category
@@ -106,22 +146,31 @@ export function ChatAttachment({
               attachment.size_bytes
             )}
           </p>
+
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {formatDateTime(
+              attachment.created_at
+            )}
+          </p>
         </div>
       </div>
 
       {attachment.signed_url ? (
         <a
-          href={attachment.signed_url}
+          href={
+            attachment.signed_url
+          }
           target="_blank"
           rel="noreferrer"
-          className="mt-4 inline-flex rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"
+          className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-[0_8px_18px_rgba(107,70,50,0.14)] transition hover:bg-[#5c3b2a]"
         >
+          <ExternalLink className="h-4 w-4" />
           Открыть файл
         </a>
       ) : (
-        <p className="mt-4 text-xs text-red-600">
+        <p className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
           Временная ссылка на файл
-          недоступна
+          недоступна.
         </p>
       )}
     </div>
@@ -131,32 +180,42 @@ export function ChatAttachment({
 function AttachmentDetails({
   attachment,
 }: {
-  attachment: ChatAttachmentData;
+  attachment:
+    ChatAttachmentData;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 bg-white p-3 text-slate-900">
+    <div className="flex flex-col gap-3 border-t border-border bg-background/95 p-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
-        <p className="truncate text-sm font-semibold">
-          {attachment.original_name}
+        <p className="truncate text-sm font-semibold text-foreground">
+          {
+            attachment.original_name
+          }
         </p>
 
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 text-xs text-muted-foreground">
           {formatFileSize(
             attachment.size_bytes
+          )}
+          {" · "}
+          {formatDateTime(
+            attachment.created_at
           )}
         </p>
       </div>
 
       {attachment.signed_url && (
         <a
-          href={attachment.signed_url}
+          href={
+            attachment.signed_url
+          }
           target="_blank"
           rel="noreferrer"
           onClick={(event) =>
             event.stopPropagation()
           }
-          className="rounded-lg border px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+          className="inline-flex min-h-9 shrink-0 items-center justify-center gap-2 rounded-xl border border-border bg-card px-3 text-xs font-semibold text-foreground transition hover:bg-secondary/50"
         >
+          <ExternalLink className="h-3.5 w-3.5 text-primary" />
           Оригинал
         </a>
       )}
@@ -168,53 +227,100 @@ function ImageLightbox({
   attachment,
   onClose,
 }: {
-  attachment: ChatAttachmentData;
+  attachment:
+    ChatAttachmentData;
+
   onClose: () => void;
 }) {
+  useEffect(() => {
+    function handleKeyDown(
+      event: KeyboardEvent
+    ) {
+      if (
+        event.key === "Escape"
+      ) {
+        onClose();
+      }
+    }
+
+    document.addEventListener(
+      "keydown",
+      handleKeyDown
+    );
+
+    const oldOverflow =
+      document.body.style
+        .overflow;
+
+    document.body.style.overflow =
+      "hidden";
+
+    return () => {
+      document.removeEventListener(
+        "keydown",
+        handleKeyDown
+      );
+
+      document.body.style.overflow =
+        oldOverflow;
+    };
+  }, [onClose]);
+
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       aria-label="Просмотр изображения"
-      onClick={onClose}
+      onClick={
+        onClose
+      }
     >
       <button
         type="button"
-        onClick={onClose}
-        className="absolute right-4 top-4 rounded-full bg-white/15 px-4 py-2 text-2xl font-bold text-white hover:bg-white/25"
+        onClick={
+          onClose
+        }
+        className="absolute right-4 top-4 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
         aria-label="Закрыть"
+        title="Закрыть"
       >
-        ×
+        <X className="h-5 w-5" />
       </button>
 
       <div
-        className="flex max-h-full max-w-6xl flex-col items-center"
+        className="flex max-h-full w-full max-w-6xl flex-col items-center"
         onClick={(event) =>
           event.stopPropagation()
         }
       >
-        <img
-          src={
-            attachment.signed_url ??
-            ""
-          }
-          alt={
-            attachment.original_name
-          }
-          className="max-h-[80vh] max-w-full rounded-lg object-contain"
-        />
+        <div className="flex max-h-[78vh] w-full items-center justify-center">
+          <img
+            src={
+              attachment.signed_url ??
+              ""
+            }
+            alt={
+              attachment.original_name
+            }
+            className="max-h-[78vh] max-w-full rounded-[1.25rem] object-contain shadow-2xl"
+          />
+        </div>
 
-        <div className="mt-4 text-center text-white">
-          <p className="font-semibold">
+        <div className="mt-5 w-full max-w-2xl rounded-[1.5rem] bg-black/40 p-4 text-center text-white backdrop-blur">
+          <p className="break-words font-semibold">
             {
               attachment.original_name
             }
           </p>
 
-          <p className="mt-1 text-sm text-white/70">
+          <p className="mt-1 text-xs text-white/60">
             {formatFileSize(
               attachment.size_bytes
+            )}
+            {" · "}
+            {formatDateTime(
+              attachment.created_at
             )}
           </p>
 
@@ -225,8 +331,9 @@ function ImageLightbox({
               }
               target="_blank"
               rel="noreferrer"
-              className="mt-4 inline-flex rounded-lg bg-white px-4 py-2 text-sm font-semibold text-slate-900"
+              className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-xl bg-white px-4 text-sm font-semibold text-slate-900 transition hover:bg-white/90"
             >
+              <ExternalLink className="h-4 w-4" />
               Открыть оригинал
             </a>
           )}
@@ -236,43 +343,62 @@ function ImageLightbox({
   );
 }
 
-function getFileIcon(
-  mimeType: string,
-  category: string
-) {
+function FileTypeIcon({
+  mimeType,
+  category,
+}: {
+  mimeType: string;
+  category: string;
+}) {
   if (
     mimeType ===
     "application/pdf"
   ) {
-    return "📄";
+    return (
+      <FileText className="h-6 w-6" />
+    );
   }
 
   if (
-    mimeType.includes("word") ||
+    mimeType.includes(
+      "word"
+    ) ||
     mimeType.includes(
       "wordprocessingml"
     )
   ) {
-    return "📝";
+    return (
+      <FileText className="h-6 w-6" />
+    );
   }
 
   if (
-    mimeType.includes("excel") ||
+    mimeType.includes(
+      "excel"
+    ) ||
     mimeType.includes(
       "spreadsheet"
     )
   ) {
-    return "📊";
+    return (
+      <FileSpreadsheet className="h-6 w-6" />
+    );
   }
 
   if (
     category === "archive" ||
-    mimeType.includes("zip")
+    mimeType.includes(
+      "zip"
+    )
   ) {
-    return "🗂️";
+    return (
+      <FileArchive className="h-6 w-6" />
+    );
   }
 
-  return "📎";
+  return (
+    <File className="h-6 w-6" />
+  );
 }
 
 function getFileTypeLabel(
@@ -287,7 +413,9 @@ function getFileTypeLabel(
   }
 
   if (
-    mimeType.includes("word") ||
+    mimeType.includes(
+      "word"
+    ) ||
     mimeType.includes(
       "wordprocessingml"
     )
@@ -296,7 +424,9 @@ function getFileTypeLabel(
   }
 
   if (
-    mimeType.includes("excel") ||
+    mimeType.includes(
+      "excel"
+    ) ||
     mimeType.includes(
       "spreadsheet"
     )
@@ -305,8 +435,11 @@ function getFileTypeLabel(
   }
 
   if (
-    category === "archive" ||
-    mimeType.includes("zip")
+    category ===
+      "archive" ||
+    mimeType.includes(
+      "zip"
+    )
   ) {
     return "Архив";
   }
@@ -315,18 +448,25 @@ function getFileTypeLabel(
 }
 
 function formatFileSize(
-  value: number | string
+  value:
+    | number
+    | string
 ) {
-  const bytes = Number(value);
+  const bytes =
+    Number(value);
 
   if (
-    !Number.isFinite(bytes) ||
+    !Number.isFinite(
+      bytes
+    ) ||
     bytes < 0
   ) {
     return "Размер неизвестен";
   }
 
-  if (bytes < 1024) {
+  if (
+    bytes < 1024
+  ) {
     return `${bytes} Б`;
   }
 
@@ -343,4 +483,20 @@ function formatFileSize(
     bytes /
     (1024 * 1024)
   ).toFixed(1)} МБ`;
+}
+
+function formatDateTime(
+  value: string
+) {
+  return new Intl.DateTimeFormat(
+    "ru-RU",
+    {
+      dateStyle:
+        "medium",
+      timeStyle:
+        "short",
+    }
+  ).format(
+    new Date(value)
+  );
 }

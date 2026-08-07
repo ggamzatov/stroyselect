@@ -1,6 +1,15 @@
 "use client";
 
 import {
+  Check,
+  CheckCheck,
+  CornerUpLeft,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+} from "lucide-react";
+
+import {
   ChatAttachment,
   type ChatAttachmentData,
 } from "@/features/chat/components/chat-attachment";
@@ -18,7 +27,6 @@ export type RepliedChatMessage = {
   message_text: string;
   is_deleted: boolean;
   created_at: string;
-  
 
   sender:
     | ChatSender
@@ -53,7 +61,6 @@ export type ChatMessageData = {
   attachments?: ChatAttachmentData[];
 };
 
-
 type Props = {
   message: ChatMessageData;
   currentUserId: string;
@@ -64,12 +71,12 @@ type Props = {
   ) => void;
 
   onEdit: (
-  message: ChatMessageData
-) => void;
+    message: ChatMessageData
+  ) => void;
 
-onDelete: (
-  message: ChatMessageData
-) => void;
+  onDelete: (
+    message: ChatMessageData
+  ) => void;
 
   onOpenReply: (
     messageId: string
@@ -79,7 +86,6 @@ onDelete: (
     messageId: string,
     element: HTMLElement | null
   ) => void;
-  
 };
 
 export function ChatMessage({
@@ -92,9 +98,10 @@ export function ChatMessage({
   onOpenReply,
   registerElement,
 }: Props) {
-
   const sender =
-    getSender(message.sender);
+    getSender(
+      message.sender
+    );
 
   const repliedMessage =
     getRepliedMessage(
@@ -103,7 +110,8 @@ export function ChatMessage({
 
   const repliedSender =
     getSender(
-      repliedMessage?.sender ?? null
+      repliedMessage?.sender ??
+        null
     );
 
   const isOwn =
@@ -112,9 +120,23 @@ export function ChatMessage({
 
   const isRead =
     isOwn &&
-    recipientLastReadAt !== null &&
-    new Date(message.created_at) <=
-      new Date(recipientLastReadAt);
+    recipientLastReadAt !==
+      null &&
+    new Date(
+      message.created_at
+    ) <=
+      new Date(
+        recipientLastReadAt
+      );
+
+  const hasText =
+    Boolean(
+      message.message_text.trim()
+    );
+
+  const hasAttachments =
+    (message.attachments
+      ?.length ?? 0) > 0;
 
   return (
     <article
@@ -124,174 +146,276 @@ export function ChatMessage({
           element
         )
       }
-      className={
+      className={[
+        "group flex transition",
         isOwn
-          ? "flex justify-end transition"
-          : "flex justify-start transition"
-      }
+          ? "justify-end"
+          : "justify-start",
+      ].join(" ")}
     >
       <div
-        className={
+        className={[
+          "max-w-[88%] sm:max-w-[74%]",
           isOwn
-            ? "max-w-[85%] rounded-2xl rounded-br-md bg-blue-700 px-4 py-3 text-white sm:max-w-[70%]"
-            : "max-w-[85%] rounded-2xl rounded-bl-md border bg-white px-4 py-3 text-slate-900 sm:max-w-[70%]"
-        }
+            ? "items-end"
+            : "items-start",
+        ].join(" ")}
       >
         {!isOwn && (
-          <p className="mb-1 text-xs font-semibold text-blue-700">
-            {getSenderName(sender)}
-          </p>
-        )}
+          <div className="mb-1.5 flex items-center gap-2 px-1">
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-secondary text-[11px] font-bold text-primary">
+              {getSenderInitials(
+                sender
+              )}
+            </div>
 
-        {repliedMessage && (
-          <button
-            type="button"
-            onClick={() =>
-              onOpenReply(
-                repliedMessage.id
-              )
-            }
-            className={
-              isOwn
-                ? "mb-3 block w-full rounded-lg border-l-4 border-blue-200 bg-blue-800/40 px-3 py-2 text-left"
-                : "mb-3 block w-full rounded-lg border-l-4 border-blue-600 bg-slate-50 px-3 py-2 text-left"
-            }
-          >
-            <p
-              className={
-                isOwn
-                  ? "text-xs font-semibold text-blue-100"
-                  : "text-xs font-semibold text-blue-700"
-              }
-            >
+            <p className="text-xs font-semibold text-foreground">
               {getSenderName(
-                repliedSender
+                sender
               )}
             </p>
-
-            <p
-              className={
-                isOwn
-                  ? "mt-1 line-clamp-2 text-xs text-blue-50"
-                  : "mt-1 line-clamp-2 text-xs text-slate-600"
-              }
-            >
-              {repliedMessage.is_deleted
-                ? "🗑 Сообщение удалено"
-                : repliedMessage.message_text ||
-                    "Вложение"}
-            </p>
-          </button>
+          </div>
         )}
-
-       {message.is_deleted ? (
-  <p
-    className={
-      isOwn
-        ? "text-sm italic text-blue-100"
-        : "text-sm italic text-slate-500"
-    }
-  >
-    🗑 Сообщение удалено
-  </p>
-) : (
-  <>
-    {message.message_text && (
-      <p className="whitespace-pre-wrap break-words text-sm leading-6">
-        {message.message_text}
-      </p>
-    )}
-
-    {(message.attachments?.length ??
-      0) > 0 && (
-      <div className="space-y-3">
-        {message.attachments?.map(
-          (attachment) => (
-            <ChatAttachment
-              key={attachment.id}
-              attachment={attachment}
-            />
-          )
-        )}
-      </div>
-    )}
-  </>
-)}
 
         <div
-          className={
+          className={[
+            "relative overflow-hidden rounded-[1.35rem] px-4 py-3 shadow-sm",
             isOwn
-              ? "mt-2 flex flex-wrap items-center justify-end gap-2 text-[11px] text-blue-100"
-              : "mt-2 flex flex-wrap items-center justify-end gap-2 text-[11px] text-slate-400"
-          }
+              ? "rounded-br-md bg-primary text-primary-foreground"
+              : "rounded-bl-md border border-border bg-card text-foreground",
+          ].join(" ")}
         >
-          {message.edited_at && (
-            <span>изменено</span>
+          {repliedMessage && (
+            <button
+              type="button"
+              onClick={() =>
+                onOpenReply(
+                  repliedMessage.id
+                )
+              }
+              className={[
+                "mb-3 block w-full rounded-xl border-l-[3px] px-3 py-2 text-left transition",
+                isOwn
+                  ? "border-white/70 bg-white/10 hover:bg-white/15"
+                  : "border-primary bg-secondary/60 hover:bg-secondary",
+              ].join(" ")}
+            >
+              <p
+                className={[
+                  "text-xs font-semibold",
+                  isOwn
+                    ? "text-white/90"
+                    : "text-primary",
+                ].join(" ")}
+              >
+                {getSenderName(
+                  repliedSender
+                )}
+              </p>
+
+              <p
+                className={[
+                  "mt-1 line-clamp-2 text-xs leading-5",
+                  isOwn
+                    ? "text-white/70"
+                    : "text-muted-foreground",
+                ].join(" ")}
+              >
+                {repliedMessage.is_deleted
+                  ? "Сообщение удалено"
+                  : repliedMessage.message_text ||
+                    "Вложение"}
+              </p>
+            </button>
           )}
 
-          <time
-            dateTime={
-              message.created_at
-            }
+          {message.is_deleted ? (
+            <p
+              className={[
+                "text-sm italic",
+                isOwn
+                  ? "text-white/65"
+                  : "text-muted-foreground",
+              ].join(" ")}
+            >
+              Сообщение удалено
+            </p>
+          ) : (
+            <>
+              {hasText && (
+                <p className="whitespace-pre-wrap break-words text-sm leading-6">
+                  {message.message_text}
+                </p>
+              )}
+
+              {hasAttachments && (
+                <div
+                  className={[
+                    "space-y-3",
+                    hasText
+                      ? "mt-3"
+                      : "",
+                  ].join(" ")}
+                >
+                  {message.attachments?.map(
+                    (
+                      attachment
+                    ) => (
+                      <ChatAttachment
+                        key={
+                          attachment.id
+                        }
+                        attachment={
+                          attachment
+                        }
+                      />
+                    )
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+          <div
+            className={[
+              "mt-2 flex flex-wrap items-center justify-end gap-1.5 text-[10px]",
+              isOwn
+                ? "text-white/65"
+                : "text-muted-foreground",
+            ].join(" ")}
           >
-            {formatMessageTime(
-              message.created_at
+            {message.edited_at && (
+              <span>
+                изменено
+              </span>
             )}
-          </time>
 
-          {isOwn && (
-            <span>
-              {isRead
-                ? "✓✓ Прочитано"
-                : "✓ Отправлено"}
-            </span>
-          )}
+            <time
+              dateTime={
+                message.created_at
+              }
+            >
+              {formatMessageTime(
+                message.created_at
+              )}
+            </time>
 
-          {!message.is_deleted && (
-  <button
-    type="button"
-    onClick={() =>
-      onReply(message)
-    }
-    className={
-      isOwn
-        ? "font-semibold text-blue-100 hover:text-white"
-        : "font-semibold text-blue-700 hover:text-blue-900"
-    }
-  >
-    Ответить
-  </button>
-)}
-
-{isOwn &&
-  !message.is_deleted &&
-  message.message_text.trim() && (
-    <button
-      type="button"
-      onClick={() =>
-        onEdit(message)
-      }
-      className="font-semibold text-blue-100 hover:text-white"
-    >
-      Изменить
-    </button>
-  )}
-
-{isOwn &&
-  !message.is_deleted && (
-    <button
-      type="button"
-      onClick={() =>
-        onDelete(message)
-      }
-      className="font-semibold text-red-200 hover:text-white"
-    >
-      Удалить
-    </button>
-  )}
+            {isOwn &&
+              !message.is_deleted && (
+                <ReadStatus
+                  isRead={
+                    isRead
+                  }
+                />
+              )}
+          </div>
         </div>
+
+        {!message.is_deleted && (
+          <div
+            className={[
+              "mt-1 flex items-center gap-1 px-1 opacity-100 transition sm:opacity-0 sm:group-hover:opacity-100",
+              isOwn
+                ? "justify-end"
+                : "justify-start",
+            ].join(" ")}
+          >
+            <MessageAction
+              label="Ответить"
+              icon={
+                <CornerUpLeft className="h-3.5 w-3.5" />
+              }
+              onClick={() =>
+                onReply(
+                  message
+                )
+              }
+            />
+
+            {isOwn &&
+              hasText && (
+                <MessageAction
+                  label="Изменить"
+                  icon={
+                    <Pencil className="h-3.5 w-3.5" />
+                  }
+                  onClick={() =>
+                    onEdit(
+                      message
+                    )
+                  }
+                />
+              )}
+
+            {isOwn && (
+              <MessageAction
+                label="Удалить"
+                destructive
+                icon={
+                  <Trash2 className="h-3.5 w-3.5" />
+                }
+                onClick={() =>
+                  onDelete(
+                    message
+                  )
+                }
+              />
+            )}
+          </div>
+        )}
       </div>
     </article>
+  );
+}
+
+function MessageAction({
+  label,
+  icon,
+  onClick,
+  destructive = false,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  onClick: () => void;
+  destructive?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        "inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2 text-[11px] font-semibold transition",
+        destructive
+          ? "text-red-600 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/30"
+          : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+      ].join(" ")}
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
+
+function ReadStatus({
+  isRead,
+}: {
+  isRead: boolean;
+}) {
+  return (
+    <span
+      className="inline-flex items-center"
+      title={
+        isRead
+          ? "Прочитано"
+          : "Отправлено"
+      }
+    >
+      {isRead ? (
+        <CheckCheck className="h-3.5 w-3.5" />
+      ) : (
+        <Check className="h-3.5 w-3.5" />
+      )}
+    </span>
   );
 }
 
@@ -301,8 +425,15 @@ function getSender(
     | ChatSender[]
     | null
 ): ChatSender | null {
-  if (Array.isArray(value)) {
-    return value[0] ?? null;
+  if (
+    Array.isArray(
+      value
+    )
+  ) {
+    return (
+      value[0] ??
+      null
+    );
   }
 
   return value;
@@ -314,15 +445,24 @@ function getRepliedMessage(
     | RepliedChatMessage[]
     | null
 ): RepliedChatMessage | null {
-  if (Array.isArray(value)) {
-    return value[0] ?? null;
+  if (
+    Array.isArray(
+      value
+    )
+  ) {
+    return (
+      value[0] ??
+      null
+    );
   }
 
   return value;
 }
 
 function getSenderName(
-  sender: ChatSender | null
+  sender:
+    | ChatSender
+    | null
 ) {
   if (!sender) {
     return "Пользователь";
@@ -345,14 +485,50 @@ function getSenderName(
     : "Заказчик";
 }
 
+function getSenderInitials(
+  sender:
+    | ChatSender
+    | null
+) {
+  if (!sender) {
+    return "П";
+  }
+
+  const first =
+    sender.first_name
+      ?.trim()
+      .charAt(0);
+
+  const last =
+    sender.last_name
+      ?.trim()
+      .charAt(0);
+
+  const initials =
+    `${first ?? ""}${last ?? ""}`;
+
+  if (initials) {
+    return initials.toUpperCase();
+  }
+
+  return sender.role ===
+    "contractor"
+    ? "П"
+    : "З";
+}
+
 function formatMessageTime(
   value: string
 ) {
   return new Intl.DateTimeFormat(
     "ru-RU",
     {
-      hour: "2-digit",
-      minute: "2-digit",
+      hour:
+        "2-digit",
+      minute:
+        "2-digit",
     }
-  ).format(new Date(value));
+  ).format(
+    new Date(value)
+  );
 }

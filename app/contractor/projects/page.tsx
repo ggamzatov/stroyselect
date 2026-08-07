@@ -1,6 +1,18 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import {
+  ArrowRight,
+  BadgeCheck,
+  Banknote,
+  BriefcaseBusiness,
+  CalendarDays,
+  FolderSearch,
+  MapPin,
+  SearchX,
+  TriangleAlert,
+} from "lucide-react";
+
 import { getCurrentProfile } from
   "@/lib/auth/get-current-profile";
 
@@ -15,13 +27,12 @@ export default async function ContractorProjectsPage() {
     redirect("/dashboard");
   }
 
-  const { company, projects, debugMessage, } =
-    await getAvailableProjects();
-    {debugMessage && (
-  <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">
-    Ошибка диагностики: {debugMessage}
-  </div>
-)}
+  const {
+    company,
+    projects,
+    debugMessage,
+  } = await getAvailableProjects();
+
   if (!company) {
     return (
       <ContractorNotice
@@ -47,36 +58,56 @@ export default async function ContractorProjectsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50">
-      <div className="mx-auto max-w-6xl px-6 py-10">
-        <div>
-          <p className="text-sm text-slate-500">
-            Кабинет подрядчика
-          </p>
+    <main className="min-h-screen bg-background">
+      <div className="app-container py-8 md:py-12">
+        <section className="relative overflow-hidden rounded-[2rem] border border-border bg-card p-6 shadow-[var(--shadow-soft)] md:p-8">
+          <div className="pointer-events-none absolute -right-20 -top-20 h-72 w-72 rounded-full bg-accent/25 blur-3xl" />
 
-          <h1 className="mt-1 text-3xl font-bold">
-            Доступные проекты
-          </h1>
+          <div className="relative flex items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-[0_12px_25px_rgba(107,70,50,0.20)]">
+              <FolderSearch className="h-5 w-5" />
+            </div>
 
-          <p className="mt-3 text-slate-600">
-            Показаны проекты по вашим
-            специализациям и городам работы.
-          </p>
-        </div>
+            <div>
+              <p className="text-sm font-semibold text-primary">
+                Кабинет подрядчика
+              </p>
+
+              <h1 className="mt-1 text-3xl font-bold tracking-[-0.035em] text-foreground md:text-5xl">
+                Доступные проекты
+              </h1>
+
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground md:text-base">
+                Здесь отображаются проекты,
+                подходящие под ваши специализации
+                и города работы.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {debugMessage && (
+          <div className="mt-6 rounded-[1.25rem] border border-red-200 bg-red-50 p-4 text-red-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-200">
+            <div className="flex items-start gap-3">
+              <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0" />
+
+              <div>
+                <p className="text-sm font-semibold">
+                  Диагностическое сообщение
+                </p>
+
+                <p className="mt-1 text-sm leading-6 opacity-85">
+                  {debugMessage}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {projects.length === 0 ? (
-          <div className="mt-8 rounded-2xl border bg-white p-10 text-center">
-            <h2 className="text-xl font-semibold">
-              Подходящих проектов пока нет
-            </h2>
-
-            <p className="mt-2 text-slate-600">
-              Новые опубликованные проекты
-              появятся здесь.
-            </p>
-          </div>
+          <EmptyProjects />
         ) : (
-          <div className="mt-8 space-y-4">
+          <section className="mt-8 grid gap-5 xl:grid-cols-2">
             {projects.map((project) => {
               const myBid =
                 project.project_bids?.find(
@@ -89,60 +120,120 @@ export default async function ContractorProjectsPage() {
                 <Link
                   key={project.id}
                   href={`/contractor/projects/${project.id}`}
-                  className="block rounded-2xl border bg-white p-6 transition hover:border-blue-300 hover:shadow-sm"
+                  className="group block overflow-hidden rounded-[1.75rem] border border-border bg-card shadow-[var(--shadow-soft)] transition duration-200 hover:-translate-y-1 hover:border-primary/25 hover:shadow-[var(--shadow-card)]"
                 >
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div>
-                      <p className="text-sm text-blue-700">
-                        {getCategoryName(
-                          project.service_categories
+                  <div className="p-6 md:p-7">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-primary">
+                          {getCategoryName(
+                            project.service_categories
+                          )}
+                        </p>
+
+                        <h2 className="mt-2 text-xl font-bold tracking-tight text-foreground md:text-2xl">
+                          {project.title}
+                        </h2>
+
+                        <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
+                          <MapPin className="h-4 w-4 text-primary" />
+
+                          <span>
+                            {project.city ||
+                              "Город не указан"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex shrink-0 flex-col items-end gap-3">
+                        {myBid && (
+                          <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                            <BadgeCheck className="h-4 w-4" />
+                            Предложение отправлено
+                          </span>
                         )}
-                      </p>
 
-                      <h2 className="mt-1 text-xl font-semibold">
-                        {project.title}
-                      </h2>
-
-                      <p className="mt-2 text-sm text-slate-600">
-                        {project.city}
-                      </p>
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-primary transition group-hover:bg-primary group-hover:text-primary-foreground">
+                          <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+                        </div>
+                      </div>
                     </div>
 
-                    {myBid && (
-                      <span className="rounded-full bg-green-100 px-3 py-1 text-sm font-medium text-green-800">
-                        Предложение отправлено
-                      </span>
-                    )}
-                  </div>
+                    <p className="mt-5 line-clamp-3 text-sm leading-6 text-muted-foreground">
+                      {project.description}
+                    </p>
 
-                  <p className="mt-4 line-clamp-3 text-sm leading-6 text-slate-600">
-                    {project.description}
-                  </p>
+                    <div className="my-6 h-px bg-border" />
 
-                  <div className="mt-5 flex flex-wrap gap-4 text-sm font-medium">
-                    <span>
-                      {formatBudget(
-                        project.budget_min,
-                        project.budget_max
-                      )}
-                    </span>
-
-                    {project.desired_start_date && (
-                      <span className="text-slate-500">
-                        Начало:{" "}
-                        {formatDate(
-                          project.desired_start_date
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <ProjectInfo
+                        icon={
+                          <Banknote className="h-5 w-5" />
+                        }
+                        label="Бюджет"
+                        value={formatBudget(
+                          project.budget_min,
+                          project.budget_max
                         )}
-                      </span>
-                    )}
+                        emphasized
+                      />
+
+                      <ProjectInfo
+                        icon={
+                          <CalendarDays className="h-5 w-5" />
+                        }
+                        label="Желаемое начало"
+                        value={
+                          project.desired_start_date
+                            ? formatDate(
+                                project.desired_start_date
+                              )
+                            : "Не указано"
+                        }
+                      />
+                    </div>
+
+                    <div className="mt-5 flex items-center justify-between border-t border-border pt-5">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+                        <BriefcaseBusiness className="h-4 w-4" />
+
+                        {myBid
+                          ? "Открыть проект"
+                          : "Посмотреть и откликнуться"}
+                      </div>
+
+                      <ArrowRight className="h-4 w-4 text-primary transition group-hover:translate-x-1" />
+                    </div>
                   </div>
                 </Link>
               );
             })}
-          </div>
+          </section>
         )}
       </div>
     </main>
+  );
+}
+
+function EmptyProjects() {
+  return (
+    <section className="mt-8 flex min-h-[420px] items-center justify-center rounded-[2rem] border border-dashed border-border bg-card/70 px-6 text-center shadow-[var(--shadow-soft)]">
+      <div className="max-w-md">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[1.4rem] bg-secondary text-primary">
+          <SearchX className="h-7 w-7" />
+        </div>
+
+        <h2 className="mt-6 text-2xl font-bold tracking-tight text-foreground">
+          Подходящих проектов пока нет
+        </h2>
+
+        <p className="mt-3 text-sm leading-6 text-muted-foreground">
+          Новые опубликованные проекты,
+          соответствующие вашему профилю,
+          будут появляться здесь.
+        </p>
+      </div>
+    </section>
   );
 }
 
@@ -158,26 +249,73 @@ function ContractorNotice({
   buttonText: string;
 }) {
   return (
-    <main className="min-h-screen bg-slate-50">
-      <div className="mx-auto max-w-3xl px-6 py-20">
-        <div className="rounded-2xl border bg-white p-8 text-center">
-          <h1 className="text-2xl font-bold">
+    <main className="min-h-screen bg-background">
+      <div className="app-container flex min-h-[75vh] items-center justify-center py-12">
+        <section className="w-full max-w-xl rounded-[2rem] border border-border bg-card p-8 text-center shadow-[var(--shadow-card)]">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[1.4rem] bg-secondary text-primary">
+            <BriefcaseBusiness className="h-7 w-7" />
+          </div>
+
+          <h1 className="mt-6 text-2xl font-bold tracking-tight text-foreground md:text-3xl">
             {title}
           </h1>
 
-          <p className="mt-3 text-slate-600">
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">
             {description}
           </p>
 
           <Link
             href={href}
-            className="mt-6 inline-flex rounded-xl bg-blue-700 px-5 py-3 font-semibold text-white"
+            className="mt-6 inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-primary px-5 font-semibold text-primary-foreground shadow-[0_12px_28px_rgba(107,70,50,0.20)] transition hover:-translate-y-0.5 hover:bg-[#5c3b2a]"
           >
             {buttonText}
+            <ArrowRight className="h-4 w-4" />
           </Link>
-        </div>
+        </section>
       </div>
     </main>
+  );
+}
+
+function ProjectInfo({
+  icon,
+  label,
+  value,
+  emphasized = false,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  emphasized?: boolean;
+}) {
+  return (
+    <div
+      className={[
+        "rounded-2xl border border-border p-4",
+        emphasized
+          ? "bg-secondary/60"
+          : "bg-background/60",
+      ].join(" ")}
+    >
+      <div className="flex items-center gap-2 text-primary">
+        {icon}
+
+        <p className="text-xs font-medium text-muted-foreground">
+          {label}
+        </p>
+      </div>
+
+      <p
+        className={[
+          "mt-2 text-foreground",
+          emphasized
+            ? "text-lg font-bold"
+            : "text-sm font-semibold",
+        ].join(" ")}
+      >
+        {value}
+      </p>
+    </div>
   );
 }
 
@@ -194,24 +332,30 @@ function getCategoryName(
     );
   }
 
-  return value?.name ??
-    "Строительные работы";
+  return (
+    value?.name ??
+    "Строительные работы"
+  );
 }
 
 function formatBudget(
   min: number | string | null,
   max: number | string | null
 ) {
-  const formatter = new Intl.NumberFormat(
-    "ru-RU",
-    {
-      style: "currency",
-      currency: "RUB",
-      maximumFractionDigits: 0,
-    }
-  );
+  const formatter =
+    new Intl.NumberFormat(
+      "ru-RU",
+      {
+        style: "currency",
+        currency: "RUB",
+        maximumFractionDigits: 0,
+      }
+    );
 
-  if (min !== null && max !== null) {
+  if (
+    min !== null &&
+    max !== null
+  ) {
     return `${formatter.format(
       Number(min)
     )} — ${formatter.format(
@@ -234,11 +378,17 @@ function formatBudget(
   return "Бюджет не указан";
 }
 
-function formatDate(value: string) {
+function formatDate(
+  value: string
+) {
   return new Intl.DateTimeFormat(
     "ru-RU",
     {
       dateStyle: "medium",
     }
-  ).format(new Date(`${value}T00:00:00`));
+  ).format(
+    new Date(
+      `${value}T00:00:00`
+    )
+  );
 }

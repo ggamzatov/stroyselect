@@ -16,6 +16,11 @@ import {
 } from
   "@/features/notifications/server/notify-contractor-bid-accepted";
 
+import {
+  notifyContractorBidRejected,
+} from
+  "@/features/notifications/server/notify-contractor-bid-rejected";
+
 export type UpdateBidStatusResult = {
   success: boolean;
   message: string;
@@ -24,6 +29,9 @@ export type UpdateBidStatusResult = {
 export async function updateBidStatus(
   input: CustomerBidDecisionInput
 ): Promise<UpdateBidStatusResult> {
+  /*
+   * 1. Проверяем входные данные.
+   */
   const parsed =
     customerBidDecisionSchema.safeParse(
       input
@@ -32,6 +40,7 @@ export async function updateBidStatus(
   if (!parsed.success) {
     return {
       success: false,
+
       message:
         parsed.error.issues[0]
           ?.message ??
@@ -39,9 +48,15 @@ export async function updateBidStatus(
     };
   }
 
+  /*
+   * 2. Supabase.
+   */
   const supabase =
     await createClient();
 
+  /*
+   * 3. Авторизация.
+   */
   const {
     data: { user },
     error: userError,
@@ -65,7 +80,7 @@ export async function updateBidStatus(
   } = parsed.data;
 
   /*
-   * Загружаем предложение.
+   * 4. Загружаем предложение.
    */
   const {
     data: bid,
@@ -76,19 +91,37 @@ export async function updateBidStatus(
       id,
       project_id,
       contractor_id,
-      status
+      status,
+      price,
+      duration_days
     `)
-    .eq("id", bidId)
+    .eq(
+      "id",
+      bidId
+    )
     .maybeSingle();
 
   if (bidError) {
     console.error(
       "Ошибка загрузки предложения:",
-      bidError
+      {
+        message:
+          bidError.message,
+
+        details:
+          bidError.details,
+
+        hint:
+          bidError.hint,
+
+        code:
+          bidError.code,
+      }
     );
 
     return {
       success: false,
+
       message:
         "Не удалось загрузить предложение",
     };
@@ -103,8 +136,8 @@ export async function updateBidStatus(
   }
 
   /*
-   * Проверяем, что проект принадлежит
-   * текущему заказчику.
+   * 5. Проверяем, что проект
+   * принадлежит текущему заказчику.
    */
   const {
     data: project,
@@ -113,6 +146,7 @@ export async function updateBidStatus(
     .from("projects")
     .select(`
       id,
+      title,
       customer_id,
       status,
       selected_contractor_id,
@@ -131,7 +165,19 @@ export async function updateBidStatus(
   if (projectError) {
     console.error(
       "Ошибка загрузки проекта:",
-      projectError
+      {
+        message:
+          projectError.message,
+
+        details:
+          projectError.details,
+
+        hint:
+          projectError.hint,
+
+        code:
+          projectError.code,
+      }
     );
 
     return {
@@ -144,16 +190,22 @@ export async function updateBidStatus(
   if (!project) {
     return {
       success: false,
+
       message:
         "Проект не найден или у вас нет доступа",
     };
   }
 
-  const editableStatuses = [
-    "submitted",
-    "viewed",
-    "shortlisted",
-  ];
+  /*
+   * 6. Изменять можно только
+   * активные предложения.
+   */
+  const editableStatuses =
+    [
+      "submitted",
+      "viewed",
+      "shortlisted",
+    ];
 
   if (
     !editableStatuses.includes(
@@ -162,6 +214,7 @@ export async function updateBidStatus(
   ) {
     return {
       success: false,
+
       message:
         "Статус этого предложения уже нельзя изменить",
     };
@@ -171,25 +224,33 @@ export async function updateBidStatus(
     new Date().toISOString();
 
   /*
-   * Принятие предложения.
+   * ===================================
+   * ПРИНЯТИЕ ПРЕДЛОЖЕНИЯ
+   * ===================================
    */
   if (
-    decision === "accepted"
+    decision ===
+    "accepted"
   ) {
+    /*
+     * Подрядчик уже выбран.
+     */
     if (
       project.selected_contractor_id
     ) {
       return {
         success: false,
+
         message:
           "По этому проекту уже выбран подрядчик",
       };
     }
 
-    const allowedProjectStatuses = [
-      "published",
-      "collecting_bids",
-    ];
+    const allowedProjectStatuses =
+      [
+        "published",
+        "collecting_bids",
+      ];
 
     if (
       !allowedProjectStatuses.includes(
@@ -198,13 +259,14 @@ export async function updateBidStatus(
     ) {
       return {
         success: false,
+
         message:
           "Текущий статус проекта не позволяет выбрать подрядчика",
       };
     }
 
     /*
-     * Назначаем подрядчика проекту.
+     * 7. Назначаем подрядчика.
      */
     const {
       data: updatedProject,
@@ -252,11 +314,24 @@ export async function updateBidStatus(
     ) {
       console.error(
         "Ошибка назначения подрядчика:",
-        assignError
+        {
+          message:
+            assignError?.message,
+
+          details:
+            assignError?.details,
+
+          hint:
+            assignError?.hint,
+
+          code:
+            assignError?.code,
+        }
       );
 
       return {
         success: false,
+
         message:
           assignError?.message ??
           "Не удалось назначить подрядчика",
@@ -264,7 +339,7 @@ export async function updateBidStatus(
     }
 
     /*
-     * Принимаем выбранное предложение.
+     * 8. Принимаем выбранное предложение.
      */
     const {
       error: acceptedBidError,
@@ -286,24 +361,41 @@ export async function updateBidStatus(
         project.id
       );
 
-    if (acceptedBidError) {
+    if (
+      acceptedBidError
+    ) {
       console.error(
         "Ошибка принятия предложения:",
-        acceptedBidError
+        {
+          message:
+            acceptedBidError.message,
+
+          details:
+            acceptedBidError.details,
+
+          hint:
+            acceptedBidError.hint,
+
+          code:
+            acceptedBidError.code,
+        }
       );
 
       return {
         success: false,
+
         message:
           "Подрядчик назначен, но не удалось обновить статус предложения",
       };
     }
 
     /*
-     * Отклоняем остальные активные предложения.
+     * 9. Отклоняем остальные
+     * активные предложения.
      */
     const {
-      error: rejectOthersError,
+      error:
+        rejectOthersError,
     } = await supabase
       .from("project_bids")
       .update({
@@ -330,18 +422,29 @@ export async function updateBidStatus(
         ]
       );
 
-    if (rejectOthersError) {
+    if (
+      rejectOthersError
+    ) {
       console.error(
         "Ошибка отклонения остальных предложений:",
-        rejectOthersError
+        {
+          message:
+            rejectOthersError.message,
+
+          details:
+            rejectOthersError.details,
+
+          hint:
+            rejectOthersError.hint,
+
+          code:
+            rejectOthersError.code,
+        }
       );
     }
 
     /*
-     * Создаём событие проекта.
-     *
-     * Ошибка события не отменяет
-     * уже выполненный выбор подрядчика.
+     * 10. История проекта.
      */
     const {
       error: eventError,
@@ -372,21 +475,39 @@ export async function updateBidStatus(
 
           selected_at:
             now,
+
+          price:
+            bid.price,
+
+          duration_days:
+            bid.duration_days,
         },
       });
 
     if (eventError) {
       console.error(
         "Ошибка создания события выбора подрядчика:",
-        eventError
+        {
+          message:
+            eventError.message,
+
+          details:
+            eventError.details,
+
+          hint:
+            eventError.hint,
+
+          code:
+            eventError.code,
+        }
       );
     }
 
     /*
-     * Уведомляем выбранного подрядчика.
+     * 11. Уведомляем выбранного
+     * подрядчика.
      *
-     * Ошибка уведомления не должна
-     * отменять уже выполненный выбор.
+     * Эта функция у тебя уже была.
      */
     try {
       const notificationResult =
@@ -401,16 +522,11 @@ export async function updateBidStatus(
             user.id,
         });
 
-      console.log(
-        "Результат уведомления выбранного подрядчика:",
-        notificationResult
-      );
-
       if (
         !notificationResult.success
       ) {
         console.error(
-          "Не удалось уведомить подрядчика:",
+          "Не удалось уведомить выбранного подрядчика:",
           notificationResult.message
         );
       }
@@ -418,7 +534,7 @@ export async function updateBidStatus(
       notificationError
     ) {
       console.error(
-        "Непредвиденная ошибка уведомления подрядчика:",
+        "Непредвиденная ошибка уведомления выбранного подрядчика:",
         notificationError
       );
     }
@@ -429,15 +545,18 @@ export async function updateBidStatus(
 
     return {
       success: true,
+
       message:
         "Предложение принято. Подрядчик назначен на проект.",
     };
   }
 
   /*
-   * Обычная смена статуса:
-   * viewed, shortlisted или rejected.
+   * ===================================
+   * VIEWED / SHORTLISTED / REJECTED
+   * ===================================
    */
+
   const {
     error: updateError,
   } = await supabase
@@ -461,15 +580,134 @@ export async function updateBidStatus(
   if (updateError) {
     console.error(
       "Ошибка изменения статуса предложения:",
-      updateError
+      {
+        message:
+          updateError.message,
+
+        details:
+          updateError.details,
+
+        hint:
+          updateError.hint,
+
+        code:
+          updateError.code,
+      }
     );
 
     return {
       success: false,
+
       message:
         "Не удалось изменить статус предложения",
     };
   }
+
+  /*
+   * Если заказчик отклонил
+   * конкретное предложение —
+   * уведомляем подрядчика.
+   */
+  if (
+    decision ===
+    "rejected"
+  ) {
+    try {
+      const notificationResult =
+        await notifyContractorBidRejected({
+          projectId:
+            project.id,
+
+          bidId:
+            bid.id,
+
+          customerId:
+            user.id,
+        });
+
+      if (
+        !notificationResult.success
+      ) {
+        console.error(
+          "Не удалось уведомить подрядчика об отклонении:",
+          notificationResult.message
+        );
+      }
+    } catch (
+      notificationError
+    ) {
+      console.error(
+        "Непредвиденная ошибка уведомления об отклонении предложения:",
+        notificationError
+      );
+    }
+
+    /*
+     * Добавляем событие
+     * в историю проекта.
+     */
+    const {
+      error: rejectEventError,
+    } = await supabase
+      .from("project_events")
+      .insert({
+        project_id:
+          project.id,
+
+        author_id:
+          user.id,
+
+        event_type:
+          "bid_rejected",
+
+        title:
+          "Предложение отклонено",
+
+        description:
+          "Заказчик отклонил предложение подрядчика",
+
+        metadata: {
+          bid_id:
+            bid.id,
+
+          contractor_id:
+            bid.contractor_id,
+
+          rejected_at:
+            now,
+        },
+      });
+
+    if (
+      rejectEventError
+    ) {
+      console.error(
+        "Ошибка создания события отклонения предложения:",
+        {
+          message:
+            rejectEventError.message,
+
+          details:
+            rejectEventError.details,
+
+          hint:
+            rejectEventError.hint,
+
+          code:
+            rejectEventError.code,
+        }
+      );
+    }
+  }
+
+  /*
+   * Для viewed и shortlisted
+   * пока не создаём отдельные
+   * уведомления подрядчику.
+   *
+   * Это специально, чтобы
+   * не создавать лишний шум.
+   */
 
   revalidateBidPaths(
     project.id
@@ -477,6 +715,7 @@ export async function updateBidStatus(
 
   return {
     success: true,
+
     message:
       getDecisionMessage(
         decision
@@ -487,6 +726,9 @@ export async function updateBidStatus(
 function revalidateBidPaths(
   projectId: string
 ) {
+  /*
+   * Заказчик.
+   */
   revalidatePath(
     "/customer/dashboard"
   );
@@ -503,6 +745,13 @@ function revalidateBidPaths(
     `/customer/work/${projectId}`
   );
 
+  revalidatePath(
+    "/customer/projects"
+  );
+
+  /*
+   * Подрядчик.
+   */
   revalidatePath(
     "/contractor/dashboard"
   );
@@ -522,6 +771,19 @@ function revalidateBidPaths(
   revalidatePath(
     `/contractor/work/${projectId}`
   );
+
+  /*
+   * Header + колокольчик.
+   */
+  revalidatePath(
+    "/customer",
+    "layout"
+  );
+
+  revalidatePath(
+    "/contractor",
+    "layout"
+  );
 }
 
 function getDecisionMessage(
@@ -531,7 +793,9 @@ function getDecisionMessage(
     | "accepted"
     | "rejected"
 ) {
-  switch (decision) {
+  switch (
+    decision
+  ) {
     case "viewed":
       return (
         "Предложение отмечено как просмотренное"

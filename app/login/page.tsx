@@ -1,34 +1,164 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { LoginForm } from "@/features/auth/components/login-form";
+
+import {
+  ArrowLeft,
+  CheckCircle2,
+  ShieldCheck,
+} from "lucide-react";
+
+import { LoginForm } from
+  "@/features/auth/components/login-form";
 
 export const metadata: Metadata = {
-  title: "Вход",
+  title: "Вход | СтройВыбор",
 };
 
 export default function LoginPage() {
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-12">
-      <div className="mx-auto flex max-w-md flex-col items-center">
-        <Link
-          href="/"
-          className="mb-8 text-xl font-bold text-slate-950"
-        >
-          СтройВыбор
-        </Link>
+    <main className="min-h-screen bg-background">
+      <div className="grid min-h-screen lg:grid-cols-[1fr_560px]">
+        {/* Левая часть */}
 
-        <LoginForm />
+        <section className="relative hidden overflow-hidden bg-primary p-10 text-primary-foreground lg:flex lg:flex-col lg:justify-between xl:p-14">
+          <div className="pointer-events-none absolute -left-40 -top-40 h-[420px] w-[420px] rounded-full bg-white/10 blur-3xl" />
 
-        <p className="mt-6 text-sm text-slate-600">
-          Нет учетной записи?{" "}
+          <div className="pointer-events-none absolute -bottom-48 -right-40 h-[520px] w-[520px] rounded-full bg-white/10 blur-3xl" />
+
           <Link
-            href="/register"
-            className="font-semibold text-blue-700 hover:underline"
+            href="/"
+            className="relative text-2xl font-black tracking-[-0.045em]"
           >
-            Зарегистрироваться
+            СтройВыбор
           </Link>
-        </p>
+
+          <div className="relative max-w-xl">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-2 text-sm font-semibold backdrop-blur">
+              <ShieldCheck className="h-4 w-4" />
+
+              Единое пространство для строительства
+            </div>
+
+            <h1 className="mt-7 text-5xl font-black leading-[1.05] tracking-[-0.055em] xl:text-6xl">
+              Управляйте проектом от поиска подрядчика до завершения работ
+            </h1>
+
+            <p className="mt-6 max-w-lg text-base leading-8 text-primary-foreground/70">
+              Предложения подрядчиков, этапы,
+              фотографии, документы, чат и история
+              проекта — всё в одном сервисе.
+            </p>
+
+            <div className="mt-9 space-y-4">
+              <Feature text="Сравнивайте предложения подрядчиков" />
+
+              <Feature text="Контролируйте каждый этап работ" />
+
+              <Feature text="Храните документы и фотографии проекта" />
+
+              <Feature text="Фиксируйте договорённости в чате" />
+            </div>
+          </div>
+
+          <div className="relative">
+            <p className="text-sm text-primary-foreground/50">
+              СтройВыбор
+            </p>
+
+            <p className="mt-1 text-xs text-primary-foreground/35">
+              Сервис для заказчиков и подрядчиков
+            </p>
+          </div>
+        </section>
+
+        {/* Правая часть */}
+
+        <section className="relative flex min-h-screen items-center justify-center px-5 py-10 sm:px-8 lg:px-12">
+          <div className="pointer-events-none absolute right-0 top-0 h-80 w-80 rounded-full bg-secondary/50 blur-3xl lg:hidden" />
+
+          <div className="relative w-full max-w-md">
+            <Link
+              href="/"
+              className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground transition hover:text-primary"
+            >
+              <ArrowLeft className="h-4 w-4" />
+
+              На главную
+            </Link>
+
+            {/* Логотип на мобильном */}
+
+            <div className="mt-10 lg:hidden">
+              <Link
+                href="/"
+                className="text-2xl font-black tracking-[-0.045em] text-foreground"
+              >
+                СтройВыбор
+              </Link>
+            </div>
+
+            <div className="mt-10 lg:mt-16">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary text-primary">
+                <ShieldCheck className="h-5 w-5" />
+              </div>
+
+              <p className="mt-6 text-sm font-semibold text-primary">
+                С возвращением
+              </p>
+
+              <h1 className="mt-2 text-3xl font-black tracking-[-0.04em] text-foreground sm:text-4xl">
+                Вход в аккаунт
+              </h1>
+
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                Введите email и пароль,
+                указанные при регистрации.
+              </p>
+            </div>
+
+            {/* Существующая форма авторизации */}
+
+            <div className="mt-8">
+              <LoginForm />
+            </div>
+
+            <div className="mt-8 border-t border-border pt-6">
+              <p className="text-center text-sm text-muted-foreground">
+                Нет учетной записи?{" "}
+                <Link
+                  href="/register"
+                  className="font-semibold text-primary transition hover:underline"
+                >
+                  Зарегистрироваться
+                </Link>
+              </p>
+            </div>
+
+            <p className="mt-8 text-center text-xs leading-5 text-muted-foreground/70">
+              Продолжая работу с сервисом, вы соглашаетесь
+              с правилами использования платформы.
+            </p>
+          </div>
+        </section>
       </div>
     </main>
+  );
+}
+
+function Feature({
+  text,
+}: {
+  text: string;
+}) {
+  return (
+    <div className="flex items-center gap-3 text-sm text-primary-foreground/85">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/10">
+        <CheckCircle2 className="h-4 w-4" />
+      </span>
+
+      <span>
+        {text}
+      </span>
+    </div>
   );
 }

@@ -1,5 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import {
+  ArrowRight,
+  CalendarDays,
+  FolderKanban,
+  MapPin,
+  Plus,
+  Wallet,
+} from "lucide-react";
 
 import { getCurrentProfile } from "@/lib/auth/get-current-profile";
 import { getMyProjects } from "@/features/projects/queries/get-my-projects";
@@ -14,113 +22,141 @@ export default async function CustomerProjectsPage() {
   const projects = await getMyProjects();
 
   return (
-    <main className="min-h-screen bg-slate-50">
-      <div className="mx-auto max-w-6xl px-6 py-10">
-        <div className="flex flex-wrap items-start justify-between gap-4">
+    <main className="min-h-screen bg-background">
+      <div className="app-container py-8 md:py-12">
+        <section className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-sm text-slate-500">
+            <p className="text-sm font-semibold text-primary">
               Кабинет заказчика
             </p>
 
-            <h1 className="mt-1 text-3xl font-bold text-slate-950">
+            <h1 className="mt-2 text-3xl font-bold tracking-[-0.035em] text-foreground md:text-5xl">
               Мои проекты
             </h1>
 
-            <p className="mt-3 text-slate-600">
-              Управляйте черновиками, опубликованными проектами
-              и проектами в работе.
+            <p className="mt-4 max-w-2xl text-sm leading-6 text-muted-foreground md:text-base">
+              Управляйте черновиками, опубликованными проектами,
+              предложениями подрядчиков и объектами в работе.
             </p>
           </div>
 
           <Link
             href="/customer/projects/new"
-            className="rounded-xl bg-blue-700 px-5 py-3 font-semibold text-white transition hover:bg-blue-800"
+            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-primary px-5 font-semibold text-primary-foreground shadow-[0_12px_28px_rgba(107,70,50,0.20)] transition hover:-translate-y-0.5 hover:bg-[#5c3b2a]"
           >
+            <Plus className="h-5 w-5" />
             Создать проект
           </Link>
-        </div>
+        </section>
 
         {projects.length === 0 ? (
-          <div className="mt-8 rounded-2xl border bg-white p-10 text-center">
-            <h2 className="text-xl font-semibold text-slate-950">
-              Проектов пока нет
-            </h2>
-
-            <p className="mt-2 text-slate-600">
-              Создайте первый проект и опубликуйте его для
-              подрядчиков.
-            </p>
-
-            <Link
-              href="/customer/projects/new"
-              className="mt-6 inline-flex rounded-xl bg-blue-700 px-5 py-3 font-semibold text-white transition hover:bg-blue-800"
-            >
-              Создать первый проект
-            </Link>
-          </div>
+          <EmptyProjects />
         ) : (
-          <div className="mt-8 space-y-4">
+          <section className="mt-8 grid gap-5 xl:grid-cols-2">
             {projects.map((project) => (
               <Link
                 key={project.id}
                 href={`/customer/projects/${project.id}`}
-                className="block rounded-2xl border bg-white p-6 transition hover:border-blue-300 hover:shadow-sm"
+                className="group block overflow-hidden rounded-[1.75rem] border border-border bg-card shadow-[var(--shadow-soft)] transition duration-200 hover:-translate-y-1 hover:border-primary/25 hover:shadow-[var(--shadow-card)]"
               >
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-blue-700">
-                      {getCategoryName(
-                        project.service_categories
-                      )}
-                    </p>
+                <div className="p-6 md:p-7">
+                  <div className="flex items-start justify-between gap-5">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-primary">
+                        {getCategoryName(project.service_categories)}
+                      </p>
 
-                    <h2 className="mt-1 text-xl font-semibold text-slate-950">
-                      {project.title}
-                    </h2>
+                      <h2 className="mt-2 text-xl font-bold tracking-tight text-foreground md:text-2xl">
+                        {project.title}
+                      </h2>
 
-                    <p className="mt-2 text-sm text-slate-500">
-                      {project.city || "Город не указан"}
-                    </p>
+                      <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
+                        <MapPin className="h-4 w-4 shrink-0" />
+                        <span>
+                          {project.city || "Город не указан"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex shrink-0 flex-col items-end gap-3">
+                      <ProjectStatusBadge status={project.status} />
+
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-primary transition group-hover:bg-primary group-hover:text-primary-foreground">
+                        <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+                      </div>
+                    </div>
                   </div>
 
-                  <ProjectStatusBadge
-                    status={project.status}
-                  />
-                </div>
+                  <p className="mt-5 line-clamp-3 text-sm leading-6 text-muted-foreground">
+                    {project.description}
+                  </p>
 
-                <p className="mt-4 line-clamp-3 text-sm leading-6 text-slate-600">
-                  {project.description}
-                </p>
+                  <div className="my-6 h-px bg-border" />
 
-                <div className="mt-5 grid gap-4 sm:grid-cols-3">
-                  <InfoItem
-                    label="Бюджет"
-                    value={formatBudget(
-                      project.budget_min,
-                      project.budget_max
-                    )}
-                  />
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <InfoItem
+                      icon={<Wallet className="h-4 w-4" />}
+                      label="Бюджет"
+                      value={formatBudget(
+                        project.budget_min,
+                        project.budget_max
+                      )}
+                    />
 
-                  <InfoItem
-    label="Создан"
-    value={formatDateTime(project.created_at) ?? "—"}
-/>
+                    <InfoItem
+                      icon={<CalendarDays className="h-4 w-4" />}
+                      label="Создан"
+                      value={
+                        formatDateTime(project.created_at) ?? "—"
+                      }
+                    />
 
-                  <InfoItem
-                    label="Опубликован"
-                    value={
-                      formatDateTime(
-                        project.published_at
-                      ) ?? "Не опубликован"
-                    }
-                  />
+                    <InfoItem
+                      icon={<CalendarDays className="h-4 w-4" />}
+                      label="Опубликован"
+                      value={
+                        formatDateTime(project.published_at) ??
+                        "Не опубликован"
+                      }
+                    />
+                  </div>
                 </div>
               </Link>
             ))}
-          </div>
+          </section>
         )}
       </div>
     </main>
+  );
+}
+
+function EmptyProjects() {
+  return (
+    <section className="mt-10 flex min-h-[430px] items-center justify-center rounded-[2rem] border border-dashed border-border bg-card/70 px-6 text-center shadow-[var(--shadow-soft)]">
+      <div className="max-w-md">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[1.4rem] bg-secondary text-primary">
+          <FolderKanban className="h-7 w-7" />
+        </div>
+
+        <h2 className="mt-6 text-2xl font-bold tracking-tight text-foreground">
+          Проектов пока нет
+        </h2>
+
+        <p className="mt-3 text-sm leading-6 text-muted-foreground">
+          Создайте первый проект, укажите задачу, бюджет и сроки.
+          После публикации подрядчики смогут отправлять вам свои
+          предложения.
+        </p>
+
+        <Link
+          href="/customer/projects/new"
+          className="mt-6 inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-primary px-5 font-semibold text-primary-foreground shadow-[0_12px_28px_rgba(107,70,50,0.20)] transition hover:-translate-y-0.5 hover:bg-[#5c3b2a]"
+        >
+          <Plus className="h-5 w-5" />
+          Создать первый проект
+        </Link>
+      </div>
+    </section>
   );
 }
 
@@ -138,16 +174,10 @@ function getCategoryName(
     | undefined
 ) {
   if (Array.isArray(value)) {
-    return (
-      value[0]?.name ??
-      "Категория не указана"
-    );
+    return value[0]?.name ?? "Категория не указана";
   }
 
-  return (
-    value?.name ??
-    "Категория не указана"
-  );
+  return value?.name ?? "Категория не указана";
 }
 
 function ProjectStatusBadge({
@@ -155,122 +185,125 @@ function ProjectStatusBadge({
 }: {
   status: string;
 }) {
-  const config =
-    getProjectStatusConfig(status);
+  const config = getProjectStatusConfig(status);
 
   return (
     <span
-      className={`rounded-full px-3 py-1 text-sm font-semibold ${config.className}`}
+      className={[
+        "inline-flex items-center rounded-full px-3 py-1.5 text-xs font-semibold",
+        config.className,
+      ].join(" ")}
     >
       {config.label}
     </span>
   );
 }
 
-function getProjectStatusConfig(
-  status: string
-) {
+function getProjectStatusConfig(status: string) {
   switch (status) {
     case "draft":
       return {
         label: "Черновик",
-        className:
-          "bg-slate-100 text-slate-700",
+        className: "bg-muted text-muted-foreground",
       };
 
     case "submitted":
       return {
         label: "Отправлен",
-        className:
-          "bg-blue-100 text-blue-800",
+        className: "bg-secondary text-secondary-foreground",
       };
 
     case "moderation":
       return {
         label: "На модерации",
         className:
-          "bg-purple-100 text-purple-800",
+          "bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300",
       };
 
     case "needs_clarification":
       return {
         label: "Требует уточнения",
         className:
-          "bg-orange-100 text-orange-800",
+          "bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300",
       };
 
     case "published":
       return {
         label: "Опубликован",
         className:
-          "bg-green-100 text-green-800",
+          "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
       };
 
     case "collecting_bids":
       return {
         label: "Сбор предложений",
         className:
-          "bg-cyan-100 text-cyan-800",
+          "bg-cyan-50 text-cyan-700 dark:bg-cyan-950/40 dark:text-cyan-300",
       };
 
     case "contractor_selected":
       return {
         label: "Подрядчик выбран",
         className:
-          "bg-indigo-100 text-indigo-800",
+          "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300",
       };
 
     case "in_progress":
       return {
         label: "В работе",
         className:
-          "bg-amber-100 text-amber-800",
+          "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300",
       };
 
     case "completed":
       return {
         label: "Завершён",
         className:
-          "bg-emerald-100 text-emerald-800",
+          "bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-300",
       };
 
     case "cancelled":
       return {
         label: "Отменён",
         className:
-          "bg-red-100 text-red-800",
+          "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300",
       };
 
     case "disputed":
       return {
         label: "Спор",
         className:
-          "bg-rose-100 text-rose-800",
+          "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300",
       };
 
     default:
       return {
         label: status,
-        className:
-          "bg-slate-100 text-slate-700",
+        className: "bg-muted text-muted-foreground",
       };
   }
 }
 
 function InfoItem({
+  icon,
   label,
   value,
 }: {
+  icon: React.ReactNode;
   label: string;
   value: string;
 }) {
   return (
-    <div>
-      <p className="text-xs text-slate-500">
-        {label}
-      </p>
+    <div className="rounded-2xl bg-secondary/45 p-4">
+      <div className="flex items-center gap-2 text-primary">
+        {icon}
 
-      <p className="mt-1 font-semibold text-slate-900">
+        <p className="text-xs font-medium text-muted-foreground">
+          {label}
+        </p>
+      </div>
+
+      <p className="mt-2 text-sm font-semibold leading-5 text-foreground">
         {value}
       </p>
     </div>
@@ -281,48 +314,36 @@ function formatBudget(
   min: number | string | null,
   max: number | string | null
 ) {
-  const formatter =
-    new Intl.NumberFormat("ru-RU", {
-      style: "currency",
-      currency: "RUB",
-      maximumFractionDigits: 0,
-    });
+  const formatter = new Intl.NumberFormat("ru-RU", {
+    style: "currency",
+    currency: "RUB",
+    maximumFractionDigits: 0,
+  });
 
   if (min !== null && max !== null) {
-    return `${formatter.format(
-      Number(min)
-    )} — ${formatter.format(
+    return `${formatter.format(Number(min))} — ${formatter.format(
       Number(max)
     )}`;
   }
 
   if (min !== null) {
-    return `От ${formatter.format(
-      Number(min)
-    )}`;
+    return `От ${formatter.format(Number(min))}`;
   }
 
   if (max !== null) {
-    return `До ${formatter.format(
-      Number(max)
-    )}`;
+    return `До ${formatter.format(Number(max))}`;
   }
 
   return "Не указан";
 }
 
-function formatDateTime(
-  value: string | null
-) {
+function formatDateTime(value: string | null) {
   if (!value) {
     return null;
   }
 
-  return new Intl.DateTimeFormat(
-    "ru-RU",
-    {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }
-  ).format(new Date(value));
+  return new Intl.DateTimeFormat("ru-RU", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
 }

@@ -1,6 +1,15 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import {
+  ArrowLeft,
+  Banknote,
+  Building2,
+  CalendarDays,
+  FileText,
+  MapPin,
+} from "lucide-react";
+
 import { getCurrentProfile } from
   "@/lib/auth/get-current-profile";
 
@@ -33,103 +42,226 @@ export default async function ContractorProjectPage({
     existingBid,
   } = await getAvailableProject(id);
 
+  const categoryName =
+    getCategoryName(
+      project.service_categories
+    );
+
+  const propertyType =
+    formatPropertyType(
+      project.property_type
+    );
+
+  const budget =
+    formatBudget(
+      project.budget_min,
+      project.budget_max
+    );
+
   return (
-    <main className="min-h-screen bg-slate-50">
-      <div className="mx-auto max-w-6xl px-6 py-10">
+    <main className="min-h-screen bg-background">
+      <div className="app-container py-8 md:py-12">
         <Link
           href="/contractor/projects"
-          className="text-sm font-medium text-blue-700"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground transition hover:text-primary"
         >
-          ← Вернуться к проектам
+          <ArrowLeft className="h-4 w-4" />
+
+          Вернуться к проектам
         </Link>
 
-        <div className="mt-6">
-          <p className="text-sm text-blue-700">
-            {getCategoryName(
-              project.service_categories
-            )}
-          </p>
+        {/* Hero */}
 
-          <h1 className="mt-1 text-3xl font-bold">
-            {project.title}
-          </h1>
+        <section className="relative mt-5 overflow-hidden rounded-[2rem] border border-border bg-card p-6 shadow-[var(--shadow-soft)] md:p-8">
+          <div className="pointer-events-none absolute -right-20 -top-20 h-72 w-72 rounded-full bg-accent/25 blur-3xl" />
 
-          <p className="mt-3 text-slate-600">
-            {project.city}
-          </p>
-        </div>
+          <div className="relative">
+            <p className="text-sm font-semibold text-primary">
+              {categoryName}
+            </p>
 
-        <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_380px]">
+            <h1 className="mt-2 max-w-4xl text-3xl font-bold tracking-[-0.035em] text-foreground md:text-5xl">
+              {project.title}
+            </h1>
+
+            <div className="mt-5 flex flex-wrap gap-x-5 gap-y-3 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-primary" />
+
+                <span>
+                  {project.city ||
+                    "Город не указан"}
+                </span>
+              </div>
+
+              {propertyType && (
+                <div className="flex items-center gap-2">
+                  <Building2 className="h-4 w-4 text-primary" />
+
+                  <span>
+                    {propertyType}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* Краткая информация */}
+
+        <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <SummaryCard
+            icon={
+              <Banknote className="h-5 w-5" />
+            }
+            label="Бюджет"
+            value={budget}
+          />
+
+          <SummaryCard
+            icon={
+              <CalendarDays className="h-5 w-5" />
+            }
+            label="Желаемое начало"
+            value={
+              formatDate(
+                project.desired_start_date
+              ) ?? "Не указано"
+            }
+          />
+
+          <SummaryCard
+            icon={
+              <CalendarDays className="h-5 w-5" />
+            }
+            label="Желаемое окончание"
+            value={
+              formatDate(
+                project.desired_end_date
+              ) ?? "Не указано"
+            }
+          />
+        </section>
+
+        {/* Основной контент */}
+
+        <div className="mt-6 grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_400px]">
           <div className="space-y-6">
-            <Section title="Описание">
-              <p className="whitespace-pre-wrap leading-7 text-slate-700">
+            <InfoSection
+              icon={
+                <FileText className="h-5 w-5" />
+              }
+              title="Описание проекта"
+              description="Основная информация от заказчика."
+            >
+              <p className="whitespace-pre-wrap text-sm leading-7 text-muted-foreground md:text-base">
                 {project.description}
               </p>
-            </Section>
+            </InfoSection>
 
-            <Section title="Объект">
-              <InfoRow
-                label="Тип объекта"
-                value={formatPropertyType(
-                  project.property_type
-                )}
-              />
+            <InfoSection
+              icon={
+                <Building2 className="h-5 w-5" />
+              }
+              title="Объект"
+              description="Информация о месте и типе объекта."
+            >
+              <div className="grid gap-3 sm:grid-cols-2">
+                <DetailCard
+                  label="Тип объекта"
+                  value={propertyType}
+                />
 
-              <InfoRow
-                label="Регион"
-                value={project.region}
-              />
+                <DetailCard
+                  label="Регион"
+                  value={project.region}
+                />
 
-              <InfoRow
-                label="Город"
-                value={project.city}
-              />
+                <DetailCard
+                  label="Город"
+                  value={project.city}
+                />
 
-              <InfoRow
-                label="Адрес"
-                value={project.address}
-              />
-            </Section>
+                <DetailCard
+                  label="Адрес"
+                  value={project.address}
+                />
+              </div>
+            </InfoSection>
 
-            <Section title="Бюджет и сроки">
-              <InfoRow
-                label="Бюджет"
-                value={formatBudget(
-                  project.budget_min,
-                  project.budget_max
-                )}
-              />
+            <InfoSection
+              icon={
+                <Banknote className="h-5 w-5" />
+              }
+              title="Бюджет и сроки"
+              description="Ориентиры заказчика по стоимости и срокам."
+            >
+              <div className="grid gap-3 sm:grid-cols-2">
+                <DetailCard
+                  label="Бюджет"
+                  value={budget}
+                  emphasized
+                />
 
-              <InfoRow
-                label="Желаемое начало"
-                value={formatDate(
-                  project.desired_start_date
-                )}
-              />
+                <DetailCard
+                  label="Желаемое начало"
+                  value={
+                    formatDate(
+                      project.desired_start_date
+                    )
+                  }
+                />
 
-              <InfoRow
-                label="Желаемое окончание"
-                value={formatDate(
-                  project.desired_end_date
-                )}
-              />
-            </Section>
+                <DetailCard
+                  label="Желаемое окончание"
+                  value={
+                    formatDate(
+                      project.desired_end_date
+                    )
+                  }
+                />
+              </div>
+            </InfoSection>
           </div>
 
-          <aside>
-            <BidForm
-              projectId={project.id}
-              existingBid={
-                existingBid
-                  ? {
-                      ...existingBid,
-                      price: Number(
-                        existingBid.price
-                      ),
-                    }
-                  : null
-              }
-            />
+          {/* Правая колонка */}
+
+          <aside className="xl:sticky xl:top-24">
+            <section className="overflow-hidden rounded-[1.75rem] border border-border bg-card shadow-[var(--shadow-card)]">
+              <div className="border-b border-border bg-secondary/35 px-6 py-5">
+                <p className="text-sm font-semibold text-primary">
+                  Предложение
+                </p>
+
+                <h2 className="mt-1 text-xl font-bold tracking-tight text-foreground">
+                  Откликнуться на проект
+                </h2>
+
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  Укажите стоимость,
+                  срок выполнения и
+                  возможную дату начала.
+                </p>
+              </div>
+
+              <div className="p-5">
+                <BidForm
+                  projectId={
+                    project.id
+                  }
+                  existingBid={
+                    existingBid
+                      ? {
+                          ...existingBid,
+                          price: Number(
+                            existingBid.price
+                          ),
+                        }
+                      : null
+                  }
+                />
+              </div>
+            </section>
           </aside>
         </div>
       </div>
@@ -137,48 +269,105 @@ export default async function ContractorProjectPage({
   );
 }
 
-function Section({
+function SummaryCard({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-[1.5rem] border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
+      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-secondary text-primary">
+        {icon}
+      </div>
+
+      <p className="mt-4 text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
+        {label}
+      </p>
+
+      <p className="mt-2 text-base font-bold leading-6 text-foreground">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function InfoSection({
+  icon,
   title,
+  description,
   children,
 }: {
+  icon: React.ReactNode;
   title: string;
+  description?: string;
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border bg-white p-6">
-      <h2 className="text-xl font-semibold">
-        {title}
-      </h2>
+    <section className="rounded-[1.75rem] border border-border bg-card p-6 shadow-[var(--shadow-soft)] md:p-7">
+      <div className="flex items-start gap-4">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-secondary text-primary">
+          {icon}
+        </div>
 
-      <div className="mt-5 space-y-4">
+        <div>
+          <h2 className="text-xl font-bold tracking-tight text-foreground">
+            {title}
+          </h2>
+
+          {description && (
+            <p className="mt-1 text-sm leading-6 text-muted-foreground">
+              {description}
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-6">
         {children}
       </div>
     </section>
   );
 }
-<Link
-  href="/contractor/projects"
-  className="inline-flex rounded-xl bg-blue-700 px-5 py-3 font-semibold text-white"
->
-  Найти проекты
-</Link>
 
-function InfoRow({
+function DetailCard({
   label,
   value,
+  emphasized = false,
 }: {
   label: string;
-  value: string | null | undefined;
+  value:
+    | string
+    | null
+    | undefined;
+  emphasized?: boolean;
 }) {
   return (
-    <div className="grid gap-1 border-b pb-3 last:border-0 md:grid-cols-[220px_1fr]">
-      <span className="text-sm text-slate-500">
+    <div
+      className={[
+        "rounded-2xl border border-border p-4",
+        emphasized
+          ? "bg-secondary/60"
+          : "bg-background/60",
+      ].join(" ")}
+    >
+      <p className="text-xs font-medium text-muted-foreground">
         {label}
-      </span>
+      </p>
 
-      <span className="font-medium">
+      <p
+        className={[
+          "mt-2 text-foreground",
+          emphasized
+            ? "text-lg font-bold"
+            : "text-sm font-semibold",
+        ].join(" ")}
+      >
         {value || "Не указано"}
-      </span>
+      </p>
     </div>
   );
 }
@@ -196,8 +385,10 @@ function getCategoryName(
     );
   }
 
-  return value?.name ??
-    "Строительные работы";
+  return (
+    value?.name ??
+    "Строительные работы"
+  );
 }
 
 function formatPropertyType(
@@ -228,19 +419,29 @@ function formatPropertyType(
 }
 
 function formatBudget(
-  min: number | string | null,
-  max: number | string | null
+  min:
+    | number
+    | string
+    | null,
+  max:
+    | number
+    | string
+    | null
 ) {
-  const formatter = new Intl.NumberFormat(
-    "ru-RU",
-    {
-      style: "currency",
-      currency: "RUB",
-      maximumFractionDigits: 0,
-    }
-  );
+  const formatter =
+    new Intl.NumberFormat(
+      "ru-RU",
+      {
+        style: "currency",
+        currency: "RUB",
+        maximumFractionDigits: 0,
+      }
+    );
 
-  if (min !== null && max !== null) {
+  if (
+    min !== null &&
+    max !== null
+  ) {
     return `${formatter.format(
       Number(min)
     )} — ${formatter.format(
@@ -275,5 +476,9 @@ function formatDate(
     {
       dateStyle: "long",
     }
-  ).format(new Date(`${value}T00:00:00`));
+  ).format(
+    new Date(
+      `${value}T00:00:00`
+    )
+  );
 }

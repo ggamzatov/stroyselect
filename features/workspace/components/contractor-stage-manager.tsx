@@ -4,10 +4,22 @@ import {
   useState,
   useTransition,
 } from "react";
-import { useRouter } from "next/navigation";
+
+import { useRouter } from
+  "next/navigation";
+
+import {
+  CheckCircle2,
+  Plus,
+  TriangleAlert,
+  X,
+} from "lucide-react";
 
 import { ProjectStageForm } from
   "@/features/workspace/components/project-stage-form";
+
+import { ContractorStageCard } from
+  "@/features/workspace/components/contractor-stage-card";
 
 import { deleteProjectStage } from
   "@/features/workspace/actions/delete-project-stage";
@@ -15,20 +27,12 @@ import { deleteProjectStage } from
 import { updateProjectStageStatus } from
   "@/features/workspace/actions/update-project-stage-status";
 
-type Stage = {
-  id: string;
-  title: string;
-  description: string | null;
-  price: number | string | null;
-  progress_weight: number;
-  status: string;
-  planned_start_date: string | null;
-  planned_end_date: string | null;
-};
+import type { WorkspaceStage } from
+  "@/features/workspace/types/stage";
 
 type Props = {
   projectId: string;
-  stages: Stage[];
+  stages: WorkspaceStage[];
 };
 
 type FormMode =
@@ -40,41 +44,90 @@ export function ContractorStageManager({
   projectId,
   stages,
 }: Props) {
-  const router = useRouter();
+  const router =
+    useRouter();
 
-  const [formMode, setFormMode] =
-    useState<FormMode>("closed");
+  const [
+    formMode,
+    setFormMode,
+  ] =
+    useState<FormMode>(
+      "closed"
+    );
 
   const [
     editingStageId,
     setEditingStageId,
-  ] = useState<string | null>(null);
+  ] =
+    useState<
+      string | null
+    >(null);
 
   const [
     errorMessage,
     setErrorMessage,
-  ] = useState("");
+  ] =
+    useState("");
 
   const [
     successMessage,
     setSuccessMessage,
-  ] = useState("");
+  ] =
+    useState("");
 
   const [
     pendingStageId,
     setPendingStageId,
-  ] = useState<string | null>(null);
+  ] =
+    useState<
+      string | null
+    >(null);
 
   const [
     isPending,
     startTransition,
-  ] = useTransition();
+  ] =
+    useTransition();
 
+  /*
+   * Находим этап,
+   * который сейчас редактируем.
+   */
   const editingStage =
     stages.find(
       (stage) =>
-        stage.id === editingStageId
+        stage.id ===
+        editingStageId
     ) ?? null;
+
+  /*
+   * Считаем общую долю
+   * всех этапов проекта.
+   *
+   * Например:
+   * 35 + 25 + 20 = 80%.
+   */
+  const totalAllocatedWeight =
+    stages.reduce(
+      (sum, stage) =>
+        sum +
+        Number(
+          stage.progress_weight ??
+            0
+        ),
+      0
+    );
+
+  /*
+   * Сколько ещё процентов
+   * можно распределить.
+   */
+  const availableWeight =
+    Math.max(
+      100 -
+        totalAllocatedWeight,
+      0
+    );
 
   function clearMessages() {
     setErrorMessage("");
@@ -83,25 +136,42 @@ export function ContractorStageManager({
 
   function openCreateForm() {
     clearMessages();
-    setEditingStageId(null);
-    setFormMode("create");
+
+    setEditingStageId(
+      null
+    );
+
+    setFormMode(
+      "create"
+    );
   }
 
   function openEditForm(
     stageId: string
   ) {
     clearMessages();
-    setEditingStageId(stageId);
-    setFormMode("edit");
+
+    setEditingStageId(
+      stageId
+    );
+
+    setFormMode(
+      "edit"
+    );
   }
 
   function closeForm() {
-    setEditingStageId(null);
-    setFormMode("closed");
+    setEditingStageId(
+      null
+    );
+
+    setFormMode(
+      "closed"
+    );
   }
 
   function handleDelete(
-    stage: Stage
+    stage: WorkspaceStage
   ) {
     const confirmed =
       window.confirm(
@@ -113,53 +183,70 @@ export function ContractorStageManager({
     }
 
     clearMessages();
-    setPendingStageId(stage.id);
 
-    startTransition(async () => {
-      try {
-        const result =
-          await deleteProjectStage(
-            stage.id,
-            projectId
-          );
+    setPendingStageId(
+      stage.id
+    );
 
-        if (!result.success) {
-          setErrorMessage(
+    startTransition(
+      async () => {
+        try {
+          const result =
+            await deleteProjectStage(
+              stage.id,
+              projectId
+            );
+
+          if (
+            !result.success
+          ) {
+            setErrorMessage(
+              result.message
+            );
+
+            return;
+          }
+
+          /*
+           * Если удалили этап,
+           * который редактировался,
+           * закрываем форму.
+           */
+          if (
+            editingStageId ===
+            stage.id
+          ) {
+            closeForm();
+          }
+
+          setSuccessMessage(
             result.message
           );
-          return;
+
+          router.refresh();
+        } finally {
+          setPendingStageId(
+            null
+          );
         }
-
-        if (
-          editingStageId === stage.id
-        ) {
-          closeForm();
-        }
-
-        setSuccessMessage(
-          result.message
-        );
-
-        router.refresh();
-      } finally {
-        setPendingStageId(null);
       }
-    });
+    );
   }
 
   function handleStageAction(
-    stage: Stage,
+    stage: WorkspaceStage,
     action:
-  | "start"
-  | "submit"
-  | "resume"
+      | "start"
+      | "submit"
+      | "resume"
   ) {
     const actionLabel =
-  action === "start"
-    ? "Начать"
-    : action === "submit"
-      ? "Отправить на проверку"
-      : "Начать исправление";
+      action === "start"
+        ? "Начать"
+        : action ===
+            "submit"
+          ? "Отправить на проверку"
+          : "Начать исправление";
 
     const confirmed =
       window.confirm(
@@ -171,382 +258,503 @@ export function ContractorStageManager({
     }
 
     clearMessages();
-    setPendingStageId(stage.id);
 
-    startTransition(async () => {
-      try {
-        const result =
-          await updateProjectStageStatus(
-            stage.id,
-            projectId,
-            action
-          );
+    setPendingStageId(
+      stage.id
+    );
 
-        if (!result.success) {
-          setErrorMessage(
+    startTransition(
+      async () => {
+        try {
+          const result =
+            await updateProjectStageStatus(
+              stage.id,
+              projectId,
+              action
+            );
+
+          if (
+            !result.success
+          ) {
+            setErrorMessage(
+              result.message
+            );
+
+            return;
+          }
+
+          /*
+           * Если этап был открыт
+           * на редактирование,
+           * после смены статуса
+           * закрываем форму.
+           */
+          if (
+            editingStageId ===
+            stage.id
+          ) {
+            closeForm();
+          }
+
+          setSuccessMessage(
             result.message
           );
-          return;
+
+          router.refresh();
+        } finally {
+          setPendingStageId(
+            null
+          );
         }
-
-        if (
-          editingStageId === stage.id
-        ) {
-          closeForm();
-        }
-
-        setSuccessMessage(
-          result.message
-        );
-
-        router.refresh();
-      } finally {
-        setPendingStageId(null);
       }
-    });
+    );
   }
 
   return (
-    <section className="rounded-2xl border bg-white p-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-semibold">
-            Управление этапами
-          </h2>
+    <div className="space-y-6">
+      {/* Верхняя панель */}
 
-          <p className="mt-2 text-sm text-slate-600">
-            Сформируйте план выполнения
-            проекта и отмечайте ход работ.
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-foreground">
+            План работ
+          </p>
+
+          <p className="mt-1 text-sm text-muted-foreground">
+            Всего этапов:{" "}
+            {stages.length}
           </p>
         </div>
 
-        {formMode === "closed" ? (
+        {formMode ===
+        "closed" ? (
           <button
             type="button"
-            disabled={isPending}
-            onClick={openCreateForm}
-            className="relative z-10 rounded-xl bg-blue-700 px-4 py-2 font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={
+              isPending
+            }
+            onClick={
+              openCreateForm
+            }
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-[0_8px_20px_rgba(107,70,50,0.16)] transition hover:-translate-y-0.5 hover:bg-[#5c3b2a] disabled:pointer-events-none disabled:translate-y-0 disabled:opacity-50"
           >
-            + Добавить этап
+            <Plus className="h-4 w-4" />
+
+            Добавить этап
           </button>
         ) : (
           <button
             type="button"
-            disabled={isPending}
-            onClick={closeForm}
-            className="relative z-10 rounded-xl border bg-white px-4 py-2 font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={
+              isPending
+            }
+            onClick={
+              closeForm
+            }
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 text-sm font-semibold text-foreground transition hover:bg-secondary/50 disabled:pointer-events-none disabled:opacity-50"
           >
+            <X className="h-4 w-4" />
+
             Закрыть форму
           </button>
         )}
       </div>
 
-      {formMode === "create" && (
-        <div className="mt-6 rounded-xl border bg-slate-50 p-5">
-          <h3 className="mb-5 font-semibold">
-            Новый этап
-          </h3>
+      {/* Информация о распределении проекта */}
 
-          <ProjectStageForm
-            projectId={projectId}
-            onClose={closeForm}
-          />
+      <div className="grid gap-3 sm:grid-cols-3">
+        <WeightSummary
+          label="Распределено"
+          value={`${totalAllocatedWeight}%`}
+        />
+
+        <WeightSummary
+          label="Доступно"
+          value={`${availableWeight}%`}
+        />
+
+        <WeightSummary
+          label="Статус плана"
+          value={
+            totalAllocatedWeight ===
+            100
+              ? "Готов"
+              : totalAllocatedWeight >
+                  100
+                ? "Ошибка"
+                : "Не завершён"
+          }
+          success={
+            totalAllocatedWeight ===
+            100
+          }
+          danger={
+            totalAllocatedWeight >
+            100
+          }
+        />
+      </div>
+
+      {/* План распределён полностью */}
+
+      {totalAllocatedWeight ===
+        100 && (
+        <div className="rounded-[1.25rem] border border-emerald-200 bg-emerald-50 p-4 text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-200">
+          <div className="flex items-start gap-3">
+            <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
+
+            <div>
+              <p className="text-sm font-semibold">
+                План проекта
+                распределён полностью
+              </p>
+
+              <p className="mt-1 text-sm leading-6 opacity-85">
+                Между этапами
+                распределено 100%
+                объёма проекта.
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
-      {formMode === "edit" &&
-        editingStage && (
-          <div className="mt-6 rounded-xl border border-blue-200 bg-blue-50 p-5">
-            <h3 className="mb-5 font-semibold">
-              Редактирование этапа
-            </h3>
+      {/* План ещё не сформирован полностью */}
 
-            <ProjectStageForm
-              key={editingStage.id}
-              projectId={projectId}
-              stage={editingStage}
-              onClose={closeForm}
-            />
+      {totalAllocatedWeight >
+        0 &&
+        totalAllocatedWeight <
+          100 && (
+          <div className="rounded-[1.25rem] border border-amber-200 bg-amber-50 p-4 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+            <div className="flex items-start gap-3">
+              <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0" />
+
+              <div>
+                <p className="text-sm font-semibold">
+                  План проекта пока
+                  распределён не полностью
+                </p>
+
+                <p className="mt-1 text-sm leading-6 opacity-85">
+                  Распределено{" "}
+                  <strong>
+                    {
+                      totalAllocatedWeight
+                    }
+                    %
+                  </strong>
+                  . Осталось распределить{" "}
+                  <strong>
+                    {
+                      availableWeight
+                    }
+                    %
+                  </strong>
+                  .
+                </p>
+              </div>
+            </div>
           </div>
         )}
 
-      {successMessage && (
-        <p className="mt-5 rounded-lg bg-green-50 p-3 text-sm text-green-800">
-          {successMessage}
-        </p>
+      {/* Ошибка старых данных */}
+
+      {totalAllocatedWeight >
+        100 && (
+        <div className="rounded-[1.25rem] border border-red-200 bg-red-50 p-4 text-red-900 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-200">
+          <div className="flex items-start gap-3">
+            <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0" />
+
+            <div>
+              <p className="text-sm font-semibold">
+                Доли этапов превышают
+                100%
+              </p>
+
+              <p className="mt-1 text-sm leading-6 opacity-85">
+                Сейчас распределено{" "}
+                <strong>
+                  {
+                    totalAllocatedWeight
+                  }
+                  %
+                </strong>
+                . Необходимо уменьшить
+                доли минимум на{" "}
+                <strong>
+                  {totalAllocatedWeight -
+                    100}
+                  %
+                </strong>
+                .
+              </p>
+            </div>
+          </div>
+        </div>
       )}
 
-      {errorMessage && (
-        <p className="mt-5 rounded-lg bg-red-50 p-3 text-sm text-red-700">
-          {errorMessage}
-        </p>
-      )}
+      {/* Создание этапа */}
 
-      {stages.length === 0 ? (
-        <div className="mt-6 rounded-xl bg-slate-50 p-5">
-          <p className="font-medium">
-            Этапы пока не созданы
+      {formMode ===
+        "create" && (
+        <div className="rounded-[1.5rem] border border-border bg-secondary/35 p-5 md:p-6">
+          <p className="text-sm font-semibold text-primary">
+            Новый этап
           </p>
 
-          <p className="mt-2 text-sm text-slate-600">
-            Нажмите «Добавить этап»,
-            чтобы сформировать план работ.
+          <h3 className="mt-1 text-lg font-bold text-foreground">
+            Добавление этапа
+            работ
+          </h3>
+
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
+            Укажите название,
+            стоимость, долю в общем
+            прогрессе и плановые
+            сроки.
+          </p>
+
+          {availableWeight ===
+          0 ? (
+            <div className="mt-5 rounded-[1.25rem] border border-amber-200 bg-amber-50 p-4 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+              <div className="flex items-start gap-3">
+                <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0" />
+
+                <div>
+                  <p className="text-sm font-semibold">
+                    Свободной доли
+                    больше нет
+                  </p>
+
+                  <p className="mt-1 text-sm leading-6 opacity-85">
+                    Уже распределено
+                    100% проекта.
+                    Чтобы добавить
+                    новый этап, сначала
+                    уменьшите долю одного
+                    из существующих этапов.
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-5">
+              <ProjectStageForm
+                projectId={
+                  projectId
+                }
+                allocatedWeight={
+                  totalAllocatedWeight
+                }
+                onClose={
+                  closeForm
+                }
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Редактирование */}
+
+      {formMode ===
+        "edit" &&
+        editingStage && (
+          <div className="rounded-[1.5rem] border border-primary/20 bg-secondary/35 p-5 md:p-6">
+            <p className="text-sm font-semibold text-primary">
+              Редактирование
+            </p>
+
+            <h3 className="mt-1 text-lg font-bold text-foreground">
+              {
+                editingStage.title
+              }
+            </h3>
+
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              При редактировании
+              текущая доля этого этапа
+              временно исключается из
+              общей суммы.
+            </p>
+
+            <div className="mt-5">
+              <ProjectStageForm
+                key={
+                  editingStage.id
+                }
+                projectId={
+                  projectId
+                }
+                stage={
+                  editingStage
+                }
+                allocatedWeight={
+                  totalAllocatedWeight -
+                  Number(
+                    editingStage.progress_weight ??
+                      0
+                  )
+                }
+                onClose={
+                  closeForm
+                }
+              />
+            </div>
+          </div>
+        )}
+
+      {/* Успешное действие */}
+
+      {successMessage && (
+        <div className="rounded-[1.25rem] border border-emerald-200 bg-emerald-50 p-4 text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-200">
+          <div className="flex items-start gap-3">
+            <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
+
+            <div>
+              <p className="text-sm font-semibold">
+                Готово
+              </p>
+
+              <p className="mt-1 text-sm leading-6 opacity-85">
+                {
+                  successMessage
+                }
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Ошибка */}
+
+      {errorMessage && (
+        <div className="rounded-[1.25rem] border border-red-200 bg-red-50 p-4 text-red-900 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-200">
+          <div className="flex items-start gap-3">
+            <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0" />
+
+            <div>
+              <p className="text-sm font-semibold">
+                Не удалось выполнить
+                действие
+              </p>
+
+              <p className="mt-1 text-sm leading-6 opacity-85">
+                {
+                  errorMessage
+                }
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Пустой список */}
+
+      {stages.length ===
+      0 ? (
+        <div className="rounded-[1.5rem] border border-dashed border-border bg-background/60 p-8 text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary text-primary">
+            <Plus className="h-5 w-5" />
+          </div>
+
+          <h3 className="mt-4 text-lg font-bold text-foreground">
+            Этапы пока не
+            созданы
+          </h3>
+
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
+            Добавьте первый этап,
+            чтобы сформировать план
+            выполнения проекта.
           </p>
         </div>
       ) : (
-        <div className="mt-6 space-y-3">
+        <div className="space-y-4">
           {stages.map(
-            (stage, index) => {
+            (
+              stage,
+              index
+            ) => {
               const isCurrentPending =
                 isPending &&
                 pendingStageId ===
                   stage.id;
 
               return (
-                <article
-                  key={stage.id}
-                  className="rounded-xl border p-4"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div>
-                      <p className="text-xs text-slate-500">
-                        Этап {index + 1}
-                      </p>
-
-                      <h3 className="mt-1 font-semibold">
-                        {stage.title}
-                      </h3>
-
-                      {stage.description && (
-                        <p className="mt-2 max-w-2xl whitespace-pre-wrap text-sm leading-6 text-slate-600">
-                          {stage.description}
-                        </p>
-                      )}
-
-                      <p className="mt-2 text-sm text-slate-600">
-                        {formatMoney(
-                          stage.price
-                        )}
-                        {" · "}
-                        {
-                          stage.progress_weight
-                        }
-                        %
-                      </p>
-
-                      <p className="mt-1 text-xs text-slate-500">
-                        Статус:{" "}
-                        {formatStatus(
-                          stage.status
-                        )}
-                      </p>
-
-                      <p className="mt-1 text-xs text-slate-500">
-                        {formatStageDates(
-                          stage.planned_start_date,
-                          stage.planned_end_date
-                        )}
-                      </p>
-                    </div>
-
-                    <div className="relative z-10 flex flex-wrap gap-2">
-                      {stage.status ===
-                        "planned" && (
-                        <>
-                          <button
-                            type="button"
-                            disabled={
-                              isPending
-                            }
-                            onClick={() =>
-                              handleStageAction(
-                                stage,
-                                "start"
-                              )
-                            }
-                            className="rounded-lg bg-blue-700 px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            {isCurrentPending
-                              ? "Сохраняем..."
-                              : "Начать этап"}
-                          </button>
-
-                          <button
-                            type="button"
-                            disabled={
-                              isPending
-                            }
-                            onClick={() =>
-                              openEditForm(
-                                stage.id
-                              )
-                            }
-                            className="rounded-lg border px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40"
-                          >
-                            Изменить
-                          </button>
-
-                          <button
-                            type="button"
-                            disabled={
-                              isPending
-                            }
-                            onClick={() =>
-                              handleDelete(
-                                stage
-                              )
-                            }
-                            className="rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 disabled:cursor-not-allowed disabled:opacity-40"
-                          >
-                            {isCurrentPending
-                              ? "Удаляем..."
-                              : "Удалить"}
-                          </button>
-                        </>
-                      )}
-
-                      {stage.status === "in_progress" && (
-  <button
-    type="button"
-    disabled={isPending}
-    onClick={() =>
-      handleStageAction(
-        stage,
-        "submit"
-      )
-    }
-    className="rounded-lg bg-green-700 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
-  >
-    {isCurrentPending
-      ? "Отправляем..."
-      : "Отправить на проверку"}
-  </button>
-)}
-{stage.status === "awaiting_review" && (
-  <span className="rounded-lg bg-purple-50 px-3 py-2 text-sm font-semibold text-purple-800">
-    Ожидает проверки заказчика
-  </span>
-)}
-
-{stage.status === "revision_required" && (
-  <button
-    type="button"
-    disabled={isPending}
-    onClick={() =>
-      handleStageAction(
-        stage,
-        "resume"
-      )
-    }
-    className="rounded-lg bg-amber-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
-  >
-    {isCurrentPending
-      ? "Сохраняем..."
-      : "Исправить замечания"}
-  </button>
-)}
-
-                      {stage.status ===
-                        "completed" && (
-                        <span className="rounded-lg bg-green-50 px-3 py-2 text-sm font-semibold text-green-800">
-                          Этап завершён
-                        </span>
-                      )}
-
-                      {stage.status ===
-                        "cancelled" && (
-                        <span className="rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
-                          Этап отменён
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </article>
+                <ContractorStageCard
+                  key={
+                    stage.id
+                  }
+                  stage={
+                    stage
+                  }
+                  index={
+                    index
+                  }
+                  isPending={
+                    isPending
+                  }
+                  isCurrentPending={
+                    isCurrentPending
+                  }
+                  onEdit={
+                    openEditForm
+                  }
+                  onDelete={
+                    handleDelete
+                  }
+                  onAction={
+                    handleStageAction
+                  }
+                />
               );
             }
           )}
         </div>
       )}
-    </section>
+    </div>
   );
 }
 
-function formatMoney(
-  value: number | string | null
-) {
-  if (
-    value === null ||
-    value === undefined
-  ) {
-    return "Стоимость не указана";
-  }
+function WeightSummary({
+  label,
+  value,
+  success = false,
+  danger = false,
+}: {
+  label: string;
+  value: string;
+  success?: boolean;
+  danger?: boolean;
+}) {
+  return (
+    <div
+      className={[
+        "rounded-[1.25rem] border p-4",
+        danger
+          ? "border-red-200 bg-red-50 dark:border-red-900/50 dark:bg-red-950/30"
+          : success
+            ? "border-emerald-200 bg-emerald-50 dark:border-emerald-900/50 dark:bg-emerald-950/30"
+            : "border-border bg-background/60",
+      ].join(" ")}
+    >
+      <p className="text-xs font-medium text-muted-foreground">
+        {label}
+      </p>
 
-  const numericValue = Number(value);
-
-  if (Number.isNaN(numericValue)) {
-    return "Стоимость не указана";
-  }
-
-  return new Intl.NumberFormat(
-    "ru-RU",
-    {
-      style: "currency",
-      currency: "RUB",
-      maximumFractionDigits: 0,
-    }
-  ).format(numericValue);
-}
-
-function formatStatus(
-  status: string
-) {
-  const labels: Record<
-    string,
-    string
-  > = {
-    planned: "Запланирован",
-    in_progress: "Выполняется",
-    completed: "Завершён",
-    cancelled: "Отменён",
-  };
-
-  return labels[status] ?? status;
-}
-
-function formatStageDates(
-  start: string | null,
-  end: string | null
-) {
-  if (!start && !end) {
-    return "Плановые даты не указаны";
-  }
-
-  if (start && end) {
-    return `${formatDate(
-      start
-    )} — ${formatDate(end)}`;
-  }
-
-  if (start) {
-    return `Начало: ${formatDate(
-      start
-    )}`;
-  }
-
-  return `Окончание: ${formatDate(
-    end!
-  )}`;
-}
-
-function formatDate(
-  value: string
-) {
-  return new Intl.DateTimeFormat(
-    "ru-RU",
-    {
-      dateStyle: "medium",
-    }
-  ).format(
-    new Date(`${value}T00:00:00`)
+      <p
+        className={[
+          "mt-2 text-xl font-bold",
+          danger
+            ? "text-red-700 dark:text-red-300"
+            : success
+              ? "text-emerald-700 dark:text-emerald-300"
+              : "text-foreground",
+        ].join(" ")}
+      >
+        {value}
+      </p>
+    </div>
   );
 }
