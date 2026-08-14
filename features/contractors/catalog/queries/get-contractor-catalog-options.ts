@@ -1,5 +1,7 @@
-import { createClient } from
-  "@/lib/supabase/server";
+import "server-only";
+
+import { db } from
+  "@/lib/db/pool";
 
 export type ContractorCatalogCategoryOption = {
   id: string;
@@ -19,80 +21,43 @@ export type ContractorCatalogOptions = {
     ContractorCatalogCityOption[];
 };
 
+type CategoryRow = {
+  id: number;
+  name: string;
+};
+
+type CityRow = {
+  city: string;
+};
+
 export async function getContractorCatalogOptions(): Promise<ContractorCatalogOptions> {
-  const supabase =
-    await createClient();
+  try {
+    const [
+      categoriesResult,
+      citiesResult,
+    ] =
+      await Promise.all([
+        db.query<CategoryRow>(`
+          select
+            id,
+            name
+          from public.service_categories
+          where is_active = true
+          order by name asc
+        `),
 
-  const [
-    categoriesResult,
-    citiesResult,
-  ] = await Promise.all([
-    supabase
-      .from(
-        "service_categories"
-      )
-      .select(`
-        id,
-        name
-      `)
-      .order(
-        "name",
-        {
-          ascending: true,
-        }
-      ),
+        db.query<CityRow>(`
+          select distinct
+            trim(city) as city
+          from public.contractor_service_areas
+          where city is not null
+            and trim(city) <> ''
+          order by trim(city) asc
+        `),
+      ]);
 
-    supabase
-      .from(
-        "contractor_service_areas"
-      )
-      .select(`
-        city
-      `)
-      .not(
-        "city",
-        "is",
-        null
-      ),
-  ]);
-
-  if (
-    categoriesResult.error
-  ) {
-    console.error(
-      "Ошибка загрузки специализаций каталога:",
-      categoriesResult.error
-    );
-
-    throw new Error(
-      "Не удалось загрузить специализации"
-    );
-  }
-
-  if (citiesResult.error) {
-    console.error(
-      "Ошибка загрузки городов каталога:",
-      citiesResult.error
-    );
-
-    throw new Error(
-      "Не удалось загрузить города"
-    );
-  }
-
-  const categories =
-    (
-      categoriesResult.data ??
-      []
-    )
-      .filter(
-        (category) =>
-          Boolean(
-            category.id &&
-            category.name
-          )
-      )
-      .map(
+    const categories =
+      categoriesResult.rows.map(
         (category) => ({
           id:
             String(
@@ -104,50 +69,29 @@ export async function getContractorCatalogOptions(): Promise<ContractorCatalogOp
         })
       );
 
-  const uniqueCities =
-    Array.from(
-      new Set(
-        (
-          citiesResult.data ??
-          []
-        )
-          .map(
-            (item) =>
-              item.city
-                ?.trim()
-          )
-          .filter(
-            (
-              city
-            ): city is string =>
-              Boolean(city)
-          )
-      )
-    )
-      .sort(
-        (
-          first,
-          second
-        ) =>
-          first.localeCompare(
-            second,
-            "ru"
-          )
+    const cities =
+      citiesResult.rows.map(
+        (item) => ({
+          value:
+            item.city,
+
+          label:
+            item.city,
+        })
       );
 
-  const cities =
-    uniqueCities.map(
-      (city) => ({
-        value:
-          city,
-
-        label:
-          city,
-      })
+    return {
+      categories,
+      cities,
+    };
+  } catch (error) {
+    console.error(
+      "Ошибка загрузки опций каталога подрядчиков:",
+      error
     );
 
-  return {
-    categories,
-    cities,
-  };
+    throw new Error(
+      "Не удалось загрузить параметры каталога"
+    );
+  }
 }

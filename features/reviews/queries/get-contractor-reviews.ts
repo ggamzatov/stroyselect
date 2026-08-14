@@ -1,5 +1,7 @@
-import { createClient } from
-  "@/lib/supabase/server";
+import "server-only";
+
+import { db } from
+  "@/lib/db/pool";
 
 type ReviewProject = {
   id: string;
@@ -13,300 +15,335 @@ type ReviewProfile = {
   last_name: string | null;
 };
 
+type ContractorReviewRow = {
+  id: string;
+  project_id: string;
+  contractor_id: string;
+  customer_id: string;
+
+  rating: number | string;
+
+  quality_rating:
+    number | string | null;
+
+  deadline_rating:
+    number | string | null;
+
+  communication_rating:
+    number | string | null;
+
+  comment: string | null;
+
+  created_at:
+    Date | string;
+
+  updated_at:
+    Date | string;
+
+  project_id_join:
+    string | null;
+
+  project_title:
+    string | null;
+
+  project_city:
+    string | null;
+
+  profile_id:
+    string | null;
+
+  profile_first_name:
+    string | null;
+
+  profile_last_name:
+    string | null;
+};
+
 export async function getContractorReviews(
   contractorId: string
 ) {
-  const supabase =
-    await createClient();
+  try {
+    /*
+     * PostgreSQL позволяет получить
+     * отзывы, проекты и авторов
+     * одним запросом.
+     */
+    const result =
+      await db.query<ContractorReviewRow>(
+        `
+          SELECT
+            cr.id,
+            cr.project_id,
+            cr.contractor_id,
+            cr.customer_id,
 
-  /*
-   * 1. Загружаем отзывы.
-   *
-   * profiles здесь намеренно НЕ подключаем,
-   * потому что customer_id ссылается на auth.users,
-   * а не напрямую на profiles.
-   */
-  const {
-    data: reviews,
-    error: reviewsError,
-  } = await supabase
-    .from("contractor_reviews")
-    .select(`
-      id,
-      project_id,
-      contractor_id,
-      customer_id,
-      rating,
-      quality_rating,
-      deadline_rating,
-      communication_rating,
-      comment,
-      created_at,
-      updated_at,
+            cr.rating,
+            cr.quality_rating,
+            cr.deadline_rating,
+            cr.communication_rating,
 
-      projects (
-        id,
-        title,
-        city
-      )
-    `)
-    .eq(
-      "contractor_id",
-      contractorId
-    )
-    .order(
-      "created_at",
-      {
-        ascending: false,
-      }
-    );
+            cr.comment,
 
-  if (reviewsError) {
+            cr.created_at,
+            cr.updated_at,
+
+            p.id
+              AS project_id_join,
+
+            p.title
+              AS project_title,
+
+            p.city
+              AS project_city,
+
+            profile.id
+              AS profile_id,
+
+            profile.first_name
+              AS profile_first_name,
+
+            profile.last_name
+              AS profile_last_name
+
+          FROM
+            public.contractor_reviews
+              cr
+
+          LEFT JOIN
+            public.projects
+              p
+            ON p.id =
+              cr.project_id
+
+          LEFT JOIN
+            public.profiles
+              profile
+            ON profile.id =
+              cr.customer_id
+
+          WHERE
+            cr.contractor_id =
+              $1
+
+          ORDER BY
+            cr.created_at DESC
+        `,
+        [
+          contractorId,
+        ]
+      );
+
+    const items =
+      result.rows.map(
+        (row) => {
+          const project:
+            ReviewProject | null =
+            row.project_id_join
+              ? {
+                  id:
+                    row.project_id_join,
+
+                  title:
+                    row.project_title ??
+                    "Проект",
+
+                  city:
+                    row.project_city,
+                }
+              : null;
+
+          const profile:
+            ReviewProfile | null =
+            row.profile_id
+              ? {
+                  id:
+                    row.profile_id,
+
+                  first_name:
+                    row.profile_first_name ??
+                    "Заказчик",
+
+                  last_name:
+                    row.profile_last_name,
+                }
+              : null;
+
+          return {
+            id:
+              row.id,
+
+            project_id:
+              row.project_id,
+
+            contractor_id:
+              row.contractor_id,
+
+            customer_id:
+              row.customer_id,
+
+            rating:
+              Number(
+                row.rating
+              ),
+
+            quality_rating:
+              toNullableNumber(
+                row.quality_rating
+              ),
+
+            deadline_rating:
+              toNullableNumber(
+                row.deadline_rating
+              ),
+
+            communication_rating:
+              toNullableNumber(
+                row.communication_rating
+              ),
+
+            comment:
+              row.comment,
+
+            created_at:
+              toIsoString(
+                row.created_at
+              ),
+
+            updated_at:
+              toIsoString(
+                row.updated_at
+              ),
+
+            /*
+             * Сохраняем те же имена,
+             * которые ожидает UI.
+             */
+            projects:
+              project,
+
+            profiles:
+              profile,
+          };
+        }
+      );
+
+    const total =
+      items.length;
+
+    const averageRating =
+      getAverage(
+        items.map(
+          (review) =>
+            review.rating
+        )
+      );
+
+    const averageQuality =
+      getAverage(
+        items
+          .map(
+            (review) =>
+              review
+                .quality_rating
+          )
+          .filter(
+            (
+              value
+            ): value is number =>
+              value !== null
+          )
+      );
+
+    const averageDeadline =
+      getAverage(
+        items
+          .map(
+            (review) =>
+              review
+                .deadline_rating
+          )
+          .filter(
+            (
+              value
+            ): value is number =>
+              value !== null
+          )
+      );
+
+    const averageCommunication =
+      getAverage(
+        items
+          .map(
+            (review) =>
+              review
+                .communication_rating
+          )
+          .filter(
+            (
+              value
+            ): value is number =>
+              value !== null
+          )
+      );
+
+    const distribution = {
+      5:
+        items.filter(
+          (review) =>
+            review.rating === 5
+        ).length,
+
+      4:
+        items.filter(
+          (review) =>
+            review.rating === 4
+        ).length,
+
+      3:
+        items.filter(
+          (review) =>
+            review.rating === 3
+        ).length,
+
+      2:
+        items.filter(
+          (review) =>
+            review.rating === 2
+        ).length,
+
+      1:
+        items.filter(
+          (review) =>
+            review.rating === 1
+        ).length,
+    };
+
+    return {
+      reviews:
+        items,
+
+      total,
+
+      averageRating,
+
+      averageQuality,
+
+      averageDeadline,
+
+      averageCommunication,
+
+      distribution,
+    };
+  } catch (error) {
     console.error(
       "Ошибка загрузки отзывов подрядчика:",
-      {
-        message:
-          reviewsError.message,
-
-        details:
-          reviewsError.details,
-
-        hint:
-          reviewsError.hint,
-
-        code:
-          reviewsError.code,
-      }
+      error
     );
 
     throw new Error(
       "Не удалось загрузить отзывы"
     );
   }
-
-  const reviewItems =
-    reviews ?? [];
-
-  /*
-   * 2. Получаем уникальные id заказчиков.
-   */
-  const customerIds =
-    Array.from(
-      new Set(
-        reviewItems
-          .map(
-            (review) =>
-              review.customer_id
-          )
-          .filter(Boolean)
-      )
-    );
-
-  /*
-   * 3. Загружаем профили заказчиков
-   * отдельным запросом.
-   */
-  let profiles:
-    ReviewProfile[] = [];
-
-  if (
-    customerIds.length >
-    0
-  ) {
-    const {
-      data:
-        profileData,
-      error:
-        profilesError,
-    } = await supabase
-      .from("profiles")
-      .select(`
-        id,
-        first_name,
-        last_name
-      `)
-      .in(
-        "id",
-        customerIds
-      );
-
-    if (profilesError) {
-      console.error(
-        "Ошибка загрузки профилей авторов отзывов:",
-        {
-          message:
-            profilesError.message,
-
-          details:
-            profilesError.details,
-
-          hint:
-            profilesError.hint,
-
-          code:
-            profilesError.code,
-        }
-      );
-
-      /*
-       * Отзывы всё равно показываем.
-       * Просто вместо имени будет "Заказчик".
-       */
-      profiles = [];
-    } else {
-      profiles =
-        profileData ?? [];
-    }
-  }
-
-  /*
-   * 4. Соединяем отзывы и профили вручную.
-   *
-   * Компонент ContractorReviews уже ожидает
-   * поле profiles, поэтому сохраняем это имя.
-   */
-  const items =
-    reviewItems.map(
-      (review) => {
-        const profile =
-          profiles.find(
-            (item) =>
-              item.id ===
-              review.customer_id
-          ) ?? null;
-
-        return {
-          ...review,
-
-          profiles:
-            profile,
-        };
-      }
-    );
-
-  /*
-   * 5. Рассчитываем общую статистику.
-   */
-
-  const total =
-    items.length;
-
-  const averageRating =
-    getAverage(
-      items.map(
-        (review) =>
-          Number(
-            review.rating
-          )
-      )
-    );
-
-  const averageQuality =
-    getAverage(
-      items
-        .map(
-          (review) =>
-            review.quality_rating
-        )
-        .filter(
-          (
-            value
-          ): value is number =>
-            value !== null
-        )
-        .map(Number)
-    );
-
-  const averageDeadline =
-    getAverage(
-      items
-        .map(
-          (review) =>
-            review.deadline_rating
-        )
-        .filter(
-          (
-            value
-          ): value is number =>
-            value !== null
-        )
-        .map(Number)
-    );
-
-  const averageCommunication =
-    getAverage(
-      items
-        .map(
-          (review) =>
-            review.communication_rating
-        )
-        .filter(
-          (
-            value
-          ): value is number =>
-            value !== null
-        )
-        .map(Number)
-    );
-
-  const distribution = {
-    5:
-      items.filter(
-        (review) =>
-          Number(
-            review.rating
-          ) === 5
-      ).length,
-
-    4:
-      items.filter(
-        (review) =>
-          Number(
-            review.rating
-          ) === 4
-      ).length,
-
-    3:
-      items.filter(
-        (review) =>
-          Number(
-            review.rating
-          ) === 3
-      ).length,
-
-    2:
-      items.filter(
-        (review) =>
-          Number(
-            review.rating
-          ) === 2
-      ).length,
-
-    1:
-      items.filter(
-        (review) =>
-          Number(
-            review.rating
-          ) === 1
-      ).length,
-  };
-
-  return {
-    reviews:
-      items,
-
-    total,
-
-    averageRating,
-
-    averageQuality,
-
-    averageDeadline,
-
-    averageCommunication,
-
-    distribution,
-  };
 }
 
 function getAverage(
@@ -335,4 +372,39 @@ function getAverage(
       values.length
     ).toFixed(1)
   );
+}
+
+function toNullableNumber(
+  value: unknown
+) {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    return null;
+  }
+
+  const number =
+    Number(value);
+
+  return Number.isFinite(
+    number
+  )
+    ? number
+    : null;
+}
+
+function toIsoString(
+  value:
+    Date | string
+) {
+  if (
+    value instanceof Date
+  ) {
+    return value
+      .toISOString();
+  }
+
+  return String(value);
 }

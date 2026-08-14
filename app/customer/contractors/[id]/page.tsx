@@ -3,68 +3,39 @@ import { redirect } from "next/navigation";
 
 import {
   ArrowLeft,
-  Search,
+  BadgeCheck,
+  BriefcaseBusiness,
+  Building2,
+  CalendarDays,
+  MapPin,
+  Phone,
+  Star,
   UsersRound,
 } from "lucide-react";
 
 import { getCurrentProfile } from
   "@/lib/auth/get-current-profile";
 
-import { getContractorCatalog } from
-  "@/features/contractors/catalog/queries/get-contractor-catalog";
+import { getPublicContractorCompany } from
+  "@/features/contractors/queries/get-public-contractor-company";
 
-import { getContractorCatalogOptions } from
-  "@/features/contractors/catalog/queries/get-contractor-catalog-options";
-
-import { ContractorCatalogCard } from
-  "@/features/contractors/catalog/components/contractor-catalog-card";
-
-import { ContractorCatalogFilters } from
-  "@/features/contractors/catalog/components/contractor-catalog-filters";
+import { getContractorReviews } from
+  "@/features/reviews/queries/get-contractor-reviews";
 
 type Props = {
-  searchParams: Promise<{
-    search?: string;
-    city?: string;
-    categoryId?: string;
-    minRating?: string;
-    minBudget?: string;
-    maxBudget?: string;
-    acceptsProjectsOnly?: string;
-    hasPortfolio?: string;
-    sort?: string;
-    page?: string;
+  params: Promise<{
+    id: string;
   }>;
 };
 
-type PageSearchParams = {
-  search?: string;
-  city?: string;
-  categoryId?: string;
-  minRating?: string;
-  minBudget?: string;
-  maxBudget?: string;
-  acceptsProjectsOnly?: string;
-  hasPortfolio?: string;
-  sort?: string;
-  page?: string;
-};
-
-export default async function CustomerContractorsPage({
-  searchParams,
+export default async function CustomerContractorPage({
+  params,
 }: Props) {
-  /*
-   * Проверяем текущего пользователя.
-   */
   const {
     profile,
   } =
     await getCurrentProfile();
 
-  /*
-   * Каталог подрядчиков доступен
-   * заказчикам.
-   */
   if (
     profile.role !==
     "customer"
@@ -74,102 +45,39 @@ export default async function CustomerContractorsPage({
     );
   }
 
-  const params =
-    await searchParams;
+  const {
+    id,
+  } =
+    await params;
 
-  /*
-   * Номер страницы.
-   */
-  const page =
-    parsePositiveInteger(
-      params.page
-    ) ?? 1;
-
-  /*
-   * Числовые фильтры.
-   */
-  const minRating =
-    parseNumber(
-      params.minRating
-    );
-
-  const minBudget =
-    parseNumber(
-      params.minBudget
-    );
-
-  const maxBudget =
-    parseNumber(
-      params.maxBudget
-    );
-
-  /*
-   * Сортировка.
-   */
-  const sort =
-    parseSort(
-      params.sort
-    );
-
-  /*
-   * Одновременно загружаем:
-   *
-   * 1. каталог подрядчиков;
-   * 2. города;
-   * 3. специализации.
-   */
   const [
-    catalog,
-    options,
+    company,
+    reviews,
   ] =
     await Promise.all([
-      getContractorCatalog({
-        search:
-          params.search,
+      getPublicContractorCompany(
+        id
+      ),
 
-        city:
-          params.city,
-
-        categoryId:
-          params.categoryId,
-
-        minRating,
-
-        minBudget,
-
-        maxBudget,
-
-        acceptsProjectsOnly:
-          params.acceptsProjectsOnly ===
-          "true",
-
-        hasPortfolio:
-          params.hasPortfolio ===
-          "true",
-
-        sort,
-
-        page,
-      }),
-
-      getContractorCatalogOptions(),
+      getContractorReviews(
+        id
+      ),
     ]);
 
-  /*
-   * Определяем наличие
-   * активных фильтров.
-   */
-  const hasFilters =
-    Boolean(
-      params.search ||
-      params.city ||
-      params.categoryId ||
-      params.minRating ||
-      params.minBudget ||
-      params.maxBudget ||
-      params.acceptsProjectsOnly ||
-      params.hasPortfolio
-    );
+  const services =
+    company
+      .contractor_services ??
+    [];
+
+  const areas =
+    company
+      .contractor_service_areas ??
+    [];
+
+  const portfolio =
+    company
+      .contractor_portfolio_projects ??
+    [];
 
   return (
     <main className="min-h-screen bg-background">
@@ -177,482 +85,665 @@ export default async function CustomerContractorsPage({
         {/* Назад */}
 
         <Link
-          href="/customer/dashboard"
+          href="/customer/contractors"
           className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground transition hover:text-primary"
         >
           <ArrowLeft className="h-4 w-4" />
 
-          Вернуться в кабинет
+          Вернуться к подрядчикам
         </Link>
 
         {/* HERO */}
 
         <section className="relative mt-5 overflow-hidden rounded-[2rem] border border-border bg-card p-6 shadow-[var(--shadow-soft)] md:p-8">
-          <div className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full bg-accent/25 blur-3xl" />
+          <div className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full bg-accent/20 blur-3xl" />
 
-          <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="text-sm font-semibold text-primary">
-                Каталог исполнителей
-              </p>
+          <div className="relative">
+            <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
+              <div className="flex gap-4">
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-secondary text-primary">
+                  <Building2 className="h-7 w-7" />
+                </div>
 
-              <h1 className="mt-2 text-3xl font-black tracking-[-0.04em] text-foreground md:text-5xl">
-                Найдите подрядчика
-              </h1>
+                <div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <h1 className="text-3xl font-black tracking-[-0.04em] text-foreground md:text-4xl">
+                      {company.public_name}
+                    </h1>
 
-              <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground md:text-base">
-                Сравнивайте опыт,
-                рейтинг, отзывы,
-                специализации,
-                географию работы и
-                выполненные проекты.
-              </p>
+                    {company.verification_status ===
+                      "verified" && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                        <BadgeCheck className="h-4 w-4" />
+
+                        Проверен
+                      </span>
+                    )}
+                  </div>
+
+                  {company.company_type && (
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      {formatCompanyType(
+                        company.company_type
+                      )}
+                    </p>
+                  )}
+
+                  <div className="mt-4 flex flex-wrap gap-4 text-sm">
+                    <div className="inline-flex items-center gap-2">
+                      <Star className="h-4 w-4 fill-current text-amber-500" />
+
+                      <strong>
+                        {Number(
+                          company.rating ??
+                          0
+                        ).toFixed(1)}
+                      </strong>
+
+                      <span className="text-muted-foreground">
+                        {company.rating_count ??
+                          0}{" "}
+                        отзывов
+                      </span>
+                    </div>
+
+                    <div className="inline-flex items-center gap-2 text-muted-foreground">
+                      <BriefcaseBusiness className="h-4 w-4" />
+
+                      {company.completed_projects_count ??
+                        0}{" "}
+                      проектов
+                    </div>
+
+                    {company.employee_count && (
+                      <div className="inline-flex items-center gap-2 text-muted-foreground">
+                        <UsersRound className="h-4 w-4" />
+
+                        {company.employee_count}{" "}
+                        чел.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[1.4rem] bg-primary text-primary-foreground shadow-[0_12px_28px_rgba(107,70,50,0.20)]">
-              <Search className="h-7 w-7" />
-            </div>
+            {company.description && (
+              <p className="mt-6 max-w-4xl text-sm leading-7 text-muted-foreground md:text-base">
+                {company.description}
+              </p>
+            )}
           </div>
         </section>
 
-        {/* Фильтры */}
+        <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+          {/* Основная колонка */}
 
-        <div className="mt-6">
-          <ContractorCatalogFilters
-            values={{
-              search:
-                params.search ??
-                "",
+          <div className="space-y-6">
+            {/* Специализации */}
 
-              city:
-                params.city ??
-                "",
+            <SectionCard
+              title="Специализации"
+            >
+              {services.length >
+              0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {services.map(
+                    (
+                      service:
+                        any
+                    ) => {
+                      const rawCategory =
+                        service
+                          .service_categories;
 
-              categoryId:
-                params.categoryId ??
-                "",
+                      const category =
+                        Array.isArray(
+                          rawCategory
+                        )
+                          ? rawCategory[0]
+                          : rawCategory;
 
-              minRating:
-                params.minRating ??
-                "",
+                      if (
+                        !category
+                      ) {
+                        return null;
+                      }
 
-              minBudget:
-                params.minBudget ??
-                "",
-
-              maxBudget:
-                params.maxBudget ??
-                "",
-
-              acceptsProjectsOnly:
-                params.acceptsProjectsOnly ===
-                "true",
-
-              hasPortfolio:
-                params.hasPortfolio ===
-                "true",
-
-              sort,
-            }}
-            categories={
-              options.categories
-            }
-            cities={
-              options.cities
-            }
-          />
-        </div>
-
-        {/* Результаты */}
-
-        <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-sm text-muted-foreground">
-              Результаты поиска
-            </p>
-
-            <h2 className="mt-1 text-2xl font-black tracking-tight text-foreground">
-              {catalog.total}{" "}
-              {formatContractorCount(
-                catalog.total
+                      return (
+                        <span
+                          key={
+                            service.category_id
+                          }
+                          className="rounded-full border border-border bg-secondary px-3 py-2 text-sm font-medium text-foreground"
+                        >
+                          {category.name}
+                        </span>
+                      );
+                    }
+                  )}
+                </div>
+              ) : (
+                <EmptyText>
+                  Специализации пока не указаны.
+                </EmptyText>
               )}
-            </h2>
+            </SectionCard>
+
+            {/* Портфолио */}
+
+            <SectionCard
+              title={`Портфолио (${portfolio.length})`}
+            >
+              {portfolio.length >
+              0 ? (
+                <div className="grid gap-5 md:grid-cols-2">
+                  {portfolio.map(
+                    (
+                      project:
+                        any
+                    ) => {
+                      const files =
+                        project
+                          .contractor_portfolio_files ??
+                        [];
+
+                      const cover =
+                        files.find(
+                          (
+                            file:
+                              any
+                          ) =>
+                            Boolean(
+                              file.signed_url
+                            )
+                        ) ??
+                        null;
+
+                      return (
+                        <article
+                          key={
+                            project.id
+                          }
+                          className="overflow-hidden rounded-2xl border border-border bg-background"
+                        >
+                          {cover?.signed_url ? (
+                            <img
+                              src={
+                                cover.signed_url
+                              }
+                              alt={
+                                project.title
+                              }
+                              className="aspect-[16/10] w-full object-cover"
+                            />
+                          ) : (
+                            <div className="flex aspect-[16/10] items-center justify-center bg-secondary text-muted-foreground">
+                              <BriefcaseBusiness className="h-8 w-8" />
+                            </div>
+                          )}
+
+                          <div className="p-5">
+                            <h3 className="font-bold text-foreground">
+                              {
+                                project.title
+                              }
+                            </h3>
+
+                            <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
+                              {project.city && (
+                                <span className="inline-flex items-center gap-1">
+                                  <MapPin className="h-3.5 w-3.5" />
+
+                                  {
+                                    project.city
+                                  }
+                                </span>
+                              )}
+
+                              {project.completed_year && (
+                                <span className="inline-flex items-center gap-1">
+                                  <CalendarDays className="h-3.5 w-3.5" />
+
+                                  {
+                                    project.completed_year
+                                  }
+                                </span>
+                              )}
+                            </div>
+
+                            {project.description && (
+                              <p className="mt-3 line-clamp-3 text-sm leading-6 text-muted-foreground">
+                                {
+                                  project.description
+                                }
+                              </p>
+                            )}
+                          </div>
+                        </article>
+                      );
+                    }
+                  )}
+                </div>
+              ) : (
+                <EmptyText>
+                  В портфолио пока нет проектов.
+                </EmptyText>
+              )}
+            </SectionCard>
+
+            {/* Отзывы */}
+
+            <SectionCard
+              title={`Отзывы (${reviews.total})`}
+            >
+              {reviews.total >
+              0 ? (
+                <>
+                  <div className="grid gap-3 sm:grid-cols-4">
+                    <RatingStat
+                      label="Общий"
+                      value={
+                        reviews.averageRating
+                      }
+                    />
+
+                    <RatingStat
+                      label="Качество"
+                      value={
+                        reviews.averageQuality
+                      }
+                    />
+
+                    <RatingStat
+                      label="Сроки"
+                      value={
+                        reviews.averageDeadline
+                      }
+                    />
+
+                    <RatingStat
+                      label="Общение"
+                      value={
+                        reviews.averageCommunication
+                      }
+                    />
+                  </div>
+
+                  <div className="mt-6 space-y-4">
+                    {reviews.reviews.map(
+                      (
+                        review:
+                          any
+                      ) => (
+                        <article
+                          key={
+                            review.id
+                          }
+                          className="rounded-2xl border border-border bg-background p-5"
+                        >
+                          <div className="flex flex-wrap items-start justify-between gap-4">
+                            <div>
+                              <p className="font-semibold text-foreground">
+                                {getReviewerName(
+                                  review.profiles
+                                )}
+                              </p>
+
+                              {review.projects && (
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  {
+                                    review
+                                      .projects
+                                      .title
+                                  }
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="inline-flex items-center gap-1 font-bold">
+                              <Star className="h-4 w-4 fill-current text-amber-500" />
+
+                              {
+                                review.rating
+                              }
+                            </div>
+                          </div>
+
+                          {review.comment && (
+                            <p className="mt-4 text-sm leading-6 text-muted-foreground">
+                              {
+                                review.comment
+                              }
+                            </p>
+                          )}
+                        </article>
+                      )
+                    )}
+                  </div>
+                </>
+              ) : (
+                <EmptyText>
+                  У подрядчика пока нет отзывов.
+                </EmptyText>
+              )}
+            </SectionCard>
           </div>
 
-          {hasFilters && (
-            <Link
-              href="/customer/contractors"
-              className="text-sm font-semibold text-primary transition hover:opacity-80"
+          {/* Правая колонка */}
+
+          <aside className="space-y-5 xl:sticky xl:top-24 xl:self-start">
+            <SectionCard
+              title="Данные компании"
             >
-              Сбросить фильтры
-            </Link>
-          )}
-        </div>
+              <div className="space-y-4">
+                {company.founded_year && (
+                  <InfoRow
+                    label="Год основания"
+                    value={String(
+                      company.founded_year
+                    )}
+                  />
+                )}
 
-        {/* Пустой результат */}
-
-        {catalog.items.length ===
-        0 ? (
-          <section className="mt-6 rounded-[1.75rem] border border-border bg-card p-8 text-center shadow-[var(--shadow-soft)] md:p-12">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-secondary text-primary">
-              <UsersRound className="h-6 w-6" />
-            </div>
-
-            <h3 className="mt-5 text-xl font-bold text-foreground">
-              Подрядчики не найдены
-            </h3>
-
-            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-              Попробуйте изменить
-              город, специализацию,
-              рейтинг, бюджет или
-              убрать часть фильтров.
-            </p>
-
-            <Link
-              href="/customer/contractors"
-              className="mt-6 inline-flex rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
-            >
-              Показать всех
-            </Link>
-          </section>
-        ) : (
-          <>
-            {/* Карточки */}
-
-            <div className="mt-6 grid gap-5 lg:grid-cols-2">
-              {catalog.items.map(
-                (
-                  contractor
-                ) => (
-                  <ContractorCatalogCard
-                    key={
-                      contractor.id
-                    }
-                    contractor={
-                      contractor
+                {company.inn && (
+                  <InfoRow
+                    label="ИНН"
+                    value={
+                      company.inn
                     }
                   />
-                )
-              )}
-            </div>
-
-            {/* Информация о странице */}
-
-            {catalog.total >
-              catalog.pageSize && (
-              <p className="mt-5 text-center text-xs text-muted-foreground">
-                Страница{" "}
-                {catalog.page} из{" "}
-                {
-                  catalog.totalPages
-                }
-              </p>
-            )}
-          </>
-        )}
-
-        {/* Пагинация */}
-
-        {catalog.totalPages >
-          1 && (
-          <nav
-            aria-label="Навигация по страницам каталога"
-            className="mt-8 flex flex-wrap items-center justify-center gap-2"
-          >
-            {/* Предыдущая */}
-
-            {catalog.page > 1 && (
-              <Link
-                href={buildPageHref(
-                  params,
-                  catalog.page -
-                    1
                 )}
-                className="rounded-xl border border-border bg-card px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-secondary"
-              >
-                ← Назад
-              </Link>
-            )}
 
-            {/* Номера */}
-
-            {getPaginationPages(
-              catalog.page,
-              catalog.totalPages
-            ).map(
-              (
-                pageNumber,
-                index,
-                pages
-              ) => {
-                const previous =
-                  pages[
-                    index - 1
-                  ];
-
-                const showGap =
-                  previous !==
-                    undefined &&
-                  pageNumber -
-                    previous >
-                    1;
-
-                return (
-                  <div
-                    key={
-                      pageNumber
+                {company.ogrn && (
+                  <InfoRow
+                    label="ОГРН"
+                    value={
+                      company.ogrn
                     }
-                    className="flex items-center gap-2"
-                  >
-                    {showGap && (
-                      <span className="px-1 text-sm text-muted-foreground">
-                        …
-                      </span>
-                    )}
-
-                    <Link
-                      href={buildPageHref(
-                        params,
-                        pageNumber
-                      )}
-                      aria-current={
-                        pageNumber ===
-                        catalog.page
-                          ? "page"
-                          : undefined
-                      }
-                      className={[
-                        "flex h-10 min-w-10 items-center justify-center rounded-xl border px-3 text-sm font-semibold transition",
-                        pageNumber ===
-                        catalog.page
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "border-border bg-card text-foreground hover:bg-secondary",
-                      ].join(
-                        " "
-                      )}
-                    >
-                      {
-                        pageNumber
-                      }
-                    </Link>
-                  </div>
-                );
-              }
-            )}
-
-            {/* Следующая */}
-
-            {catalog.page <
-              catalog.totalPages && (
-              <Link
-                href={buildPageHref(
-                  params,
-                  catalog.page +
-                    1
+                  />
                 )}
-                className="rounded-xl border border-border bg-card px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-secondary"
-              >
-                Далее →
-              </Link>
-            )}
-          </nav>
-        )}
+
+                {company.contact_phone && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">
+                      Телефон
+                    </p>
+
+                    <a
+                      href={`tel:${company.contact_phone}`}
+                      className="mt-1 inline-flex items-center gap-2 text-sm font-semibold text-foreground hover:text-primary"
+                    >
+                      <Phone className="h-4 w-4" />
+
+                      {
+                        company.contact_phone
+                      }
+                    </a>
+                  </div>
+                )}
+              </div>
+            </SectionCard>
+
+            <SectionCard
+              title="География"
+            >
+              {areas.length >
+              0 ? (
+                <div className="space-y-3">
+                  {areas.map(
+                    (
+                      area:
+                        any,
+                      index:
+                        number
+                    ) => (
+                      <div
+                        key={`${area.city}-${index}`}
+                        className="rounded-xl bg-secondary/50 p-3"
+                      >
+                        <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                          <MapPin className="h-4 w-4 text-primary" />
+
+                          {
+                            area.city
+                          }
+                        </div>
+
+                        {area.region && (
+                          <p className="mt-1 pl-6 text-xs text-muted-foreground">
+                            {
+                              area.region
+                            }
+                          </p>
+                        )}
+                      </div>
+                    )
+                  )}
+                </div>
+              ) : (
+                <EmptyText>
+                  География не указана.
+                </EmptyText>
+              )}
+            </SectionCard>
+
+            <SectionCard
+              title="Бюджет проектов"
+            >
+              <p className="text-lg font-black text-foreground">
+                {formatBudget(
+                  company.minimum_project_budget,
+                  company.maximum_project_budget
+                )}
+              </p>
+            </SectionCard>
+          </aside>
+        </div>
       </div>
     </main>
   );
 }
 
-/*
- * ========================================
- * Helpers
- * ========================================
- */
+function SectionCard({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-[1.75rem] border border-border bg-card p-5 shadow-[var(--shadow-soft)] md:p-6">
+      <h2 className="text-lg font-black text-foreground">
+        {title}
+      </h2>
 
-function parseNumber(
-  value:
-    | string
+      <div className="mt-5">
+        {children}
+      </div>
+    </section>
+  );
+}
+
+function InfoRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground">
+        {label}
+      </p>
+
+      <p className="mt-1 text-sm font-semibold text-foreground">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function RatingStat({
+  label,
+  value,
+}: {
+  label: string;
+  value: number;
+}) {
+  return (
+    <div className="rounded-xl bg-secondary/60 p-4">
+      <p className="text-xs text-muted-foreground">
+        {label}
+      </p>
+
+      <div className="mt-2 flex items-center gap-1">
+        <Star className="h-4 w-4 fill-current text-amber-500" />
+
+        <span className="font-black text-foreground">
+          {Number(
+            value
+          ).toFixed(1)}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function EmptyText({
+  children,
+}: {
+  children:
+    React.ReactNode;
+}) {
+  return (
+    <p className="text-sm text-muted-foreground">
+      {children}
+    </p>
+  );
+}
+
+function getReviewerName(
+  profile:
+    | {
+        first_name?:
+          string | null;
+        last_name?:
+          string | null;
+      }
+    | null
     | undefined
 ) {
-  if (!value) {
-    return undefined;
+  if (!profile) {
+    return "Заказчик";
+  }
+
+  const name = [
+    profile.first_name,
+    profile.last_name,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  return (
+    name ||
+    "Заказчик"
+  );
+}
+
+function formatBudget(
+  minimum:
+    unknown,
+  maximum:
+    unknown
+) {
+  const min =
+    toNumber(
+      minimum
+    );
+
+  const max =
+    toNumber(
+      maximum
+    );
+
+  if (
+    min !== null &&
+    max !== null
+  ) {
+    return `${formatMoney(
+      min
+    )} — ${formatMoney(
+      max
+    )}`;
+  }
+
+  if (
+    min !== null
+  ) {
+    return `от ${formatMoney(
+      min
+    )}`;
+  }
+
+  if (
+    max !== null
+  ) {
+    return `до ${formatMoney(
+      max
+    )}`;
+  }
+
+  return "По договорённости";
+}
+
+function formatMoney(
+  value: number
+) {
+  return `${new Intl.NumberFormat(
+    "ru-RU"
+  ).format(
+    value
+  )} ₽`;
+}
+
+function toNumber(
+  value: unknown
+) {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    return null;
   }
 
   const number =
     Number(value);
 
-  if (
-    !Number.isFinite(
-      number
-    )
-  ) {
-    return undefined;
-  }
-
-  return number;
-}
-
-function parsePositiveInteger(
-  value:
-    | string
-    | undefined
-) {
-  const number =
-    parseNumber(
-      value
-    );
-
-  if (
-    number ===
-      undefined ||
-    number < 1
-  ) {
-    return undefined;
-  }
-
-  return Math.floor(
+  return Number.isFinite(
     number
-  );
+  )
+    ? number
+    : null;
 }
 
-function parseSort(
-  value:
-    | string
-    | undefined
-):
-  | "recommended"
-  | "rating"
-  | "reviews"
-  | "completed"
-  | "newest" {
+function formatCompanyType(
+  value: string
+) {
   switch (value) {
-    case "rating":
-    case "reviews":
-    case "completed":
-    case "newest":
-      return value;
+    case "legal_entity":
+      return "Юридическое лицо";
 
-    case "recommended":
+    case "entrepreneur":
+      return "ИП";
+
+    case "self_employed":
+      return "Самозанятый";
+
     default:
-      return "recommended";
+      return value;
   }
-}
-
-function buildPageHref(
-  params:
-    PageSearchParams,
-  page: number
-) {
-  const searchParams =
-    new URLSearchParams();
-
-  for (
-    const [
-      key,
-      value,
-    ] of Object.entries(
-      params
-    )
-  ) {
-    if (
-      !value ||
-      key === "page"
-    ) {
-      continue;
-    }
-
-    searchParams.set(
-      key,
-      value
-    );
-  }
-
-  searchParams.set(
-    "page",
-    String(page)
-  );
-
-  const query =
-    searchParams.toString();
-
-  return query
-    ? `/customer/contractors?${query}`
-    : "/customer/contractors";
-}
-
-function getPaginationPages(
-  current: number,
-  total: number
-) {
-  const values =
-    new Set<number>();
-
-  /*
-   * Первая и последняя.
-   */
-  values.add(1);
-
-  values.add(total);
-
-  /*
-   * Текущая ±2.
-   */
-  for (
-    let index =
-      current - 2;
-    index <=
-    current + 2;
-    index++
-  ) {
-    if (
-      index >= 1 &&
-      index <= total
-    ) {
-      values.add(
-        index
-      );
-    }
-  }
-
-  return Array.from(
-    values
-  ).sort(
-    (
-      first,
-      second
-    ) =>
-      first - second
-  );
-}
-
-function formatContractorCount(
-  count: number
-) {
-  const lastTwo =
-    count % 100;
-
-  const last =
-    count % 10;
-
-  if (
-    lastTwo >= 11 &&
-    lastTwo <= 14
-  ) {
-    return "подрядчиков";
-  }
-
-  if (
-    last === 1
-  ) {
-    return "подрядчик";
-  }
-
-  if (
-    last >= 2 &&
-    last <= 4
-  ) {
-    return "подрядчика";
-  }
-
-  return "подрядчиков";
 }

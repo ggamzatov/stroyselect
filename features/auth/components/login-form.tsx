@@ -1,61 +1,104 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 
-import { createClient } from "@/lib/supabase/client";
+import {
+  loginUser,
+} from "@/features/auth/actions/login";
 
 export function LoginForm() {
-  const router = useRouter();
-  const supabase = createClient();
+  const [email, setEmail] =
+    useState("");
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [
+    password,
+    setPassword,
+  ] =
+    useState("");
 
-  const [message, setMessage] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [
+    message,
+    setMessage,
+  ] =
+    useState("");
+
+  const [
+    isLoading,
+    setIsLoading,
+  ] =
+    useState(false);
 
   async function handleSubmit(
-    event: React.FormEvent<HTMLFormElement>
+    event:
+      React.FormEvent<HTMLFormElement>
   ) {
     event.preventDefault();
 
     setMessage("");
     setIsLoading(true);
 
-    const { data, error } =
-      await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
+    try {
+      const result =
+        await loginUser({
+          email:
+            email.trim(),
 
-    if (error) {
-      console.error("Ошибка входа:", error);
+          password,
+        });
+
+      /*
+       * При успешном входе loginUser()
+       * делает redirect("/dashboard"),
+       * поэтому до этого места код
+       * обычно не дойдёт.
+       */
+
+      if (
+        result &&
+        !result.success
+      ) {
+        setMessage(
+          result.message ??
+          "Не удалось выполнить вход"
+        );
+
+        setIsLoading(false);
+      }
+    } catch (error) {
+      /*
+       * Next.js redirect внутри
+       * Server Action может проявляться
+       * как специальное исключение.
+       *
+       * Его нельзя превращать
+       * в пользовательскую ошибку.
+       */
+      if (
+        isNextRedirectError(
+          error
+        )
+      ) {
+        throw error;
+      }
+
+      console.error(
+        "Ошибка входа:",
+        error
+      );
 
       setMessage(
-        translateLoginError(error.message)
+        "Не удалось выполнить вход"
       );
 
       setIsLoading(false);
-      return;
     }
-
-    if (!data.user) {
-      setMessage(
-        "Пользователь не найден после входа"
-      );
-
-      setIsLoading(false);
-      return;
-    }
-
-    router.replace("/dashboard");
-    router.refresh();
   }
 
   return (
     <form
-      onSubmit={handleSubmit}
+      onSubmit={
+        handleSubmit
+      }
       className="w-full max-w-md rounded-xl border bg-white p-6"
     >
       <div className="space-y-2">
@@ -69,9 +112,15 @@ export function LoginForm() {
         <input
           id="email"
           type="email"
-          value={email}
-          onChange={(event) =>
-            setEmail(event.target.value)
+          value={
+            email
+          }
+          onChange={(
+            event
+          ) =>
+            setEmail(
+              event.target.value
+            )
           }
           required
           autoComplete="email"
@@ -90,9 +139,15 @@ export function LoginForm() {
         <input
           id="password"
           type="password"
-          value={password}
-          onChange={(event) =>
-            setPassword(event.target.value)
+          value={
+            password
+          }
+          onChange={(
+            event
+          ) =>
+            setPassword(
+              event.target.value
+            )
           }
           required
           autoComplete="current-password"
@@ -102,10 +157,14 @@ export function LoginForm() {
 
       <button
         type="submit"
-        disabled={isLoading}
+        disabled={
+          isLoading
+        }
         className="mt-5 h-11 w-full rounded-md bg-black text-white disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {isLoading ? "Выполняется вход..." : "Войти"}
+        {isLoading
+          ? "Выполняется вход..."
+          : "Войти"}
       </button>
 
       {message && (
@@ -117,15 +176,33 @@ export function LoginForm() {
   );
 }
 
-function translateLoginError(message: string) {
-  switch (message) {
-    case "Invalid login credentials":
-      return "Неверная электронная почта или пароль";
-
-    case "Email not confirmed":
-      return "Подтвердите электронную почту по ссылке из письма";
-
-    default:
-      return message;
+function isNextRedirectError(
+  error: unknown
+) {
+  if (
+    typeof error !==
+      "object" ||
+    error === null ||
+    !(
+      "digest" in error
+    )
+  ) {
+    return false;
   }
+
+  const digest =
+    (
+      error as {
+        digest?:
+          unknown;
+      }
+    ).digest;
+
+  return (
+    typeof digest ===
+      "string" &&
+    digest.startsWith(
+      "NEXT_REDIRECT"
+    )
+  );
 }

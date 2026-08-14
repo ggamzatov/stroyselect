@@ -1,5 +1,7 @@
-import { createClient } from
-  "@/lib/supabase/server";
+import "server-only";
+
+import { db } from
+  "@/lib/db/pool";
 
 import type {
   ContractorCatalogFilters,
@@ -10,12 +12,87 @@ import type {
 
 const DEFAULT_PAGE_SIZE = 12;
 
+type ContractorCatalogDbRow = {
+  id: string;
+
+  public_name:
+    string | null;
+
+  company_type:
+    string | null;
+
+  description:
+    string | null;
+
+  founded_year:
+    number | null;
+
+  employee_count:
+    number | null;
+
+  minimum_project_budget:
+    string | number | null;
+
+  maximum_project_budget:
+    string | number | null;
+
+  verification_status:
+    string;
+
+  accepts_new_projects:
+    boolean;
+
+  rating:
+    string | number | null;
+
+  rating_count:
+    number | null;
+
+  quality_rating:
+    string | number | null;
+
+  deadline_rating:
+    string | number | null;
+
+  communication_rating:
+    string | number | null;
+
+  completed_projects_count:
+    number | null;
+
+  recommendation_score:
+    string | number | null;
+
+  created_at:
+    Date | string;
+
+  services:
+    unknown;
+
+  areas:
+    unknown;
+
+  portfolio_count:
+    string | number;
+
+  total_count:
+    string | number;
+};
+
+type ServiceItem = {
+  id: string;
+  name: string;
+};
+
+type AreaItem = {
+  city: string;
+  region: string | null;
+  is_primary: boolean;
+};
+
 export async function getContractorCatalog(
   filters: ContractorCatalogFilters
 ): Promise<ContractorCatalogResult> {
-  const supabase =
-    await createClient();
-
   const page =
     Math.max(
       1,
@@ -25,110 +102,49 @@ export async function getContractorCatalog(
   const pageSize =
     DEFAULT_PAGE_SIZE;
 
-  const from =
+  const offset =
     (page - 1) *
     pageSize;
 
-  const to =
-    from +
-    pageSize -
-    1;
+  const values:
+    unknown[] = [];
+
+  const conditions:
+    string[] = [
+      `cc.verification_status = 'verified'`,
+    ];
 
   /*
-   * Основной запрос.
-   *
-   * В публичный каталог выводим
-   * только проверенных подрядчиков.
-   */
-  let query =
-    supabase
-      .from(
-        "contractor_companies"
-      )
-      .select(
-        `
-          id,
-          public_name,
-          company_type,
-          description,
-          founded_year,
-          employee_count,
-
-          minimum_project_budget,
-          maximum_project_budget,
-
-          verification_status,
-          accepts_new_projects,
-
-          rating,
-          rating_count,
-          quality_rating,
-          deadline_rating,
-          communication_rating,
-          completed_projects_count,
-
-          recommendation_score,
-
-          created_at,
-
-          contractor_services (
-            category_id,
-
-            service_categories (
-              id,
-              name
-            )
-          ),
-
-          contractor_service_areas (
-            city,
-            region,
-            is_primary
-          ),
-
-          contractor_portfolio_projects (
-            id
-          )
-        `,
-        {
-          count: "exact",
-        }
-      )
-      .eq(
-        "verification_status",
-        "verified"
-      );
-
-  /*
-   * Поиск по названию компании.
+   * Поиск по названию.
    */
   const search =
     filters.search
       ?.trim();
 
   if (search) {
-    query =
-      query.ilike(
-        "public_name",
-        `%${escapeLikePattern(
-          search
-        )}%`
-      );
+    values.push(
+      `%${escapeLikePattern(
+        search
+      )}%`
+    );
+
+    conditions.push(`
+      cc.public_name
+        ILIKE $${values.length}
+        ESCAPE '\\'
+    `);
   }
 
   /*
-   * Только компании,
-   * принимающие новые проекты.
+   * Только принимающие проекты.
    */
   if (
     filters
       .acceptsProjectsOnly
   ) {
-    query =
-      query.eq(
-        "accepts_new_projects",
-        true
-      );
+    conditions.push(`
+      cc.accepts_new_projects = true
+    `);
   }
 
   /*
@@ -141,20 +157,22 @@ export async function getContractorCatalog(
       filters.minRating
     )
   ) {
-    query =
-      query.gte(
-        "rating",
-        filters.minRating
-      );
+    values.push(
+      filters.minRating
+    );
+
+    conditions.push(`
+      cc.rating >=
+        $${values.length}
+    `);
   }
 
   /*
-   * Бюджет проекта от.
+   * Минимальный бюджет проекта.
    *
-   * Компания подходит,
-   * если её максимальный бюджет
-   * не меньше бюджета заказчика
-   * либо верхний предел не указан.
+   * Максимальный бюджет подрядчика
+   * должен быть не меньше бюджета
+   * заказчика.
    */
   if (
     filters.minBudget !==
@@ -163,22 +181,23 @@ export async function getContractorCatalog(
       filters.minBudget
     )
   ) {
-    query =
-      query.or(
-        [
-          "maximum_project_budget.is.null",
-          `maximum_project_budget.gte.${filters.minBudget}`,
-        ].join(",")
-      );
+    values.push(
+      filters.minBudget
+    );
+
+    conditions.push(`
+      (
+        cc.maximum_project_budget
+          IS NULL
+        OR
+        cc.maximum_project_budget
+          >= $${values.length}
+      )
+    `);
   }
 
   /*
-   * Бюджет проекта до.
-   *
-   * Компания подходит,
-   * если её минимальный бюджет
-   * не выше бюджета заказчика
-   * либо нижний предел не указан.
+   * Максимальный бюджет проекта.
    */
   if (
     filters.maxBudget !==
@@ -187,629 +206,397 @@ export async function getContractorCatalog(
       filters.maxBudget
     )
   ) {
-    query =
-      query.or(
-        [
-          "minimum_project_budget.is.null",
-          `minimum_project_budget.lte.${filters.maxBudget}`,
-        ].join(",")
-      );
+    values.push(
+      filters.maxBudget
+    );
+
+    conditions.push(`
+      (
+        cc.minimum_project_budget
+          IS NULL
+        OR
+        cc.minimum_project_budget
+          <= $${values.length}
+      )
+    `);
   }
 
   /*
-   * Фильтрация по городу.
-   *
-   * Сначала получаем ID компаний
-   * из contractor_service_areas.
+   * Город.
    */
-  if (
+  const city =
     filters.city
-      ?.trim()
-  ) {
-    const city =
-      filters.city.trim();
+      ?.trim();
 
-    const {
-      data:
-        areaCompanies,
-      error:
-        areaError,
-    } =
-      await supabase
-        .from(
-          "contractor_service_areas"
-        )
-        .select(
-          "contractor_id"
-        )
-        .ilike(
-          "city",
-          city
-        );
+  if (city) {
+    values.push(city);
 
-    if (areaError) {
-      console.error(
-        "Ошибка фильтрации подрядчиков по городу:",
-        {
-          message:
-            areaError.message,
-
-          details:
-            areaError.details,
-
-          hint:
-            areaError.hint,
-
-          code:
-            areaError.code,
-        }
-      );
-
-      throw new Error(
-        "Не удалось применить фильтр по городу"
-      );
-    }
-
-    const companyIds =
-      getUniqueIds(
-        areaCompanies
-          ?.map(
-            (item) =>
-              item.contractor_id
-          ) ??
-        []
-      );
-
-    if (
-      companyIds.length ===
-      0
-    ) {
-      return emptyResult(
-        page,
-        pageSize
-      );
-    }
-
-    query =
-      query.in(
-        "id",
-        companyIds
-      );
+    conditions.push(`
+      EXISTS (
+        SELECT 1
+        FROM
+          public.contractor_service_areas
+            csa_filter
+        WHERE
+          csa_filter.contractor_id =
+            cc.id
+          AND
+          csa_filter.city
+            ILIKE $${values.length}
+      )
+    `);
   }
 
   /*
-   * Фильтрация по специализации.
+   * Специализация.
    */
-  if (
+  const categoryId =
     filters.categoryId
-      ?.trim()
-  ) {
-    const {
-      data:
-        serviceCompanies,
-      error:
-        serviceError,
-    } =
-      await supabase
-        .from(
-          "contractor_services"
-        )
-        .select(
-          "contractor_id"
-        )
-        .eq(
-          "category_id",
-          filters.categoryId
-        );
+      ?.trim();
 
-    if (serviceError) {
-      console.error(
-        "Ошибка фильтрации подрядчиков по специализации:",
-        {
-          message:
-            serviceError.message,
+  if (categoryId) {
+    values.push(
+      categoryId
+    );
 
-          details:
-            serviceError.details,
-
-          hint:
-            serviceError.hint,
-
-          code:
-            serviceError.code,
-        }
-      );
-
-      throw new Error(
-        "Не удалось применить фильтр по специализации"
-      );
-    }
-
-    const companyIds =
-      getUniqueIds(
-        serviceCompanies
-          ?.map(
-            (item) =>
-              item.contractor_id
-          ) ??
-        []
-      );
-
-    if (
-      companyIds.length ===
-      0
-    ) {
-      return emptyResult(
-        page,
-        pageSize
-      );
-    }
-
-    query =
-      query.in(
-        "id",
-        companyIds
-      );
+    conditions.push(`
+      EXISTS (
+        SELECT 1
+        FROM
+          public.contractor_services
+            cs_filter
+        WHERE
+          cs_filter.contractor_id =
+            cc.id
+          AND
+          cs_filter.category_id =
+            $${values.length}
+      )
+    `);
   }
 
   /*
-   * Только компании
-   * с портфолио.
+   * Только с портфолио.
    */
   if (
     filters.hasPortfolio
   ) {
-    const {
-      data:
-        portfolioCompanies,
-      error:
-        portfolioError,
-    } =
-      await supabase
-        .from(
-          "contractor_portfolio_projects"
-        )
-        .select(
-          "contractor_id"
-        );
-
-    if (
-      portfolioError
-    ) {
-      console.error(
-        "Ошибка фильтрации подрядчиков по портфолио:",
-        {
-          message:
-            portfolioError.message,
-
-          details:
-            portfolioError.details,
-
-          hint:
-            portfolioError.hint,
-
-          code:
-            portfolioError.code,
-        }
-      );
-
-      throw new Error(
-        "Не удалось применить фильтр по портфолио"
-      );
-    }
-
-    const companyIds =
-      getUniqueIds(
-        portfolioCompanies
-          ?.map(
-            (item) =>
-              item.contractor_id
-          ) ??
-        []
-      );
-
-    if (
-      companyIds.length ===
-      0
-    ) {
-      return emptyResult(
-        page,
-        pageSize
-      );
-    }
-
-    query =
-      query.in(
-        "id",
-        companyIds
-      );
+    conditions.push(`
+      EXISTS (
+        SELECT 1
+        FROM
+          public.contractor_portfolio_projects
+            cpp_filter
+        WHERE
+          cpp_filter.contractor_id =
+            cc.id
+      )
+    `);
   }
 
-  /*
-   * Сортировка.
-   */
-  switch (
-    filters.sort
-  ) {
-    case "rating": {
-      query =
-        query
-          .order(
-            "rating",
-            {
-              ascending:
-                false,
-            }
-          )
-          .order(
-            "rating_count",
-            {
-              ascending:
-                false,
-            }
-          )
-          .order(
-            "completed_projects_count",
-            {
-              ascending:
-                false,
-            }
-          );
+  const whereSql =
+    conditions.join(
+      "\nAND "
+    );
 
-      break;
-    }
-
-    case "reviews": {
-      query =
-        query
-          .order(
-            "rating_count",
-            {
-              ascending:
-                false,
-            }
-          )
-          .order(
-            "rating",
-            {
-              ascending:
-                false,
-            }
-          )
-          .order(
-            "completed_projects_count",
-            {
-              ascending:
-                false,
-            }
-          );
-
-      break;
-    }
-
-    case "completed": {
-      query =
-        query
-          .order(
-            "completed_projects_count",
-            {
-              ascending:
-                false,
-            }
-          )
-          .order(
-            "rating",
-            {
-              ascending:
-                false,
-            }
-          )
-          .order(
-            "rating_count",
-            {
-              ascending:
-                false,
-            }
-          );
-
-      break;
-    }
-
-    case "newest": {
-      query =
-        query
-          .order(
-            "created_at",
-            {
-              ascending:
-                false,
-            }
-          )
-          .order(
-            "rating",
-            {
-              ascending:
-                false,
-            }
-          );
-
-      break;
-    }
-
-    case "recommended":
-    default: {
-      /*
-       * Главная сортировка каталога.
-       *
-       * recommendation_score
-       * рассчитывается в БД.
-       */
-      query =
-        query
-          .order(
-            "recommendation_score",
-            {
-              ascending:
-                false,
-            }
-          )
-          .order(
-            "rating",
-            {
-              ascending:
-                false,
-            }
-          )
-          .order(
-            "rating_count",
-            {
-              ascending:
-                false,
-            }
-          )
-          .order(
-            "completed_projects_count",
-            {
-              ascending:
-                false,
-            }
-          );
-
-      break;
-    }
-  }
-
-  /*
-   * Чтобы порядок был стабильным,
-   * последним критерием используем id.
-   */
-  query =
-    query.order(
-      "id",
-      {
-        ascending: true,
-      }
+  const orderSql =
+    getOrderSql(
+      filters.sort
     );
 
   /*
-   * Пагинация.
+   * LIMIT и OFFSET тоже передаём
+   * параметрами.
    */
-  query =
-    query.range(
-      from,
-      to
-    );
+  values.push(
+    pageSize
+  );
 
-  const {
-    data,
-    error,
-    count,
-  } =
-    await query;
+  const limitParameter =
+    values.length;
 
-  if (error) {
+  values.push(
+    offset
+  );
+
+  const offsetParameter =
+    values.length;
+
+  try {
+    const result =
+      await db.query<ContractorCatalogDbRow>(
+        `
+          SELECT
+            cc.id,
+
+            cc.public_name,
+            cc.company_type,
+            cc.description,
+
+            cc.founded_year,
+            cc.employee_count,
+
+            cc.minimum_project_budget,
+            cc.maximum_project_budget,
+
+            cc.verification_status,
+            cc.accepts_new_projects,
+
+            cc.rating,
+            cc.rating_count,
+
+            cc.quality_rating,
+            cc.deadline_rating,
+            cc.communication_rating,
+
+            cc.completed_projects_count,
+
+            cc.recommendation_score,
+
+            cc.created_at,
+
+            COALESCE(
+              (
+                SELECT
+                  jsonb_agg(
+                    jsonb_build_object(
+                      'id',
+                      sc.id,
+
+                      'name',
+                      sc.name
+                    )
+                    ORDER BY
+                      sc.name ASC
+                  )
+                FROM
+                  public.contractor_services
+                    cs
+                JOIN
+                  public.service_categories
+                    sc
+                  ON sc.id =
+                    cs.category_id
+                WHERE
+                  cs.contractor_id =
+                    cc.id
+              ),
+              '[]'::jsonb
+            ) AS services,
+
+            COALESCE(
+              (
+                SELECT
+                  jsonb_agg(
+                    jsonb_build_object(
+                      'city',
+                      csa.city,
+
+                      'region',
+                      csa.region,
+
+                      'is_primary',
+                      csa.is_primary
+                    )
+                    ORDER BY
+                      csa.is_primary DESC,
+                      csa.city ASC
+                  )
+                FROM
+                  public.contractor_service_areas
+                    csa
+                WHERE
+                  csa.contractor_id =
+                    cc.id
+                  AND
+                  csa.city IS NOT NULL
+              ),
+              '[]'::jsonb
+            ) AS areas,
+
+            (
+              SELECT
+                COUNT(*)
+              FROM
+                public.contractor_portfolio_projects
+                  cpp
+              WHERE
+                cpp.contractor_id =
+                  cc.id
+            ) AS portfolio_count,
+
+            COUNT(*) OVER()
+              AS total_count
+
+          FROM
+            public.contractor_companies
+              cc
+
+          WHERE
+            ${whereSql}
+
+          ORDER BY
+            ${orderSql}
+
+          LIMIT
+            $${limitParameter}
+
+          OFFSET
+            $${offsetParameter}
+        `,
+        values
+      );
+
+    /*
+     * COUNT(*) OVER() позволяет
+     * получить total вместе с
+     * результатами каталога.
+     */
+    const total =
+      result.rows.length > 0
+        ? safeInteger(
+            result.rows[0]
+              .total_count
+          )
+        : await countContractors(
+            whereSql,
+            values.slice(
+              0,
+              -2
+            )
+          );
+
+    const items =
+      result.rows.map(
+        normalizeContractor
+      );
+
+    const totalPages =
+      total === 0
+        ? 1
+        : Math.ceil(
+            total /
+            pageSize
+          );
+
+    return {
+      items,
+
+      total,
+
+      page,
+
+      pageSize,
+
+      totalPages,
+    };
+  } catch (error) {
     console.error(
       "Ошибка загрузки каталога подрядчиков:",
-      {
-        message:
-          error.message,
-
-        details:
-          error.details,
-
-        hint:
-          error.hint,
-
-        code:
-          error.code,
-      }
+      error
     );
 
     throw new Error(
       "Не удалось загрузить подрядчиков"
     );
   }
+}
 
-  const items =
-    (
-      data ??
-      []
-    ).map(
-      normalizeContractor
+/*
+ * Если OFFSET оказался за пределами
+ * последней страницы, основной запрос
+ * вернёт 0 строк.
+ *
+ * В этом случае отдельно узнаём total,
+ * чтобы сохранить старое поведение
+ * каталога.
+ */
+async function countContractors(
+  whereSql: string,
+  values: unknown[]
+) {
+  const result =
+    await db.query<{
+      total: string;
+    }>(
+      `
+        SELECT
+          COUNT(*) AS total
+        FROM
+          public.contractor_companies
+            cc
+        WHERE
+          ${whereSql}
+      `,
+      values
     );
 
-  const total =
-    count ?? 0;
+  return safeInteger(
+    result.rows[0]
+      ?.total
+  );
+}
 
-  /*
-   * Если пользователь вручную
-   * открыл страницу больше существующей,
-   * данные просто будут пустыми.
-   */
-  const totalPages =
-    total === 0
-      ? 1
-      : Math.ceil(
-          total /
-          pageSize
-        );
+function getOrderSql(
+  sort:
+    ContractorCatalogFilters["sort"]
+) {
+  switch (sort) {
+    case "rating":
+      return `
+        cc.rating DESC NULLS LAST,
+        cc.rating_count DESC,
+        cc.completed_projects_count DESC,
+        cc.id ASC
+      `;
 
-  return {
-    items,
+    case "reviews":
+      return `
+        cc.rating_count DESC,
+        cc.rating DESC NULLS LAST,
+        cc.completed_projects_count DESC,
+        cc.id ASC
+      `;
 
-    total,
+    case "completed":
+      return `
+        cc.completed_projects_count DESC,
+        cc.rating DESC NULLS LAST,
+        cc.rating_count DESC,
+        cc.id ASC
+      `;
 
-    page,
+    case "newest":
+      return `
+        cc.created_at DESC,
+        cc.rating DESC NULLS LAST,
+        cc.id ASC
+      `;
 
-    pageSize,
-
-    totalPages,
-  };
+    case "recommended":
+    default:
+      return `
+        cc.recommendation_score DESC NULLS LAST,
+        cc.rating DESC NULLS LAST,
+        cc.rating_count DESC,
+        cc.completed_projects_count DESC,
+        cc.id ASC
+      `;
+  }
 }
 
 function normalizeContractor(
-  company: any
+  company: ContractorCatalogDbRow
 ): ContractorCatalogItem {
-  /*
-   * Специализации.
-   */
-  const serviceMap =
-    new Map<
-      string,
-      {
-        id: string;
-        name: string;
-      }
-    >();
-
-  for (
-    const item of
-      company
-        .contractor_services ??
-      []
-  ) {
-    const rawCategory =
-      item
-        .service_categories;
-
-    const category =
-      Array.isArray(
-        rawCategory
-      )
-        ? rawCategory[0]
-        : rawCategory;
-
-    if (
-      !category?.id ||
-      !category?.name
-    ) {
-      continue;
-    }
-
-    const id =
-      String(
-        category.id
-      );
-
-    if (
-      !serviceMap.has(
-        id
-      )
-    ) {
-      serviceMap.set(
-        id,
-        {
-          id,
-          name:
-            category.name,
-        }
-      );
-    }
-  }
-
   const services =
-    Array.from(
-      serviceMap.values()
+    normalizeServices(
+      company.services
     );
 
-  /*
-   * География работы.
-   */
   const areas =
-    (
-      company
-        .contractor_service_areas ??
-      []
-    )
-      .filter(
-        (
-          area: any
-        ) =>
-          Boolean(
-            area.city
-          )
-      )
-      .map(
-        (
-          area: any
-        ) => ({
-          city:
-            String(
-              area.city
-            ),
-
-          region:
-            area.region
-              ? String(
-                  area.region
-                )
-              : null,
-
-          is_primary:
-            Boolean(
-              area.is_primary
-            ),
-        })
-      )
-      .sort(
-        (
-          first: {
-            is_primary:
-              boolean;
-            city: string;
-          },
-          second: {
-            is_primary:
-              boolean;
-            city: string;
-          }
-        ) => {
-          /*
-           * Основной город
-           * всегда первым.
-           */
-          if (
-            first.is_primary !==
-            second.is_primary
-          ) {
-            return first.is_primary
-              ? -1
-              : 1;
-          }
-
-          return first.city.localeCompare(
-            second.city,
-            "ru"
-          );
-        }
-      );
-
-  const portfolioCount =
-    (
-      company
-        .contractor_portfolio_projects ??
-      []
-    ).length;
+    normalizeAreas(
+      company.areas
+    );
 
   return {
     id:
@@ -873,8 +660,7 @@ function normalizeContractor(
 
     rating_count:
       safeInteger(
-        company
-          .rating_count
+        company.rating_count
       ),
 
     quality_rating:
@@ -908,38 +694,161 @@ function normalizeContractor(
       ),
 
     created_at:
-      String(
-        company.created_at
-      ),
+      company.created_at instanceof
+      Date
+        ? company.created_at
+            .toISOString()
+        : String(
+            company.created_at
+          ),
 
     services,
 
     areas,
 
     portfolio_count:
-      portfolioCount,
+      safeInteger(
+        company
+          .portfolio_count
+      ),
   };
 }
 
-function getUniqueIds(
-  values:
-    Array<
-      string |
-      null |
-      undefined
-    >
-) {
+function normalizeServices(
+  value: unknown
+): ServiceItem[] {
+  if (
+    !Array.isArray(value)
+  ) {
+    return [];
+  }
+
+  const serviceMap =
+    new Map<
+      string,
+      ServiceItem
+    >();
+
+  for (
+    const item of value
+  ) {
+    if (
+      !isRecord(item)
+    ) {
+      continue;
+    }
+
+    if (
+      item.id === null ||
+      item.id ===
+        undefined ||
+      !item.name
+    ) {
+      continue;
+    }
+
+    const id =
+      String(
+        item.id
+      );
+
+    if (
+      serviceMap.has(id)
+    ) {
+      continue;
+    }
+
+    serviceMap.set(
+      id,
+      {
+        id,
+
+        name:
+          String(
+            item.name
+          ),
+      }
+    );
+  }
+
   return Array.from(
-    new Set(
-      values.filter(
-        (
-          value
-        ): value is string =>
-          typeof value ===
-            "string" &&
-          value.length > 0
-      )
+    serviceMap.values()
+  );
+}
+
+function normalizeAreas(
+  value: unknown
+): AreaItem[] {
+  if (
+    !Array.isArray(value)
+  ) {
+    return [];
+  }
+
+  return value
+    .filter(
+      (
+        item
+      ): item is Record<
+        string,
+        unknown
+      > =>
+        isRecord(item) &&
+        Boolean(item.city)
     )
+    .map(
+      (item) => ({
+        city:
+          String(
+            item.city
+          ),
+
+        region:
+          item.region
+            ? String(
+                item.region
+              )
+            : null,
+
+        is_primary:
+          Boolean(
+            item.is_primary
+          ),
+      })
+    )
+    .sort(
+      (
+        first,
+        second
+      ) => {
+        if (
+          first.is_primary !==
+          second.is_primary
+        ) {
+          return first.is_primary
+            ? -1
+            : 1;
+        }
+
+        return first.city
+          .localeCompare(
+            second.city,
+            "ru"
+          );
+      }
+    );
+}
+
+function isRecord(
+  value: unknown
+): value is Record<
+  string,
+  unknown
+> {
+  return (
+    typeof value ===
+      "object" &&
+    value !== null
   );
 }
 
@@ -1016,19 +925,6 @@ function toNullableInteger(
   return Math.trunc(
     number
   );
-}
-
-function emptyResult(
-  page: number,
-  pageSize: number
-): ContractorCatalogResult {
-  return {
-    items: [],
-    total: 0,
-    page,
-    pageSize,
-    totalPages: 1,
-  };
 }
 
 function escapeLikePattern(

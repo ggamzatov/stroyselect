@@ -1,42 +1,60 @@
-import { createClient } from "@/lib/supabase/server";
+import "server-only";
+
+import { db } from
+  "@/lib/db/pool";
+
+import {
+  getCurrentSessionUserId,
+} from
+  "@/lib/auth/session";
 
 export async function getMyBidsCount(): Promise<number> {
-  const supabase = await createClient();
+  const userId =
+    await getCurrentSessionUserId();
 
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-
-  if (userError || !user) {
+  if (!userId) {
     return 0;
   }
 
-  const { data: company, error: companyError } =
-    await supabase
-      .from("contractor_companies")
-      .select("id")
-      .eq("owner_id", user.id)
-      .maybeSingle();
+  try {
+    const result =
+      await db.query<{
+        count: string;
+      }>(
+        `
+          SELECT
+            COUNT(pb.id)::text
+              AS count
+          FROM
+            public.contractor_companies
+              cc
+          LEFT JOIN
+            public.project_bids
+              pb
+            ON pb.contractor_id =
+              cc.id
+          WHERE
+            cc.owner_id =
+              $1
+        `,
+        [
+          userId,
+        ]
+      );
 
-  if (companyError || !company) {
-    console.error(
-      "Ошибка загрузки компании для подсчёта предложений:",
-      companyError
-    );
+    const count =
+      Number(
+        result.rows[0]
+          ?.count ??
+        0
+      );
 
-    return 0;
-  }
-
-  const { count, error } = await supabase
-    .from("project_bids")
-    .select("id", {
-      count: "exact",
-      head: true,
-    })
-    .eq("contractor_id", company.id);
-
-  if (error) {
+    return Number.isFinite(
+      count
+    )
+      ? count
+      : 0;
+  } catch (error) {
     console.error(
       "Ошибка подсчёта предложений подрядчика:",
       error
@@ -44,6 +62,4 @@ export async function getMyBidsCount(): Promise<number> {
 
     return 0;
   }
-
-  return count ?? 0;
 }
