@@ -79,24 +79,10 @@ export async function sendChatAttachment(
   }
 
   const normalizedText = messageText?.trim() || fileValue.name;
-
-  const messageResult = await db.query<{ id: string }>(
-    `
-      INSERT INTO public.project_messages (
-        project_id, sender_id, message_text, reply_to_id,
-        edited_at, is_deleted, deleted_at, deleted_by
-      )
-      VALUES ($1, $2, $3, NULL, NULL, false, NULL, NULL)
-      RETURNING id
-    `,
-    [projectId, user.id, normalizedText]
-  );
-
-  const createdMessage = messageResult.rows[0];
-  if (!createdMessage) return { success: false, message: "Не удалось создать сообщение" };
-
+  const messageId = crypto.randomUUID();
+  const fileId = crypto.randomUUID();
   const extension = getSafeFileExtension(fileValue.name);
-  const storagePath = `${projectId}/${createdMessage.id}/${crypto.randomUUID()}${extension}`;
+  const storagePath = `${projectId}/${messageId}/${crypto.randomUUID()}${extension}`;
   const body = Buffer.from(await fileValue.arrayBuffer());
 
   try {
@@ -110,27 +96,39 @@ export async function sendChatAttachment(
       })
     );
   } catch (error) {
-    await db.query(`DELETE FROM public.project_messages WHERE id = $1 AND sender_id = $2`, [createdMessage.id, user.id]);
     console.error("Ошибка загрузки вложения чата в S3:", error);
     return { success: false, message: "Не удалось загрузить файл" };
   }
 
   const fileCategory = getFileCategory(fileValue.type);
-  let createdFile: { id: string } | undefined;
+  const client = await db.connect();
 
   try {
-    const fileResult = await db.query<{ id: string }>(
+    await client.query("BEGIN");
+
+    await client.query(
+      `
+        INSERT INTO public.project_messages (
+          id, project_id, sender_id, message_text, reply_to_id,
+          edited_at, is_deleted, deleted_at, deleted_by
+        )
+        VALUES ($1, $2, $3, $4, NULL, NULL, false, NULL, NULL)
+      `,
+      [messageId, projectId, user.id, normalizedText]
+    );
+
+    await client.query(
       `
         INSERT INTO public.project_message_files (
-          project_id, message_id, uploaded_by, storage_bucket, storage_path,
+          id, project_id, message_id, uploaded_by, storage_bucket, storage_path,
           original_name, mime_type, size_bytes, file_category
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        RETURNING id
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       `,
       [
+        fileId,
         projectId,
-        createdMessage.id,
+        messageId,
         user.id,
         CHAT_FILES_BUCKET,
         storagePath,
@@ -140,17 +138,26 @@ export async function sendChatAttachment(
         fileCategory,
       ]
     );
-    createdFile = fileResult.rows[0];
-    if (!createdFile) throw new Error("Вложение не создано");
+
+    await client.query("COMMIT");
   } catch (error) {
+    await client.query("ROLLBACK");
+
     try {
-      await s3.send(new DeleteObjectCommand({ Bucket: CHAT_FILES_BUCKET, Key: storagePath }));
+      await s3.send(
+        new DeleteObjectCommand({
+          Bucket: CHAT_FILES_BUCKET,
+          Key: storagePath,
+        })
+      );
     } catch (cleanupError) {
       console.error("Ошибка компенсационного удаления вложения:", cleanupError);
     }
-    await db.query(`DELETE FROM public.project_messages WHERE id = $1 AND sender_id = $2`, [createdMessage.id, user.id]);
+
     console.error("Ошибка сохранения вложения чата:", error);
     return { success: false, message: "Не удалось сохранить вложение" };
+  } finally {
+    client.release();
   }
 
   try {
@@ -163,13 +170,13 @@ export async function sendChatAttachment(
         title: "Получен файл",
         body: getFileNotificationPreview(fileValue.name, normalizedText),
         projectId,
-        messageId: createdMessage.id,
+        messageId,
         url:
           recipient.recipientRole === "customer"
             ? `/customer/work/${projectId}`
             : `/contractor/work/${projectId}`,
         metadata: {
-          file_id: createdFile.id,
+          file_id: fileId,
           file_name: fileValue.name,
           storage_path: storagePath,
           mime_type: fileValue.type,
@@ -187,8 +194,8 @@ export async function sendChatAttachment(
   return {
     success: true,
     message: "Файл отправлен",
-    messageId: createdMessage.id,
-    fileId: createdFile.id,
+    messageId,
+    fileId,
   };
 }
 
