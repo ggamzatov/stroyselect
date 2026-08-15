@@ -54,10 +54,6 @@ export function useProjectChat({
   const [errorMessage, setErrorMessage] = useState("");
   const [isPending, startTransition] = useTransition();
 
-  useEffect(() => setMessages(initialMessages), [initialMessages]);
-  useEffect(() => setUnreadCount(initialUnreadCount), [initialUnreadCount]);
-  useEffect(() => setRecipientLastReadAt(otherUserLastReadAt), [otherUserLastReadAt]);
-
   const refreshChat = useCallback(async () => {
     if (pollInFlightRef.current || document.visibilityState !== "visible") return;
 
@@ -121,7 +117,13 @@ export function useProjectChat({
   }, [lastIncomingMessage, projectId, refreshChat]);
 
   useEffect(() => {
-    void markVisibleMessagesRead();
+    const timer = window.setTimeout(() => {
+      void markVisibleMessagesRead();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
   }, [markVisibleMessagesRead]);
 
   useEffect(() => {
