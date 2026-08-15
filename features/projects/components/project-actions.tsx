@@ -7,6 +7,7 @@ import {
   FolderOpen,
   Gavel,
   Info,
+  ListTodo,
   Scale,
   Search,
   Sparkles,
@@ -32,16 +33,22 @@ export function ProjectActions({ projectId, status }: Props) {
           <ActionLink href={`/customer/projects/${projectId}/matches`} icon={<Sparkles className="h-5 w-5" />}>
             Проверить подбор подрядчиков
           </ActionLink>
+          <ActionLink href={`/customer/projects/${projectId}/advisor`} icon={<ListTodo className="h-5 w-5" />}>
+            Project Advisor
+          </ActionLink>
           <PublishProjectButton projectId={projectId} />
           <StatusMessage variant="neutral" icon={<Info className="h-5 w-5" />} title="Проект пока не опубликован">
-            Проверьте описание, бюджет и сроки. Подбор уже можно посмотреть до публикации, а после публикации проект станет доступен подходящим подрядчикам.
+            Проверьте описание, бюджет и сроки. Подбор уже можно посмотреть до публикации, а Project Advisor поможет собрать shortlist и следующие шаги.
           </StatusMessage>
         </>
       )}
 
       {status === "published" && (
         <>
-          <ActionLink href={`/customer/projects/${projectId}/matches`} icon={<UsersRound className="h-5 w-5" />} primary>
+          <ActionLink href={`/customer/projects/${projectId}/advisor`} icon={<ListTodo className="h-5 w-5" />} primary>
+            Project Advisor
+          </ActionLink>
+          <ActionLink href={`/customer/projects/${projectId}/matches`} icon={<UsersRound className="h-5 w-5" />}>
             Подходящие подрядчики
           </ActionLink>
           <ActionLink href={`/customer/projects/${projectId}/bids/compare`} icon={<Scale className="h-5 w-5" />}>
@@ -51,21 +58,24 @@ export function ProjectActions({ projectId, status }: Props) {
             Все предложения
           </ActionLink>
           <StatusMessage variant="success" icon={<CheckCircle2 className="h-5 w-5" />} title="Проект опубликован">
-            Проект доступен подрядчикам. Matching помогает найти подходящие компании, а Bid Compare — сравнить их сметы в едином формате.
+            Управляйте кандидатами через Project Advisor: shortlist, контакты, follow-up и история решений остаются в одном месте.
           </StatusMessage>
         </>
       )}
 
       {status === "matching" && (
         <>
-          <ActionLink href={`/customer/projects/${projectId}/bids/compare`} icon={<Scale className="h-5 w-5" />} primary>
+          <ActionLink href={`/customer/projects/${projectId}/advisor`} icon={<ListTodo className="h-5 w-5" />} primary>
+            Открыть Project Advisor
+          </ActionLink>
+          <ActionLink href={`/customer/projects/${projectId}/bids/compare`} icon={<Scale className="h-5 w-5" />}>
             Сравнить предложения
           </ActionLink>
           <ActionLink href={`/customer/projects/${projectId}/matches`} icon={<Sparkles className="h-5 w-5" />}>
             Открыть умный подбор
           </ActionLink>
           <StatusMessage variant="neutral" icon={<Info className="h-5 w-5" />} title="Идёт подбор подрядчика">
-            Сравнивайте совпадение по проекту, детализированные сметы, сроки, гарантии и условия оплаты перед выбором исполнителя.
+            Сравнивайте совпадение, детализированные сметы и StroySelect Score, а финалистов ведите по воронке в Project Advisor.
           </StatusMessage>
         </>
       )}
@@ -75,11 +85,14 @@ export function ProjectActions({ projectId, status }: Props) {
           <ActionLink href={`/customer/work/${projectId}`} icon={<FolderOpen className="h-5 w-5" />} primary>
             Открыть рабочее пространство
           </ActionLink>
+          <ActionLink href={`/customer/projects/${projectId}/advisor`} icon={<ListTodo className="h-5 w-5" />}>
+            История выбора подрядчика
+          </ActionLink>
           <ActionLink href={`/customer/projects/${projectId}/bids/compare`} icon={<Scale className="h-5 w-5" />}>
             История предложений
           </ActionLink>
           <StatusMessage variant="success" icon={<CheckCircle2 className="h-5 w-5" />} title="Подрядчик выбран">
-            Проект готов к переходу в рабочее пространство.
+            Project Advisor сохраняет историю shortlist, контактов и решений, а выполнение проекта продолжается в рабочем пространстве.
           </StatusMessage>
         </>
       )}
@@ -88,6 +101,9 @@ export function ProjectActions({ projectId, status }: Props) {
         <>
           <ActionLink href={`/customer/work/${projectId}`} icon={<FolderOpen className="h-5 w-5" />} primary>
             Открыть рабочее пространство
+          </ActionLink>
+          <ActionLink href={`/customer/projects/${projectId}/advisor`} icon={<ListTodo className="h-5 w-5" />}>
+            История выбора
           </ActionLink>
           <StatusMessage variant="neutral" icon={<Info className="h-5 w-5" />} title="Работы выполняются">
             Следите за этапами, документами и сообщениями подрядчика в рабочем пространстве проекта.
@@ -100,8 +116,11 @@ export function ProjectActions({ projectId, status }: Props) {
           <ActionLink href={`/customer/work/${projectId}`} icon={<FolderOpen className="h-5 w-5" />}>
             Посмотреть рабочее пространство
           </ActionLink>
+          <ActionLink href={`/customer/projects/${projectId}/advisor`} icon={<ListTodo className="h-5 w-5" />}>
+            История выбора
+          </ActionLink>
           <StatusMessage variant="success" icon={<CheckCircle2 className="h-5 w-5" />} title="Проект завершён">
-            Рабочее пространство, этапы и история проекта остаются доступными для просмотра.
+            Рабочее пространство, этапы и история выбора подрядчика остаются доступными для просмотра.
           </StatusMessage>
         </>
       )}
@@ -167,7 +186,7 @@ function StatusMessage({ variant, icon, title, children }: {
     neutral: "border-border bg-secondary/40 text-foreground",
     success: "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-200",
     warning: "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200",
-    danger: "border-red-200 bg-red-50 text-red-900 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-200",
+    danger: "border-red-200 bg-red-50 text-red-900 dark:border-red-950/40 dark:bg-red-950/30 dark:text-red-200",
   };
 
   return (
