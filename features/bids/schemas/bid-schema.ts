@@ -1,290 +1,96 @@
 import { z } from "zod";
 
-const optionalDateSchema =
+const optionalDateSchema = z.preprocess(
+  (value) => {
+    if (value === "" || value === null || value === undefined) {
+      return undefined;
+    }
+    return value;
+  },
+  z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Укажите корректную дату").optional()
+);
+
+const optionalText = (max: number) =>
   z.preprocess(
     (value) => {
-      if (
-        value === "" ||
-        value === null ||
-        value === undefined
-      ) {
-        return undefined;
-      }
-
+      if (value === null || value === undefined) return undefined;
+      if (typeof value === "string" && value.trim() === "") return undefined;
       return value;
     },
-    z
-      .string()
-      .regex(
-        /^\d{4}-\d{2}-\d{2}$/,
-        "Укажите корректную дату"
-      )
-      .optional()
+    z.string().trim().max(max).optional()
   );
 
-const optionalMessageSchema =
+const requiredText = (label: string, minimum: number, maximum: number) =>
+  z.string().trim().min(minimum, `${label} должен содержать не менее ${minimum} символов`).max(maximum);
+
+const positiveNumberSchema = (fieldName: string, minimum: number, maximum: number) =>
   z.preprocess(
     (value) => {
-      if (
-        value === null ||
-        value === undefined
-      ) {
-        return undefined;
+      if (value === "" || value === null || value === undefined) return undefined;
+      if (typeof value === "string") {
+        const normalized = value.replace(/\s+/g, "").replace(",", ".");
+        const numberValue = Number(normalized);
+        return Number.isNaN(numberValue) ? value : numberValue;
       }
-
-      if (
-        typeof value === "string" &&
-        value.trim() === ""
-      ) {
-        return undefined;
-      }
-
       return value;
     },
-    z
-      .string()
-      .trim()
-      .min(
-        20,
-        "Комментарий должен содержать не менее 20 символов"
-      )
-      .max(
-        3000,
-        "Комментарий не должен превышать 3000 символов"
-      )
-      .optional()
+    z.number({ message: `${fieldName} должно быть числом` })
+      .finite(`${fieldName} должно быть корректным числом`)
+      .min(minimum, `${fieldName} не может быть меньше ${minimum}`)
+      .max(maximum, `${fieldName} не может быть больше ${maximum}`)
   );
 
-const positiveNumberSchema =
-  (
-    fieldName: string,
-    minimum: number,
-    maximum: number
-  ) =>
-    z.preprocess(
-      (value) => {
-        if (
-          value === "" ||
-          value === null ||
-          value === undefined
-        ) {
-          return undefined;
-        }
-
-        if (
-          typeof value === "string"
-        ) {
-          const normalized =
-            value
-              .replace(/\s+/g, "")
-              .replace(",", ".");
-
-          const numberValue =
-            Number(normalized);
-
-          return Number.isNaN(
-            numberValue
-          )
-            ? value
-            : numberValue;
-        }
-
-        return value;
-      },
-      z
-        .number({
-          message:
-            `${fieldName} должно быть числом`,
-        })
-        .finite(
-          `${fieldName} должно быть корректным числом`
-        )
-        .min(
-          minimum,
-          `${fieldName} не может быть меньше ${minimum}`
-        )
-        .max(
-          maximum,
-          `${fieldName} не может быть больше ${maximum}`
-        )
-    );
-
-export const bidSchema =
-  z
-    .object({
-      projectId: z
-        .string()
-        .uuid(
-          "Некорректный идентификатор проекта"
-        ),
-
-      price:
-        positiveNumberSchema(
-          "Стоимость",
-          1,
-          1_000_000_000
-        ),
-
-      durationDays:
-        z.preprocess(
-          (value) => {
-            if (
-              value === "" ||
-              value === null ||
-              value === undefined
-            ) {
-              return undefined;
-            }
-
-            if (
-              typeof value ===
-              "string"
-            ) {
-              const numberValue =
-                Number(
-                  value.replace(
-                    /\s+/g,
-                    ""
-                  )
-                );
-
-              return Number.isNaN(
-                numberValue
-              )
-                ? value
-                : numberValue;
-            }
-
-            return value;
-          },
-          z
-            .number({
-              message:
-                "Срок должен быть числом",
-            })
-            .int(
-              "Срок должен быть указан в целых днях"
-            )
-            .min(
-              1,
-              "Срок должен быть не менее 1 дня"
-            )
-            .max(
-              3650,
-              "Срок не может превышать 10 лет"
-            )
-        ),
-
-      proposedStartDate:
-        optionalDateSchema,
-
-      message:
-        optionalMessageSchema,
-    })
-    .superRefine(
-      (
-        values,
-        context
-      ) => {
-        if (
-          !values
-            .proposedStartDate
-        ) {
-          return;
-        }
-
-        const proposedDate =
-          parseDateOnly(
-            values
-              .proposedStartDate
-          );
-
-        if (!proposedDate) {
-          context.addIssue({
-            code:
-              z.ZodIssueCode.custom,
-            path: [
-              "proposedStartDate",
-            ],
-            message:
-              "Укажите корректную дату начала",
-          });
-
-          return;
-        }
-
-        const today =
-          getTodayDateOnly();
-
-        if (
-          proposedDate <
-          today
-        ) {
-          context.addIssue({
-            code:
-              z.ZodIssueCode.custom,
-            path: [
-              "proposedStartDate",
-            ],
-            message:
-              "Дата начала не может быть в прошлом",
-          });
-        }
+export const bidSchema = z.object({
+  projectId: z.string().uuid("Некорректный идентификатор проекта"),
+  price: positiveNumberSchema("Стоимость", 1, 1_000_000_000),
+  durationDays: z.preprocess(
+    (value) => {
+      if (value === "" || value === null || value === undefined) return undefined;
+      if (typeof value === "string") {
+        const numberValue = Number(value.replace(/\s+/g, ""));
+        return Number.isNaN(numberValue) ? value : numberValue;
       }
-    );
-
-export type BidFormInput =
-  z.input<typeof bidSchema>;
-
-export type BidInput =
-  z.output<typeof bidSchema>;
-
-function parseDateOnly(
-  value: string
-) {
-  const [
-    year,
-    month,
-    day,
-  ] = value
-    .split("-")
-    .map(Number);
-
-  if (
-    !year ||
-    !month ||
-    !day
-  ) {
-    return null;
+      return value;
+    },
+    z.number({ message: "Срок должен быть числом" })
+      .int("Срок должен быть указан в целых днях")
+      .min(1, "Срок должен быть не менее 1 дня")
+      .max(3650, "Срок не может превышать 10 лет")
+  ),
+  proposedStartDate: optionalDateSchema,
+  message: optionalText(3000),
+  scopeSummary: requiredText("Состав работ", 30, 5000),
+  materialsSummary: requiredText("Материалы", 20, 3000),
+  exclusions: optionalText(3000),
+  paymentTerms: requiredText("Условия оплаты", 15, 3000),
+  warrantyMonths: z.preprocess(
+    (value) => value === "" || value === null || value === undefined ? undefined : Number(value),
+    z.number({ message: "Гарантия должна быть числом" }).int().min(0).max(120)
+  ),
+  priceIncludesMaterials: z.boolean().default(false),
+}).superRefine((values, context) => {
+  if (!values.proposedStartDate) return;
+  const proposedDate = parseDateOnly(values.proposedStartDate);
+  if (!proposedDate) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["proposedStartDate"], message: "Укажите корректную дату начала" });
+    return;
   }
+  if (proposedDate < getTodayDateOnly()) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["proposedStartDate"], message: "Дата начала не может быть в прошлом" });
+  }
+});
 
-  const date =
-    new Date(
-      year,
-      month - 1,
-      day
-    );
+export type BidFormInput = z.input<typeof bidSchema>;
+export type BidInput = z.output<typeof bidSchema>;
 
-  const isValid =
-    date.getFullYear() ===
-      year &&
-    date.getMonth() ===
-      month - 1 &&
-    date.getDate() ===
-      day;
-
-  return isValid
-    ? date
-    : null;
+function parseDateOnly(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  const date = new Date(year, month - 1, day);
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day ? date : null;
 }
 
 function getTodayDateOnly() {
-  const now =
-    new Date();
-
-  return new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate()
-  );
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
 }
