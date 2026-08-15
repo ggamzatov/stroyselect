@@ -109,7 +109,7 @@ export async function getContractorReview(contractorId: string) {
       ),
       db.query<{
         id: string;
-        previous_status: string | null;
+        previous_status: string;
         new_status: string;
         comment: string | null;
         created_at: Date | string;
@@ -118,7 +118,7 @@ export async function getContractorReview(contractorId: string) {
         `
           SELECT
             id,
-            previous_status::text AS previous_status,
+            COALESCE(previous_status::text, '') AS previous_status,
             new_status::text AS new_status,
             comment,
             created_at,
