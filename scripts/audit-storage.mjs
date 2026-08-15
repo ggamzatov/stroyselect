@@ -100,7 +100,16 @@ function printSample(label, values) {
   }
 }
 
+function isMissingBucketError(error) {
+  return (
+    error &&
+    typeof error === "object" &&
+    (error.name === "NoSuchBucket" || error.Code === "NoSuchBucket")
+  );
+}
+
 let mismatchCount = 0;
+let missingBucketCount = 0;
 
 try {
   for (const source of SOURCES) {
@@ -111,7 +120,25 @@ try {
         .filter(Boolean)
     );
 
-    const objectKeys = await listBucketKeys(source.bucket);
+    let objectKeys;
+
+    try {
+      objectKeys = await listBucketKeys(source.bucket);
+    } catch (error) {
+      if (!isMissingBucketError(error)) {
+        throw error;
+      }
+
+      missingBucketCount += 1;
+      mismatchCount += Math.max(dbKeys.size, 1);
+
+      console.log(`\n[${source.bucket}] ${source.name}`);
+      console.log(`  database references: ${dbKeys.size}`);
+      console.log("  storage bucket:      MISSING");
+      console.log("  action required:     create this bucket before uploads are used");
+      continue;
+    }
+
     const missingObjects = difference(dbKeys, objectKeys);
     const orphanObjects = difference(objectKeys, dbKeys);
 
@@ -128,6 +155,10 @@ try {
   }
 
   console.log("\nStorage audit complete.");
+
+  if (missingBucketCount > 0) {
+    console.log(`Missing required buckets: ${missingBucketCount}.`);
+  }
 
   if (mismatchCount > 0) {
     console.log(`Found ${mismatchCount} storage/database mismatches.`);
