@@ -1,64 +1,134 @@
+import "server-only";
+
 import { redirect } from "next/navigation";
 
-import { createClient } from
-  "@/lib/supabase/server";
+import { db } from "@/lib/db/pool";
+import { requireActiveUser } from "@/lib/auth/require-active-user";
+import { getSignedFileUrl } from "@/lib/storage/get-signed-file-url";
 
-export async function getProjectWorkspace(
-  projectId: string
-) {
-  const supabase =
-    await createClient();
+const PROJECT_FILES_BUCKET = "project-files";
 
-  const {
-    data: { user },
-    error: userError,
-  } =
-    await supabase.auth.getUser();
+type ProjectRow = {
+  id: string;
+  customer_id: string;
+  selected_contractor_id: string | null;
+  category_id: number | string | null;
+  title: string;
+  description: string | null;
+  property_type: string | null;
+  region: string | null;
+  city: string | null;
+  address: string | null;
+  budget_min: string | number | null;
+  budget_max: string | number | null;
+  desired_start_date: Date | string | null;
+  desired_end_date: Date | string | null;
+  status: string;
+  published_at: Date | string | null;
+  contractor_selected_at: Date | string | null;
+  work_started_at: Date | string | null;
+  completed_at: Date | string | null;
+  created_at: Date | string;
+  updated_at: Date | string;
+};
 
-  if (userError || !user) {
+type CustomerRow = {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  phone: string | null;
+  city: string | null;
+};
+
+type ContractorRow = {
+  id: string;
+  owner_id: string;
+  public_name: string;
+  legal_name: string | null;
+  company_type: string | null;
+  rating: string | number;
+  rating_count: number;
+  verification_status: string;
+  contact_phone: string | null;
+  contact_email: string | null;
+};
+
+type BidRow = {
+  id: string;
+  project_id: string;
+  contractor_id: string;
+  price: string | number;
+  duration_days: number;
+  message: string | null;
+  proposed_start_date: Date | string | null;
+  status: string;
+  created_at: Date | string;
+  updated_at: Date | string;
+};
+
+type StageRow = {
+  id: string;
+  project_id: string;
+  created_by: string;
+  title: string;
+  description: string | null;
+  price: string | number | null;
+  progress_weight: number;
+  sort_order: number;
+  status: string;
+  planned_start_date: Date | string | null;
+  planned_end_date: Date | string | null;
+  actual_started_at: Date | string | null;
+  actual_completed_at: Date | string | null;
+  submitted_for_review_at: Date | string | null;
+  reviewed_at: Date | string | null;
+  reviewed_by: string | null;
+  customer_review_comment: string | null;
+  created_at: Date | string;
+  updated_at: Date | string;
+};
+
+type EventRow = {
+  id: string;
+  project_id: string;
+  author_id: string | null;
+  event_type: string;
+  title: string;
+  description: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: Date | string;
+};
+
+type FileRow = {
+  id: string;
+  project_id: string;
+  stage_id: string;
+  uploaded_by: string;
+  file_name: string;
+  storage_path: string;
+  file_size: string | number;
+  mime_type: string;
+  file_category: string;
+  description: string | null;
+  created_at: Date | string;
+};
+
+export async function getProjectWorkspace(projectId: string) {
+  const activeUser = await requireActiveUser();
+
+  if (!activeUser.success) {
+    if (activeUser.reason === "blocked") {
+      redirect("/account-blocked");
+    }
+
     redirect("/login");
   }
 
-  /*
-   * Получаем профиль текущего пользователя.
-   */
-  const {
-    data: profile,
-    error: profileError,
-  } = await supabase
-    .from("profiles")
-    .select(`
-      id,
-      role,
-      first_name,
-      last_name
-    `)
-    .eq("id", user.id)
-    .maybeSingle();
+  const { user, profile } = activeUser;
 
-  if (
-    profileError ||
-    !profile
-  ) {
-    console.error(
-      "Ошибка загрузки профиля:",
-      profileError
-    );
-
-    throw new Error(
-      "Не удалось загрузить профиль пользователя"
-    );
-  }
-
-  /*
-   * Получаем основной проект.
-   */
-    const {
-      data: project,
-      error: projectError,
-    } = await supabase
-      .from("projects")
-      .select(`
+  const projectResult = await db.query<ProjectRow>(
+    `
+      SELECT
         id,
         customer_id,
         selected_contractor_id,
@@ -80,103 +150,51 @@ export async function getProjectWorkspace(
         completed_at,
         created_at,
         updated_at
-      `)
-      .eq("id", projectId)
-      .maybeSingle();
+      FROM public.projects
+      WHERE id = $1
+      LIMIT 1
+    `,
+    [projectId]
+  );
 
-  if (
-    projectError ||
-    !project
-  ) {
-    console.error(
-      "Ошибка загрузки проекта:",
-      projectError
+  const rawProject = projectResult.rows[0];
+
+  if (!rawProject) {
+    throw new Error("Проект не найден");
+  }
+
+  let currentContractorCompany: { id: string } | null = null;
+
+  if (profile.role === "customer") {
+    if (rawProject.customer_id !== user.id) {
+      redirect("/customer/dashboard");
+    }
+  } else if (profile.role === "contractor") {
+    const companyResult = await db.query<{ id: string }>(
+      `
+        SELECT id
+        FROM public.contractor_companies
+        WHERE owner_id = $1
+        LIMIT 1
+      `,
+      [user.id]
     );
 
-    throw new Error(
-      "Проект не найден"
-    );
-  }
+    const company = companyResult.rows[0];
 
-  /*
-   * Проверяем доступ заказчика.
-   */
-  if (
-    profile.role === "customer" &&
-    project.customer_id !== user.id
-  ) {
-    redirect("/customer/dashboard");
-  }
-
-  /*
-   * Для подрядчика получаем его компанию
-   * и проверяем, что именно она выбрана
-   * для этого проекта.
-   */
-  let currentContractorCompany:
-    | {
-        id: string;
-      }
-    | null = null;
-
-  if (
-    profile.role === "contractor"
-  ) {
-    const {
-      data: company,
-      error: companyError,
-    } = await supabase
-      .from("contractor_companies")
-      .select("id")
-      .eq("owner_id", user.id)
-      .maybeSingle();
-
-    if (
-      companyError ||
-      !company
-    ) {
-      console.error(
-        "Ошибка загрузки компании подрядчика:",
-        companyError
-      );
-
-      redirect(
-        "/contractor/dashboard"
-      );
+    if (!company) {
+      redirect("/contractor/dashboard");
     }
 
-    currentContractorCompany =
-      company;
+    currentContractorCompany = company;
 
-    if (
-      project.selected_contractor_id !==
-      company.id
-    ) {
-      redirect(
-        "/contractor/dashboard"
-      );
+    if (rawProject.selected_contractor_id !== company.id) {
+      redirect("/contractor/dashboard");
     }
-  }
-
-  /*
-   * Администратор может просматривать
-   * рабочее пространство.
-   */
-  if (
-    ![
-      "customer",
-      "contractor",
-      "admin",
-    ].includes(profile.role)
-  ) {
+  } else if (profile.role !== "admin") {
     redirect("/dashboard");
   }
 
-  /*
-   * Все запросы расположены строго
-   * в том же порядке, что и переменные
-   * результата слева.
-   */
   const [
     customerResult,
     contractorResult,
@@ -185,366 +203,229 @@ export async function getProjectWorkspace(
     eventsResult,
     filesResult,
   ] = await Promise.all([
-    /*
-     * 1. Заказчик.
-     */
-    supabase
-      .from("profiles")
-      .select(`
-        id,
-        first_name,
-        last_name,
-        phone,
-        city
-      `)
-      .eq(
-        "id",
-        project.customer_id
-      )
-      .maybeSingle(),
+    db.query<CustomerRow>(
+      `
+        SELECT id, first_name, last_name, phone, city
+        FROM public.profiles
+        WHERE id = $1
+        LIMIT 1
+      `,
+      [rawProject.customer_id]
+    ),
 
-    /*
-     * 2. Выбранный подрядчик.
-     */
-    project.selected_contractor_id
-      ? supabase
-          .from(
-            "contractor_companies"
-          )
-          .select(`
-            id,
-            owner_id,
-            public_name,
-            legal_name,
-            company_type,
-            rating,
-            rating_count,
-            verification_status,
-            contact_phone,
-            contact_email
-          `)
-          .eq(
-            "id",
-            project.selected_contractor_id
-          )
-          .maybeSingle()
-      : Promise.resolve({
-          data: null,
-          error: null,
-        }),
+    rawProject.selected_contractor_id
+      ? db.query<ContractorRow>(
+          `
+            SELECT
+              id,
+              owner_id,
+              public_name,
+              legal_name,
+              company_type,
+              rating,
+              rating_count,
+              verification_status,
+              contact_phone,
+              contact_email
+            FROM public.contractor_companies
+            WHERE id = $1
+            LIMIT 1
+          `,
+          [rawProject.selected_contractor_id]
+        )
+      : Promise.resolve({ rows: [] as ContractorRow[] }),
 
-    /*
-     * 3. Принятое предложение.
-     */
-    project.selected_contractor_id
-      ? supabase
-          .from("project_bids")
-          .select(`
-            id,
-            project_id,
-            contractor_id,
-            price,
-            duration_days,
-            message,
-            proposed_start_date,
-            status,
-            created_at,
-            updated_at
-          `)
-          .eq(
-            "project_id",
-            projectId
-          )
-          .eq(
-            "contractor_id",
-            project
-              .selected_contractor_id
-          )
-          .eq(
-            "status",
-            "accepted"
-          )
-          .maybeSingle()
-      : Promise.resolve({
-          data: null,
-          error: null,
-        }),
+    rawProject.selected_contractor_id
+      ? db.query<BidRow>(
+          `
+            SELECT
+              id,
+              project_id,
+              contractor_id,
+              price,
+              duration_days,
+              message,
+              proposed_start_date,
+              status,
+              created_at,
+              updated_at
+            FROM public.project_bids
+            WHERE project_id = $1
+              AND contractor_id = $2
+              AND status = 'accepted'
+            LIMIT 1
+          `,
+          [projectId, rawProject.selected_contractor_id]
+        )
+      : Promise.resolve({ rows: [] as BidRow[] }),
 
-    /*
-     * 4. Этапы проекта.
-     */
-    supabase
-      .from("project_stages")
-      .select(`
-        id,
-        project_id,
-        created_by,
-        title,
-        description,
-        price,
-        progress_weight,
-        sort_order,
-        status,
-        planned_start_date,
-        planned_end_date,
-        actual_started_at,
-        actual_completed_at,
-        submitted_for_review_at,
-        reviewed_at,
-        reviewed_by,
-        customer_review_comment,
-        created_at,
-        updated_at
-      `)
-      .eq(
-        "project_id",
-        projectId
-      )
-      .order("sort_order", {
-        ascending: true,
-      }),
+    db.query<StageRow>(
+      `
+        SELECT
+          id,
+          project_id,
+          created_by,
+          title,
+          description,
+          price,
+          progress_weight,
+          sort_order,
+          status,
+          planned_start_date,
+          planned_end_date,
+          actual_started_at,
+          actual_completed_at,
+          submitted_for_review_at,
+          reviewed_at,
+          reviewed_by,
+          customer_review_comment,
+          created_at,
+          updated_at
+        FROM public.project_stages
+        WHERE project_id = $1
+        ORDER BY sort_order ASC
+      `,
+      [projectId]
+    ),
 
-    /*
-     * 5. История проекта.
-     */
-    supabase
-      .from("project_events")
-      .select(`
-        id,
-        project_id,
-        author_id,
-        event_type,
-        title,
-        description,
-        metadata,
-        created_at
-      `)
-      .eq(
-        "project_id",
-        projectId
-      )
-      .order("created_at", {
-        ascending: false,
-      }),
+    db.query<EventRow>(
+      `
+        SELECT
+          id,
+          project_id,
+          author_id,
+          event_type,
+          title,
+          description,
+          metadata,
+          created_at
+        FROM public.project_events
+        WHERE project_id = $1
+        ORDER BY created_at DESC
+      `,
+      [projectId]
+    ),
 
-    /*
-     * 6. Фото и документы этапов.
-     */
-    supabase
-      .from(
-        "project_stage_files"
-      )
-      .select(`
-        id,
-        project_id,
-        stage_id,
-        uploaded_by,
-        file_name,
-        storage_path,
-        file_size,
-        mime_type,
-        file_category,
-        description,
-        created_at
-      `)
-      .eq(
-        "project_id",
-        projectId
-      )
-      .order("created_at", {
-        ascending: false,
-      }),
+    db.query<FileRow>(
+      `
+        SELECT
+          id,
+          project_id,
+          stage_id,
+          uploaded_by,
+          file_name,
+          storage_path,
+          file_size,
+          mime_type,
+          file_category,
+          description,
+          created_at
+        FROM public.project_stage_files
+        WHERE project_id = $1
+        ORDER BY created_at DESC
+      `,
+      [projectId]
+    ),
   ]);
 
-  /*
-   * Проверяем результаты запросов.
-   */
-  if (customerResult.error) {
-    console.error(
-      "Ошибка загрузки заказчика:",
-      customerResult.error
-    );
+  const files = await Promise.all(
+    filesResult.rows.map(async (file) => {
+      let signedUrl: string | null = null;
 
-    throw new Error(
-      "Не удалось загрузить данные заказчика"
-    );
-  }
+      try {
+        signedUrl = await getSignedFileUrl({
+          bucket: PROJECT_FILES_BUCKET,
+          key: file.storage_path,
+          expiresIn: 60 * 60,
+        });
+      } catch (error) {
+        console.error("Ошибка создания временной ссылки файла проекта:", {
+          fileId: file.id,
+          storagePath: file.storage_path,
+          error,
+        });
+      }
 
-  if (contractorResult.error) {
-    console.error(
-      "Ошибка загрузки подрядчика:",
-      contractorResult.error
-    );
-
-    throw new Error(
-      "Не удалось загрузить данные подрядчика"
-    );
-  }
-
-  if (selectedBidResult.error) {
-    console.error(
-      "Ошибка загрузки принятого предложения:",
-      selectedBidResult.error
-    );
-
-    throw new Error(
-      "Не удалось загрузить принятое предложение"
-    );
-  }
-
-  if (stagesResult.error) {
-    console.error(
-      "Ошибка загрузки этапов:",
-      stagesResult.error
-    );
-
-    throw new Error(
-      "Не удалось загрузить этапы проекта"
-    );
-  }
-
-  if (eventsResult.error) {
-    console.error(
-      "Ошибка загрузки истории:",
-      eventsResult.error
-    );
-
-    throw new Error(
-      "Не удалось загрузить историю проекта"
-    );
-  }
-
-  if (filesResult.error) {
-    console.error(
-      "Ошибка загрузки файлов:",
-      filesResult.error
-    );
-
-    throw new Error(
-      "Не удалось загрузить файлы проекта"
-    );
-  }
-
-  /*
-   * Создаём временные ссылки
-   * для приватных файлов Storage.
-   */
-  const rawFiles =
-    filesResult.data ?? [];
-
-  const storagePaths =
-    rawFiles.map(
-      (file) =>
-        file.storage_path
-    );
-
-  let signedUrlMap =
-    new Map<
-      string,
-      string
-    >();
-
-  if (
-    storagePaths.length > 0
-  ) {
-    const {
-      data: signedFiles,
-      error: signedError,
-    } = await supabase.storage
-      .from("project-files")
-      .createSignedUrls(
-        storagePaths,
-        60 * 60
-      );
-
-    if (signedError) {
-      console.error(
-        "Ошибка создания временных ссылок:",
-        signedError
-      );
-    } else {
-      signedUrlMap =
-        new Map(
-          (
-            signedFiles ?? []
-          )
-            .filter(
-              (
-                item
-              ): item is typeof item & {
-                path: string;
-                signedUrl: string;
-              } =>
-                Boolean(
-                  item.path &&
-                    item.signedUrl
-                )
-            )
-            .map((item) => [
-              item.path,
-              item.signedUrl,
-            ])
-        );
-    }
-  }
-
-  const files =
-    rawFiles.map(
-      (file) => ({
+      return {
         ...file,
+        created_at: toIsoString(file.created_at),
+        signed_url: signedUrl,
+      };
+    })
+  );
 
-        signed_url:
-          signedUrlMap.get(
-            file.storage_path
-          ) ?? null,
-      })
-    );
+  const project = {
+    ...rawProject,
+    desired_start_date: toNullableDateString(rawProject.desired_start_date),
+    desired_end_date: toNullableDateString(rawProject.desired_end_date),
+    published_at: toNullableIsoString(rawProject.published_at),
+    contractor_selected_at: toNullableIsoString(rawProject.contractor_selected_at),
+    work_started_at: toNullableIsoString(rawProject.work_started_at),
+    completed_at: toNullableIsoString(rawProject.completed_at),
+    created_at: toIsoString(rawProject.created_at),
+    updated_at: toIsoString(rawProject.updated_at),
+  };
+
+  const selectedBid = selectedBidResult.rows[0]
+    ? {
+        ...selectedBidResult.rows[0],
+        proposed_start_date: toNullableDateString(
+          selectedBidResult.rows[0].proposed_start_date
+        ),
+        created_at: toIsoString(selectedBidResult.rows[0].created_at),
+        updated_at: toIsoString(selectedBidResult.rows[0].updated_at),
+      }
+    : null;
+
+  const stages = stagesResult.rows.map((stage) => ({
+    ...stage,
+    planned_start_date: toNullableDateString(stage.planned_start_date),
+    planned_end_date: toNullableDateString(stage.planned_end_date),
+    actual_started_at: toNullableIsoString(stage.actual_started_at),
+    actual_completed_at: toNullableIsoString(stage.actual_completed_at),
+    submitted_for_review_at: toNullableIsoString(stage.submitted_for_review_at),
+    reviewed_at: toNullableIsoString(stage.reviewed_at),
+    created_at: toIsoString(stage.created_at),
+    updated_at: toIsoString(stage.updated_at),
+  }));
+
+  const events = eventsResult.rows.map((event) => ({
+    ...event,
+    created_at: toIsoString(event.created_at),
+  }));
 
   return {
     currentUser: {
       id: user.id,
       role: profile.role,
-
-      firstName:
-        profile.first_name,
-
-      lastName:
-        profile.last_name,
-
-      contractorCompanyId:
-        currentContractorCompany
-          ?.id ?? null,
+      firstName: profile.first_name,
+      lastName: profile.last_name,
+      contractorCompanyId: currentContractorCompany?.id ?? null,
     },
-
     project,
-
-    customer:
-      customerResult.data ??
-      null,
-
-    contractor:
-      contractorResult.data ??
-      null,
-
-    selectedBid:
-      selectedBidResult.data ??
-      null,
-
-    stages:
-      stagesResult.data ??
-      [],
-
-    events:
-      eventsResult.data ??
-      [],
-
+    customer: customerResult.rows[0] ?? null,
+    contractor: contractorResult.rows[0] ?? null,
+    selectedBid,
+    stages,
+    events,
     files,
   };
 }
 
-export type ProjectWorkspace =
-  Awaited<
-    ReturnType<
-      typeof getProjectWorkspace
-    >
-  >;
+function toNullableDateString(value: Date | string | null) {
+  if (!value) return null;
+  return value instanceof Date
+    ? value.toISOString().slice(0, 10)
+    : String(value).slice(0, 10);
+}
+
+function toNullableIsoString(value: Date | string | null) {
+  if (!value) return null;
+  return toIsoString(value);
+}
+
+function toIsoString(value: Date | string) {
+  return value instanceof Date ? value.toISOString() : String(value);
+}
+
+export type ProjectWorkspace = Awaited<ReturnType<typeof getProjectWorkspace>>;
