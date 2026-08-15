@@ -1,27 +1,25 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { db } from "@/lib/db/pool";
+import { getCurrentSessionUserId } from "@/lib/auth/session";
 
 export async function readAllNotifications() {
-  const supabase =
-    await createClient();
+  const userId = await getCurrentSessionUserId();
+  if (!userId) return { success: false, message: "Необходимо войти" };
 
-  const { error } =
-    await supabase.rpc(
-      "mark_all_notifications_read"
+  try {
+    await db.query(
+      `
+        UPDATE public.notifications
+        SET is_read = true, read_at = COALESCE(read_at, now())
+        WHERE user_id = $1 AND is_read = false
+      `,
+      [userId]
     );
 
-  if (error) {
-    return {
-      success: false,
-      message:
-        error.message,
-    };
+    return { success: true, message: "Все уведомления прочитаны" };
+  } catch (error) {
+    console.error("Ошибка отметки всех уведомлений:", error);
+    return { success: false, message: "Не удалось отметить уведомления прочитанными" };
   }
-
-  return {
-    success: true,
-    message:
-      "Все уведомления прочитаны",
-    };
 }

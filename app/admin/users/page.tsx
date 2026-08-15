@@ -1,518 +1,165 @@
 import Link from "next/link";
 
-import {
-  ArrowRight,
-  Building2,
-  Search,
-  ShieldCheck,
-  UserRound,
-  UsersRound,
-} from "lucide-react";
+import { ArrowRight, Ban, Search, UserRound } from "lucide-react";
 
-import { createClient } from
-  "@/lib/supabase/server";
+import { db } from "@/lib/db/pool";
 
 type Props = {
   searchParams: Promise<{
     role?: string;
-    q?: string;
+    search?: string;
+    blocked?: string;
   }>;
 };
 
-const USER_ROLES = [
-  "all",
-  "customer",
-  "contractor",
-  "admin",
-] as const;
+type UserRow = {
+  id: string;
+  role: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
+  city: string | null;
+  is_blocked: boolean;
+  created_at: Date | string;
+};
 
-type UserRole =
-  (typeof USER_ROLES)[number];
+export default async function AdminUsersPage({ searchParams }: Props) {
+  const params = await searchParams;
+  const role = params.role?.trim() ?? "all";
+  const search = params.search?.trim() ?? "";
+  const blocked = params.blocked?.trim() ?? "all";
 
-export default async function AdminUsersPage({
-  searchParams,
-}: Props) {
-  const params =
-    await searchParams;
+  const values: unknown[] = [];
+  const conditions: string[] = [];
 
-  const requestedRole =
-    params.role ??
-    "all";
+  if (role !== "all") {
+    values.push(role);
+    conditions.push(`p.role::text = $${values.length}`);
+  }
 
-  const role: UserRole =
-    USER_ROLES.includes(
-      requestedRole as UserRole
-    )
-      ? (requestedRole as UserRole)
-      : "all";
-
-  const search =
-    params.q?.trim() ??
-    "";
-
-  const supabase =
-    await createClient();
-
-  /*
-   * Основной запрос пользователей.
-   */
-  let usersQuery =
-    supabase
-      .from("profiles")
-     .select(`
-      id,
-      role,
-      first_name,
-      last_name,
-      email,
-      phone,
-      city,
-      is_blocked,
-      created_at,
-      updated_at
-    `)
-      .order(
-        "created_at",
-        {
-          ascending: false,
-        }
-      );
-
-  if (
-    role !==
-    "all"
-  ) {
-    usersQuery =
-      usersQuery.eq(
-        "role",
-        role
-      );
+  if (blocked === "yes" || blocked === "no") {
+    values.push(blocked === "yes");
+    conditions.push(`p.is_blocked = $${values.length}`);
   }
 
   if (search) {
-  const escapedSearch =
-    escapePostgrestSearch(
-      search
-    );
-
-  usersQuery =
-    usersQuery.or(
-      `first_name.ilike.%${escapedSearch}%,last_name.ilike.%${escapedSearch}%,email.ilike.%${escapedSearch}%,phone.ilike.%${escapedSearch}%,city.ilike.%${escapedSearch}%`
-    );
-}
-
-  const {
-    data: users,
-    error: usersError,
-  } =
-    await usersQuery;
-
-  if (usersError) {
-    console.error(
-      "Ошибка загрузки пользователей:",
-      {
-        message:
-          usersError.message,
-
-        details:
-          usersError.details,
-
-        hint:
-          usersError.hint,
-
-        code:
-          usersError.code,
-      }
-    );
-
-    throw new Error(
-      "Не удалось загрузить пользователей"
-    );
+    values.push(`%${search}%`);
+    conditions.push(`(
+      p.first_name ILIKE $${values.length}
+      OR p.last_name ILIKE $${values.length}
+      OR p.email ILIKE $${values.length}
+      OR p.phone ILIKE $${values.length}
+    )`);
   }
 
-  /*
-   * Счётчики.
-   */
-  const [
-    allCount,
-    customerCount,
-    contractorCount,
-    adminCount,
-  ] =
-    await Promise.all([
-      getUserCount(),
+  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 
-      getUserCount(
-        "customer"
-      ),
+  const [usersResult, countsResult] = await Promise.all([
+    db.query<UserRow>(
+      `
+        SELECT
+          p.id,
+          p.role::text AS role,
+          p.first_name,
+          p.last_name,
+          p.email,
+          p.phone,
+          p.city,
+          p.is_blocked,
+          p.created_at
+        FROM public.profiles p
+        ${where}
+        ORDER BY p.created_at DESC
+        LIMIT 300
+      `,
+      values
+    ),
+    db.query<{
+      total: string | number;
+      customers: string | number;
+      contractors: string | number;
+      blocked: string | number;
+    }>(
+      `
+        SELECT
+          COUNT(*) AS total,
+          COUNT(*) FILTER (WHERE role::text = 'customer') AS customers,
+          COUNT(*) FILTER (WHERE role::text = 'contractor') AS contractors,
+          COUNT(*) FILTER (WHERE is_blocked = true) AS blocked
+        FROM public.profiles
+      `
+    ),
+  ]);
 
-      getUserCount(
-        "contractor"
-      ),
-
-      getUserCount(
-        "admin"
-      ),
-    ]);
-
-  async function getUserCount(
-    targetRole?: string
-  ) {
-    let query =
-      supabase
-        .from("profiles")
-        .select("*", {
-          count: "exact",
-          head: true,
-        });
-
-    if (
-      targetRole
-    ) {
-      query =
-        query.eq(
-          "role",
-          targetRole
-        );
-    }
-
-    const {
-      count,
-    } =
-      await query;
-
-    return (
-      count ??
-      0
-    );
-  }
+  const counts = countsResult.rows[0];
 
   return (
     <div className="space-y-6">
-      {/* Hero */}
-
-      <section className="relative overflow-hidden rounded-[2rem] border border-border bg-card p-6 shadow-[var(--shadow-soft)] md:p-8">
-        <div className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full bg-secondary/70 blur-3xl" />
-
-        <div className="relative">
-          <div className="inline-flex items-center gap-2 rounded-full bg-secondary px-3 py-1.5 text-xs font-semibold text-primary">
-            <UsersRound className="h-3.5 w-3.5" />
-
-            Управление аккаунтами
-          </div>
-
-          <h1 className="mt-4 text-3xl font-black tracking-[-0.04em] text-foreground md:text-4xl">
-            Пользователи
-          </h1>
-
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-            Просматривайте зарегистрированных
-            пользователей, их роли, контактные
-            данные и дату регистрации.
-          </p>
-        </div>
+      <section className="rounded-[2rem] border border-border bg-card p-6 shadow-[var(--shadow-soft)] md:p-8">
+        <p className="text-sm font-semibold text-primary">Пользователи</p>
+        <h1 className="mt-2 text-3xl font-black tracking-[-0.04em] text-foreground">Управление аккаунтами</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Всего: {Number(counts?.total ?? 0)} · заказчиков: {Number(counts?.customers ?? 0)} · подрядчиков: {Number(counts?.contractors ?? 0)} · заблокировано: {Number(counts?.blocked ?? 0)}
+        </p>
       </section>
 
-      {/* KPI */}
-
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          title="Всего"
-          value={
-            allCount
-          }
-          icon={
-            <UsersRound className="h-5 w-5" />
-          }
-        />
-
-        <StatCard
-          title="Заказчики"
-          value={
-            customerCount
-          }
-          icon={
-            <UserRound className="h-5 w-5" />
-          }
-        />
-
-        <StatCard
-          title="Подрядчики"
-          value={
-            contractorCount
-          }
-          icon={
-            <Building2 className="h-5 w-5" />
-          }
-        />
-
-        <StatCard
-          title="Администраторы"
-          value={
-            adminCount
-          }
-          icon={
-            <ShieldCheck className="h-5 w-5" />
-          }
-        />
-      </section>
-
-      {/* Поиск */}
-
-      <section className="rounded-[1.5rem] border border-border bg-card p-4 shadow-[var(--shadow-soft)]">
-        <form
-          method="GET"
-          className="flex flex-col gap-3 md:flex-row"
-        >
-          {role !==
-            "all" && (
-            <input
-              type="hidden"
-              name="role"
-              value={
-                role
-              }
-            />
-          )}
-
-          <div className="relative flex-1">
-            <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-
-            <input
-              type="search"
-              name="q"
-              defaultValue={
-                search
-              }
-              placeholder="Поиск по имени, email, телефону или городу..."
-              className="h-11 w-full rounded-xl border border-border bg-background pl-11 pr-4 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary"
-            />
-          </div>
-
-          <button
-            type="submit"
-            className="h-11 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground"
-          >
-            Найти
-          </button>
-
-          {search && (
-            <Link
-              href={
-                role ===
-                "all"
-                  ? "/admin/users"
-                  : `/admin/users?role=${role}`
-              }
-              className="inline-flex h-11 items-center justify-center rounded-xl border border-border px-5 text-sm font-semibold text-muted-foreground transition hover:bg-secondary hover:text-foreground"
-            >
-              Сбросить
-            </Link>
-          )}
-        </form>
-      </section>
-
-      {/* Фильтры */}
-
-      <section className="rounded-[1.5rem] border border-border bg-card p-4 shadow-[var(--shadow-soft)]">
-        <div className="flex flex-wrap gap-2">
-          <RoleFilter
-            role="all"
-            current={
-              role
-            }
-            search={
-              search
-            }
-            label="Все"
+      <form className="grid gap-3 rounded-[1.5rem] border border-border bg-card p-4 md:grid-cols-[1fr_180px_180px_auto]">
+        <label className="relative">
+          <Search className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
+          <input
+            name="search"
+            defaultValue={search}
+            placeholder="Имя, email или телефон"
+            className="h-11 w-full rounded-xl border border-border bg-background pl-10 pr-3 text-sm"
           />
-
-          <RoleFilter
-            role="customer"
-            current={
-              role
-            }
-            search={
-              search
-            }
-            label="Заказчики"
-          />
-
-          <RoleFilter
-            role="contractor"
-            current={
-              role
-            }
-            search={
-              search
-            }
-            label="Подрядчики"
-          />
-
-          <RoleFilter
-            role="admin"
-            current={
-              role
-            }
-            search={
-              search
-            }
-            label="Администраторы"
-          />
-        </div>
-      </section>
-
-      {/* Список */}
+        </label>
+        <select name="role" defaultValue={role} className="h-11 rounded-xl border border-border bg-background px-3 text-sm">
+          <option value="all">Все роли</option>
+          <option value="customer">Заказчики</option>
+          <option value="contractor">Подрядчики</option>
+          <option value="manager">Менеджеры</option>
+          <option value="moderator">Модераторы</option>
+          <option value="admin">Администраторы</option>
+        </select>
+        <select name="blocked" defaultValue={blocked} className="h-11 rounded-xl border border-border bg-background px-3 text-sm">
+          <option value="all">Все состояния</option>
+          <option value="no">Активные</option>
+          <option value="yes">Заблокированные</option>
+        </select>
+        <button className="h-11 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground">Найти</button>
+      </form>
 
       <section className="overflow-hidden rounded-[1.75rem] border border-border bg-card shadow-[var(--shadow-soft)]">
-        <div className="flex items-center justify-between gap-4 border-b border-border px-5 py-4 md:px-6">
-          <div>
-            <h2 className="font-bold text-foreground">
-              Список пользователей
-            </h2>
-
-            <p className="mt-1 text-xs text-muted-foreground">
-              Найдено:{" "}
-              {
-                users?.length ??
-                0
-              }
-            </p>
-          </div>
-        </div>
-
-        {!users ||
-        users.length ===
-          0 ? (
-          <div className="px-6 py-16 text-center">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-secondary text-primary">
-              <UsersRound className="h-6 w-6" />
-            </div>
-
-            <h3 className="mt-4 font-bold text-foreground">
-              Пользователи не найдены
-            </h3>
-
-            <p className="mt-2 text-sm text-muted-foreground">
-              Измените поисковый запрос
-              или фильтр.
-            </p>
-          </div>
+        {usersResult.rows.length === 0 ? (
+          <div className="p-10 text-center text-sm text-muted-foreground">Пользователи не найдены.</div>
         ) : (
           <div className="divide-y divide-border">
-            {users.map(
-              (user) => (
+            {usersResult.rows.map((user) => {
+              const name = [user.first_name, user.last_name].filter(Boolean).join(" ") || user.email || "Пользователь";
+              return (
                 <Link
-                  key={
-                    user.id
-                  }
+                  key={user.id}
                   href={`/admin/users/${user.id}`}
-                  className="group block p-5 transition hover:bg-secondary/30 md:p-6"
+                  className="group flex items-center gap-4 p-5 transition hover:bg-secondary/40"
                 >
-                  <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_180px_190px_150px_28px] xl:items-center">
-                    {/* Пользователь */}
-
-                    <div className="min-w-0">
-                      <div className="flex items-start gap-4">
-                        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-secondary text-primary">
-                          {getRoleIcon(
-                            user.role
-                          )}
-                        </span>
-
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="truncate font-bold text-foreground">
-                              {getUserName(
-                                user
-                              )}
-                            </h3>
-
-                            <RoleBadge
-                              role={
-                                user.role
-                              }
-                            />
-                            {user.is_blocked && (
-                            <span className="rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-bold text-red-700">
-                              Заблокирован
-                            </span>
-                          )}
-                          </div>
-
-                          <p className="mt-1 truncate text-sm text-muted-foreground">
-                              {user.email ||
-                                "Email не указан"}
-                            </p>
-
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            {user.phone && (
-                              <span className="rounded-full bg-background px-3 py-1 text-xs font-medium text-muted-foreground">
-                                {
-                                  user.phone
-                                }
-                              </span>
-                            )}
-
-                            {user.city && (
-                              <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-primary">
-                                {
-                                  user.city
-                                }
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Роль */}
-
-                    <div>
-                      <p className="text-xs text-muted-foreground">
-                        Роль
-                      </p>
-
-                      <p className="mt-1 text-sm font-semibold text-foreground">
-                        {formatRole(
-                          user.role
-                        )}
-                      </p>
-                    </div>
-
-                    {/* Регистрация */}
-
-                    <div>
-                      <p className="text-xs text-muted-foreground">
-                        Регистрация
-                      </p>
-
-                      <p className="mt-1 text-sm font-semibold text-foreground">
-                        {formatDate(
-                          user.created_at
-                        )}
-                      </p>
-                    </div>
-
-                    {/* Обновление */}
-
-                    <div>
-                      <p className="text-xs text-muted-foreground">
-                        Обновлён
-                      </p>
-
-                      <p className="mt-1 text-sm font-semibold text-foreground">
-                        {formatDate(
-                          user.updated_at
-                        )}
-                      </p>
-                    </div>
-
-                    <ArrowRight className="hidden h-5 w-5 text-muted-foreground transition group-hover:translate-x-1 group-hover:text-primary xl:block" />
-                  </div>
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-secondary text-primary">
+                    {user.is_blocked ? <Ban className="h-5 w-5" /> : <UserRound className="h-5 w-5" />}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="font-bold text-foreground">{name}</span>
+                      <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-semibold text-secondary-foreground">{formatRole(user.role)}</span>
+                      {user.is_blocked && <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">Заблокирован</span>}
+                    </span>
+                    <span className="mt-1 block text-sm text-muted-foreground">
+                      {user.email ?? "Email не указан"}{user.city ? ` · ${user.city}` : ""}
+                    </span>
+                  </span>
+                  <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-primary" />
                 </Link>
-              )
-            )}
+              );
+            })}
           </div>
         )}
       </section>
@@ -520,255 +167,13 @@ export default async function AdminUsersPage({
   );
 }
 
-function RoleFilter({
-  role,
-  current,
-  search,
-  label,
-}: {
-  role:
-    UserRole;
-
-  current:
-    UserRole;
-
-  search:
-    string;
-
-  label:
-    string;
-}) {
-  const params =
-    new URLSearchParams();
-
-  if (
-    role !==
-    "all"
-  ) {
-    params.set(
-      "role",
-      role
-    );
-  }
-
-  if (search) {
-    params.set(
-      "q",
-      search
-    );
-  }
-
-  const query =
-    params.toString();
-
-  return (
-    <Link
-      href={
-        query
-          ? `/admin/users?${query}`
-          : "/admin/users"
-      }
-      className={[
-        "inline-flex min-h-10 items-center rounded-xl px-4 text-sm font-semibold transition",
-        current ===
-        role
-          ? "bg-primary text-primary-foreground"
-          : "border border-border bg-background text-muted-foreground hover:bg-secondary hover:text-foreground",
-      ].join(" ")}
-    >
-      {label}
-    </Link>
-  );
-}
-
-function StatCard({
-  title,
-  value,
-  icon,
-}: {
-  title: string;
-  value: number;
-  icon: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-[1.5rem] border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
-      <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-secondary text-primary">
-        {icon}
-      </span>
-
-      <p className="mt-5 text-3xl font-black tracking-[-0.04em] text-foreground">
-        {value}
-      </p>
-
-      <p className="mt-1 text-sm font-semibold text-muted-foreground">
-        {title}
-      </p>
-    </div>
-  );
-}
-
-function RoleBadge({
-  role,
-}: {
-  role: string;
-}) {
-  const config =
-    getRoleConfig(
-      role
-    );
-
-  return (
-    <span
-      className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${config.className}`}
-    >
-      {config.label}
-    </span>
-  );
-}
-
-function getRoleConfig(
-  role: string
-) {
-  switch (role) {
-    case "customer":
-      return {
-        label:
-          "Заказчик",
-
-        className:
-          "bg-blue-50 text-blue-700",
-      };
-
-    case "contractor":
-      return {
-        label:
-          "Подрядчик",
-
-        className:
-          "bg-amber-50 text-amber-700",
-      };
-
-    case "admin":
-      return {
-        label:
-          "Администратор",
-
-        className:
-          "bg-violet-50 text-violet-700",
-      };
-
-    default:
-      return {
-        label:
-          role,
-
-        className:
-          "bg-secondary text-primary",
-      };
-  }
-}
-
-function getRoleIcon(
-  role: string
-) {
-  switch (role) {
-    case "customer":
-      return (
-        <UserRound className="h-5 w-5" />
-      );
-
-    case "contractor":
-      return (
-        <Building2 className="h-5 w-5" />
-      );
-
-    case "admin":
-      return (
-        <ShieldCheck className="h-5 w-5" />
-      );
-
-    default:
-      return (
-        <UsersRound className="h-5 w-5" />
-      );
-  }
-}
-
-function formatRole(
-  role: string
-) {
-  switch (role) {
-    case "customer":
-      return "Заказчик";
-
-    case "contractor":
-      return "Подрядчик";
-
-    case "admin":
-      return "Администратор";
-
-    default:
-      return role;
-  }
-}
-
-function getUserName(
-  user: {
-    first_name:
-      string | null;
-
-    last_name:
-      string | null;
-  }
-) {
-  return (
-    [
-      user.first_name,
-      user.last_name,
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .trim() ||
-    "Пользователь"
-  );
-}
-
-function formatDate(
-  value:
-    | string
-    | null
-) {
-  if (!value) {
-    return "Не указано";
-  }
-
-  return new Intl.DateTimeFormat(
-    "ru-RU",
-    {
-      day:
-        "2-digit",
-
-      month:
-        "2-digit",
-
-      year:
-        "numeric",
-    }
-  ).format(
-    new Date(value)
-  );
-}
-
-function escapePostgrestSearch(
-  value: string
-) {
-  return value
-    .replace(
-      /[%_,()]/g,
-      ""
-    )
-    .slice(
-      0,
-      100
-    );
+function formatRole(role: string) {
+  const labels: Record<string, string> = {
+    customer: "Заказчик",
+    contractor: "Подрядчик",
+    admin: "Администратор",
+    moderator: "Модератор",
+    manager: "Менеджер",
+  };
+  return labels[role] ?? role;
 }

@@ -1,1115 +1,204 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { UserAdminActions } from
-  "@/features/admin/components/user-admin-actions";
 
-import {
-  ArrowLeft,
-  Building2,
-  CalendarDays,
-  FolderKanban,
-  Mail,
-  MapPin,
-  Phone,
-  ShieldCheck,
-  UserRound,
-} from "lucide-react";
+import { ArrowLeft, Building2, CalendarDays, FolderKanban, Mail, MapPin, Phone, UserRound } from "lucide-react";
 
-import { createClient } from
-  "@/lib/supabase/server";
+import { db } from "@/lib/db/pool";
+import { UserAdminActions } from "@/features/admin/components/user-admin-actions";
 
-type Props = {
-  params: Promise<{
-    id: string;
-  }>;
+type Props = { params: Promise<{ id: string }> };
+
+type ProfileRow = {
+  id: string;
+  role: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
+  city: string | null;
+  is_blocked: boolean;
+  blocked_reason: string | null;
+  blocked_at: Date | string | null;
+  created_at: Date | string;
+  updated_at: Date | string;
 };
 
-export default async function AdminUserPage({
-  params,
-}: Props) {
-  const { id } =
-    await params;
+export default async function AdminUserPage({ params }: Props) {
+  const { id } = await params;
 
-  const supabase =
-    await createClient();
+  const profileResult = await db.query<ProfileRow>(
+    `
+      SELECT
+        id,
+        role::text AS role,
+        first_name,
+        last_name,
+        email,
+        phone,
+        city,
+        is_blocked,
+        blocked_reason,
+        blocked_at,
+        created_at,
+        updated_at
+      FROM public.profiles
+      WHERE id = $1
+      LIMIT 1
+    `,
+    [id]
+  );
 
-  const {
-  data: profile,
-  error: profileError,
-} = await supabase
-  .from("profiles")
-  .select(`
-  id,
-  role,
-  first_name,
-  last_name,
-  email,
-  phone,
-  city,
-  is_blocked,
-  created_at,
-  updated_at
-`)
-  .eq(
-    "id",
-    id
-  )
-  .maybeSingle();
+  const profile = profileResult.rows[0];
+  if (!profile) notFound();
 
-  if (
-    profileError ||
-    !profile
-  ) {
-    if (profileError) {
-      console.error(
-        "Ошибка загрузки пользователя:",
-        profileError
-      );
-    }
+  const [companyResult, projectsResult, sessionsResult] = await Promise.all([
+    profile.role === "contractor"
+      ? db.query<{
+          id: string;
+          public_name: string;
+          legal_name: string | null;
+          verification_status: string;
+          rating: number | string;
+          rating_count: number;
+        }>(
+          `
+            SELECT
+              id,
+              public_name,
+              legal_name,
+              verification_status::text AS verification_status,
+              rating,
+              rating_count
+            FROM public.contractor_companies
+            WHERE owner_id = $1
+            LIMIT 1
+          `,
+          [id]
+        )
+      : Promise.resolve({ rows: [] as Array<{ id: string; public_name: string; legal_name: string | null; verification_status: string; rating: number | string; rating_count: number }> }),
+    db.query<{
+      id: string;
+      title: string;
+      status: string;
+      created_at: Date | string;
+    }>(
+      `
+        SELECT id, title, status::text AS status, created_at
+        FROM public.projects
+        WHERE customer_id = $1
+        ORDER BY created_at DESC
+        LIMIT 20
+      `,
+      [id]
+    ),
+    db.query<{
+      created_at: Date | string;
+      expires_at: Date | string;
+      revoked_at: Date | string | null;
+      last_seen_at: Date | string | null;
+      user_agent: string | null;
+      ip_address: string | null;
+    }>(
+      `
+        SELECT created_at, expires_at, revoked_at, last_seen_at, user_agent, ip_address
+        FROM public.auth_sessions
+        WHERE user_id = $1
+        ORDER BY created_at DESC
+        LIMIT 10
+      `,
+      [id]
+    ),
+  ]);
 
-    notFound();
-  }
-
-  /*
-   * Если пользователь — подрядчик,
-   * ищем его компанию.
-   */
-  const {
-    data: company,
-  } =
-    profile.role ===
-    "contractor"
-      ? await supabase
-          .from(
-            "contractor_companies"
-          )
-          .select(`
-            id,
-            public_name,
-            legal_name,
-            company_type,
-            inn,
-            ogrn,
-            verification_status,
-            rating,
-            rating_count,
-            accepts_new_projects,
-            contact_phone,
-            contact_email,
-            created_at
-          `)
-          .eq(
-            "owner_id",
-            profile.id
-          )
-          .maybeSingle()
-      : {
-          data: null,
-        };
-
-  /*
-   * Проекты пользователя.
-   *
-   * Для заказчика —
-   * проекты, которые он создал.
-   */
-  const {
-    data: customerProjects,
-  } =
-    profile.role ===
-    "customer"
-      ? await supabase
-          .from("projects")
-          .select(`
-            id,
-            title,
-            status,
-            city,
-            budget_min,
-            budget_max,
-            created_at
-          `)
-          .eq(
-            "customer_id",
-            profile.id
-          )
-          .order(
-            "created_at",
-            {
-              ascending: false,
-            }
-          )
-          .limit(10)
-      : {
-          data: [],
-        };
-
-  /*
-   * Для подрядчика —
-   * проекты, где выбрана его компания.
-   */
-  const {
-    data: contractorProjects,
-  } =
-    company
-      ? await supabase
-          .from("projects")
-          .select(`
-            id,
-            title,
-            status,
-            city,
-            budget_min,
-            budget_max,
-            created_at
-          `)
-          .eq(
-            "selected_contractor_id",
-            company.id
-          )
-          .order(
-            "created_at",
-            {
-              ascending: false,
-            }
-          )
-          .limit(10)
-      : {
-          data: [],
-        };
-
-  const projects =
-    profile.role ===
-    "customer"
-      ? customerProjects ??
-        []
-      : contractorProjects ??
-        [];
+  const company = companyResult.rows[0] ?? null;
+  const displayName = [profile.first_name, profile.last_name].filter(Boolean).join(" ") || profile.email || "Пользователь";
 
   return (
     <div className="space-y-6">
-      <Link
-        href="/admin/users"
-        className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground transition hover:text-primary"
-      >
-        <ArrowLeft className="h-4 w-4" />
-
-        Вернуться к пользователям
+      <Link href="/admin/users" className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-primary">
+        <ArrowLeft className="h-4 w-4" /> К пользователям
       </Link>
 
-      {/* Hero */}
-
-      <section className="relative overflow-hidden rounded-[2rem] border border-border bg-card p-6 shadow-[var(--shadow-soft)] md:p-8">
-        <div className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full bg-secondary/70 blur-3xl" />
-
-        <div className="relative flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
-          <div className="flex min-w-0 items-start gap-4">
-            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[1.3rem] bg-primary text-primary-foreground">
-              {getRoleIcon(
-                profile.role
-              )}
-            </span>
-
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-primary">
-                Пользователь
-              </p>
-
-              <h1 className="mt-1 break-words text-3xl font-black tracking-[-0.04em] text-foreground md:text-4xl">
-                {getUserName(
-                  profile
-                )}
-              </h1>
-
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <RoleBadge
-                  role={
-                    profile.role
-                  }
-                />
-
-                {profile.city && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/60 px-3 py-1.5 text-xs font-semibold text-muted-foreground">
-                    <MapPin className="h-3.5 w-3.5 text-primary" />
-
-                    {
-                      profile.city
-                    }
-                  </span>
-                )}
-              </div>
+      <section className="rounded-[2rem] border border-border bg-card p-6 shadow-[var(--shadow-soft)] md:p-8">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-primary">{formatRole(profile.role)}</p>
+            <h1 className="mt-2 text-3xl font-black tracking-[-0.04em] text-foreground">{displayName}</h1>
+            <div className="mt-4 flex flex-wrap gap-4 text-sm text-muted-foreground">
+              {profile.email && <span className="inline-flex items-center gap-1"><Mail className="h-4 w-4" />{profile.email}</span>}
+              {profile.phone && <span className="inline-flex items-center gap-1"><Phone className="h-4 w-4" />{profile.phone}</span>}
+              {profile.city && <span className="inline-flex items-center gap-1"><MapPin className="h-4 w-4" />{profile.city}</span>}
             </div>
+            {profile.is_blocked && (
+              <div className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+                <p className="font-semibold">Учётная запись заблокирована</p>
+                {profile.blocked_reason && <p className="mt-1">{profile.blocked_reason}</p>}
+              </div>
+            )}
+          </div>
+          <div className="w-full max-w-md">
+            <UserAdminActions userId={profile.id} isBlocked={profile.is_blocked} role={profile.role} />
           </div>
         </div>
       </section>
 
-      {/* KPI */}
-
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <DataCard
-          icon={
-            <UserRound className="h-5 w-5" />
-          }
-          label="Роль"
-          value={formatRole(
-            profile.role
-          )}
-        />
-
-        <DataCard
-          icon={
-            <CalendarDays className="h-5 w-5" />
-          }
-          label="Регистрация"
-          value={formatDateTime(
-            profile.created_at
-          )}
-        />
-
-        <DataCard
-          icon={
-            <CalendarDays className="h-5 w-5" />
-          }
-          label="Последнее обновление"
-          value={formatDateTime(
-            profile.updated_at
-          )}
-        />
-
-        <DataCard
-          icon={
-            <FolderKanban className="h-5 w-5" />
-          }
-          label="Проектов"
-          value={String(
-            projects.length
-          )}
-        />
+      <section className="grid gap-4 md:grid-cols-3">
+        <Stat label="Создан" value={formatDate(profile.created_at)} icon={<CalendarDays className="h-5 w-5" />} />
+        <Stat label="Роль" value={formatRole(profile.role)} icon={<UserRound className="h-5 w-5" />} />
+        <Stat label="Состояние" value={profile.is_blocked ? "Заблокирован" : "Активен"} icon={<UserRound className="h-5 w-5" />} />
       </section>
 
-      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="space-y-6">
-          {/* Основные данные */}
-
-          <Section
-            title="Основная информация"
-            icon={
-              <UserRound className="h-5 w-5" />
-            }
-          >
-            <InfoRow
-              label="Имя"
-              value={
-                profile.first_name
-              }
-            />
-
-            <InfoRow
-              label="Фамилия"
-              value={
-                profile.last_name
-              }
-            />
-
-            <InfoRow
-              label="Роль"
-              value={formatRole(
-                profile.role
-              )}
-            />
-
-            <InfoRow
-              label="Город"
-              value={
-                profile.city
-              }
-            />
-          </Section>
-
-          {/* Контакты */}
-
-          <Section
-            title="Контактные данные"
-            icon={
-              <Mail className="h-5 w-5" />
-            }
-          >
-            <div className="grid gap-4 sm:grid-cols-2">
-              <ContactCard
-                icon={
-                  <Mail className="h-4 w-4" />
-                }
-                label="Email"
-                value={
-                  profile.email
-                }
-              />
-
-              <ContactCard
-                icon={
-                  <Phone className="h-4 w-4" />
-                }
-                label="Телефон"
-                value={
-                  profile.phone
-                }
-              />
+      {company && (
+        <section className="rounded-[1.75rem] border border-border bg-card p-6 shadow-[var(--shadow-soft)]">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold text-primary">Компания подрядчика</p>
+              <h2 className="mt-1 text-xl font-bold text-foreground">{company.public_name}</h2>
+              {company.legal_name && <p className="mt-1 text-sm text-muted-foreground">{company.legal_name}</p>}
+              <p className="mt-3 text-sm text-muted-foreground">Статус: {formatVerificationStatus(company.verification_status)} · рейтинг {Number(company.rating).toFixed(1)} ({company.rating_count})</p>
             </div>
-          </Section>
+            <Building2 className="h-6 w-6 text-primary" />
+          </div>
+          <Link href={`/admin/contractors/${company.id}`} className="mt-5 inline-flex items-center text-sm font-semibold text-primary">Открыть профиль подрядчика</Link>
+        </section>
+      )}
 
-          {/* Компания подрядчика */}
-
-          {profile.role ===
-            "contractor" && (
-            <Section
-              title="Компания подрядчика"
-              icon={
-                <Building2 className="h-5 w-5" />
-              }
-            >
-              {!company ? (
-                <EmptyText text="Компания подрядчика не создана." />
-              ) : (
-                <div className="space-y-4">
-                  <InfoRow
-                    label="Публичное название"
-                    value={
-                      company.public_name
-                    }
-                  />
-
-                  <InfoRow
-                    label="Юридическое название"
-                    value={
-                      company.legal_name
-                    }
-                  />
-
-                  <InfoRow
-                    label="Тип"
-                    value={formatCompanyType(
-                      company.company_type
-                    )}
-                  />
-
-                  <InfoRow
-                    label="ИНН"
-                    value={
-                      company.inn
-                    }
-                  />
-
-                  <InfoRow
-                    label="ОГРН / ОГРНИП"
-                    value={
-                      company.ogrn
-                    }
-                  />
-
-                  <InfoRow
-                    label="Статус проверки"
-                    value={formatVerificationStatus(
-                      company.verification_status
-                    )}
-                  />
-
-                  <InfoRow
-                    label="Рейтинг"
-                    value={`${Number(
-                      company.rating ??
-                        0
-                    ).toFixed(1)} · ${
-                      company.rating_count ??
-                      0
-                    } отзывов`}
-                  />
-
-                  <InfoRow
-                    label="Принимает новые проекты"
-                    value={
-                      company.accepts_new_projects
-                        ? "Да"
-                        : "Нет"
-                    }
-                  />
-
-                  <Link
-                    href={`/admin/contractors/${company.id}`}
-                    className="mt-2 inline-flex items-center justify-center rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground transition hover:-translate-y-0.5"
-                  >
-                    Открыть карточку компании
+      {profile.role === "customer" && (
+        <section className="rounded-[1.75rem] border border-border bg-card p-6 shadow-[var(--shadow-soft)]">
+          <div className="flex items-center justify-between gap-4"><h2 className="text-xl font-bold text-foreground">Последние проекты</h2><FolderKanban className="h-5 w-5 text-primary" /></div>
+          <div className="mt-5">
+            {projectsResult.rows.length === 0 ? <p className="text-sm text-muted-foreground">Проектов нет.</p> : (
+              <div className="divide-y divide-border">
+                {projectsResult.rows.map((project) => (
+                  <Link key={project.id} href={`/admin/projects/${project.id}`} className="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0">
+                    <div><p className="font-semibold text-foreground">{project.title}</p><p className="mt-1 text-xs text-muted-foreground">{formatStatus(project.status)} · {formatDate(project.created_at)}</p></div>
+                    <span className="text-sm font-semibold text-primary">Открыть</span>
                   </Link>
-                </div>
-              )}
-            </Section>
-          )}
-
-          {/* Проекты */}
-
-          <Section
-            title={
-              profile.role ===
-              "contractor"
-                ? "Проекты подрядчика"
-                : "Проекты заказчика"
-            }
-            icon={
-              <FolderKanban className="h-5 w-5" />
-            }
-          >
-            {projects.length ===
-            0 ? (
-              <EmptyText text="Проектов пока нет." />
-            ) : (
-              <div className="space-y-3">
-                {projects.map(
-                  (project) => (
-                    <Link
-                      key={
-                        project.id
-                      }
-                      href={`/admin/projects/${project.id}`}
-                      className="group block rounded-[1.25rem] border border-border bg-background/60 p-4 transition hover:bg-secondary/50"
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <h3 className="font-bold text-foreground">
-                            {
-                              project.title
-                            }
-                          </h3>
-
-                          <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                            {project.city && (
-                              <span className="inline-flex items-center gap-1">
-                                <MapPin className="h-3.5 w-3.5" />
-
-                                {
-                                  project.city
-                                }
-                              </span>
-                            )}
-
-                            <span>
-                              {formatDate(
-                                project.created_at
-                              )}
-                            </span>
-                          </div>
-                        </div>
-
-                        <ProjectStatusBadge
-                          status={
-                            project.status
-                          }
-                        />
-                      </div>
-
-                      <p className="mt-3 text-sm font-semibold text-foreground">
-                        {formatBudget(
-                          project.budget_min,
-                          project.budget_max
-                        )}
-                      </p>
-                    </Link>
-                  )
-                )}
+                ))}
               </div>
             )}
-          </Section>
+          </div>
+        </section>
+      )}
+
+      <section className="rounded-[1.75rem] border border-border bg-card p-6 shadow-[var(--shadow-soft)]">
+        <h2 className="text-xl font-bold text-foreground">Сессии</h2>
+        <div className="mt-5 space-y-3">
+          {sessionsResult.rows.length === 0 ? <p className="text-sm text-muted-foreground">Сессий нет.</p> : sessionsResult.rows.map((session, index) => (
+            <div key={`${formatDate(session.created_at)}-${index}`} className="rounded-xl border border-border bg-background/60 p-4 text-sm">
+              <div className="flex flex-wrap items-center justify-between gap-2"><span className="font-semibold text-foreground">{session.revoked_at ? "Отозвана" : "Активна"}</span><span className="text-muted-foreground">{formatDateTime(session.created_at)}</span></div>
+              <p className="mt-2 break-words text-xs text-muted-foreground">{session.user_agent ?? "Устройство не определено"}{session.ip_address ? ` · ${session.ip_address}` : ""}</p>
+            </div>
+          ))}
         </div>
-
-        {/* Sidebar */}
-
-        <aside className="space-y-5 xl:sticky xl:top-24">
-            <Section
-            title="Управление аккаунтом"
-            icon={
-                <ShieldCheck className="h-5 w-5" />
-            }
-            >
-            <UserAdminActions
-                userId={
-                profile.id
-                }
-                isBlocked={
-                profile.is_blocked
-                }
-                role={
-                profile.role
-                }
-            />
-            </Section>
-          <Section
-            title="Профиль"
-            icon={
-              <ShieldCheck className="h-5 w-5" />
-            }
-          >
-            <InfoRow
-              label="ID"
-              value={
-                profile.id
-              }
-            />
-
-            <InfoRow
-              label="Роль"
-              value={formatRole(
-                profile.role
-              )}
-            />
-
-            <InfoRow
-              label="Создан"
-              value={formatDateTime(
-                profile.created_at
-              )}
-            />
-
-            <InfoRow
-              label="Обновлён"
-              value={formatDateTime(
-                profile.updated_at
-              )}
-            />
-          </Section>
-
-          {profile.role ===
-            "contractor" &&
-            company && (
-              <Section
-                title="Статус компании"
-                icon={
-                  <Building2 className="h-5 w-5" />
-                }
-              >
-                <div className="rounded-[1.25rem] bg-secondary/60 p-4">
-                  <p className="text-xs text-muted-foreground">
-                    Проверка
-                  </p>
-
-                  <p className="mt-1 font-bold text-foreground">
-                    {formatVerificationStatus(
-                      company.verification_status
-                    )}
-                  </p>
-                </div>
-              </Section>
-            )}
-        </aside>
-      </div>
+      </section>
     </div>
   );
 }
 
-function Section({
-  title,
-  icon,
-  children,
-}: {
-  title: string;
-
-  icon:
-    React.ReactNode;
-
-  children:
-    React.ReactNode;
-}) {
-  return (
-    <section className="rounded-[1.75rem] border border-border bg-card p-6 shadow-[var(--shadow-soft)]">
-      <div className="flex items-center gap-3">
-        <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-secondary text-primary">
-          {icon}
-        </span>
-
-        <h2 className="font-bold text-foreground">
-          {title}
-        </h2>
-      </div>
-
-      <div className="mt-5">
-        {children}
-      </div>
-    </section>
-  );
-}
-
-function DataCard({
-  icon,
-  label,
-  value,
-}: {
-  icon:
-    React.ReactNode;
-
-  label:
-    string;
-
-  value:
-    string;
-}) {
-  return (
-    <div className="rounded-[1.5rem] border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
-      <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-secondary text-primary">
-        {icon}
-      </span>
-
-      <p className="mt-4 text-xs text-muted-foreground">
-        {label}
-      </p>
-
-      <p className="mt-1 break-words font-bold text-foreground">
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function ContactCard({
-  icon,
-  label,
-  value,
-}: {
-  icon:
-    React.ReactNode;
-
-  label:
-    string;
-
-  value:
-    | string
-    | null;
-}) {
-  return (
-    <div className="rounded-[1.25rem] border border-border bg-background/60 p-4">
-      <div className="flex items-center gap-2 text-primary">
-        {icon}
-
-        <span className="text-xs font-semibold">
-          {label}
-        </span>
-      </div>
-
-      <p className="mt-2 break-all text-sm font-semibold text-foreground">
-        {value ||
-          "Не указано"}
-      </p>
-    </div>
-  );
-}
-
-function InfoRow({
-  label,
-  value,
-}: {
-  label:
-    string;
-
-  value:
-    | string
-    | null
-    | undefined;
-}) {
-  return (
-    <div className="flex items-start justify-between gap-4 border-b border-border py-3 first:pt-0 last:border-0 last:pb-0">
-      <span className="text-sm text-muted-foreground">
-        {label}
-      </span>
-
-      <span className="max-w-[62%] break-words text-right text-sm font-semibold text-foreground">
-        {value ||
-          "Не указано"}
-      </span>
-    </div>
-  );
-}
-
-function RoleBadge({
-  role,
-}: {
-  role:
-    string;
-}) {
-  const config =
-    getRoleConfig(
-      role
-    );
-
-  return (
-    <span
-      className={`rounded-full px-3 py-1.5 text-xs font-bold ${config.className}`}
-    >
-      {
-        config.label
-      }
-    </span>
-  );
-}
-
-function getRoleConfig(
-  role:
-    string
-) {
-  switch (
-    role
-  ) {
-    case "customer":
-      return {
-        label:
-          "Заказчик",
-
-        className:
-          "bg-blue-50 text-blue-700",
-      };
-
-    case "contractor":
-      return {
-        label:
-          "Подрядчик",
-
-        className:
-          "bg-amber-50 text-amber-700",
-      };
-
-    case "admin":
-      return {
-        label:
-          "Администратор",
-
-        className:
-          "bg-violet-50 text-violet-700",
-      };
-
-    default:
-      return {
-        label:
-          role,
-
-        className:
-          "bg-secondary text-primary",
-      };
-  }
-}
-
-function getRoleIcon(
-  role:
-    string
-) {
-  switch (
-    role
-  ) {
-    case "customer":
-      return (
-        <UserRound className="h-6 w-6" />
-      );
-
-    case "contractor":
-      return (
-        <Building2 className="h-6 w-6" />
-      );
-
-    case "admin":
-      return (
-        <ShieldCheck className="h-6 w-6" />
-      );
-
-    default:
-      return (
-        <UserRound className="h-6 w-6" />
-      );
-  }
-}
-
-function ProjectStatusBadge({
-  status,
-}: {
-  status:
-    string;
-}) {
-  const config =
-    getProjectStatusConfig(
-      status
-    );
-
-  return (
-    <span
-      className={`rounded-full px-3 py-1 text-xs font-semibold ${config.className}`}
-    >
-      {
-        config.label
-      }
-    </span>
-  );
-}
-
-function getProjectStatusConfig(
-  status:
-    string
-) {
-  switch (
-    status
-  ) {
-    case "draft":
-      return {
-        label:
-          "Черновик",
-
-        className:
-          "bg-slate-100 text-slate-700",
-      };
-
-    case "published":
-      return {
-        label:
-          "Опубликован",
-
-        className:
-          "bg-blue-50 text-blue-700",
-      };
-
-    case "contractor_selected":
-      return {
-        label:
-          "Подрядчик выбран",
-
-        className:
-          "bg-violet-50 text-violet-700",
-      };
-
-    case "in_progress":
-      return {
-        label:
-          "В работе",
-
-        className:
-          "bg-amber-50 text-amber-700",
-      };
-
-    case "completed":
-      return {
-        label:
-          "Завершён",
-
-        className:
-          "bg-emerald-50 text-emerald-700",
-      };
-
-    case "disputed":
-      return {
-        label:
-          "Спор",
-
-        className:
-          "bg-red-50 text-red-700",
-      };
-
-    default:
-      return {
-        label:
-          status,
-
-        className:
-          "bg-secondary text-primary",
-      };
-  }
-}
-
-function formatRole(
-  role:
-    string
-) {
-  switch (
-    role
-  ) {
-    case "customer":
-      return "Заказчик";
-
-    case "contractor":
-      return "Подрядчик";
-
-    case "admin":
-      return "Администратор";
-
-    default:
-      return role;
-  }
-}
-
-function formatVerificationStatus(
-  status:
-    string
-) {
-  switch (
-    status
-  ) {
-    case "pending":
-      return "На проверке";
-
-    case "verified":
-      return "Подтверждён";
-
-    case "rejected":
-      return "Отклонён";
-
-    case "suspended":
-      return "Приостановлен";
-
-    case "draft":
-      return "Черновик";
-
-    default:
-      return status;
-  }
-}
-
-function formatCompanyType(
-  value:
-    string | null
-) {
-  switch (
-    value
-  ) {
-    case "individual":
-      return "Частная бригада";
-
-    case "self_employed":
-      return "Самозанятый";
-
-    case "entrepreneur":
-      return "ИП";
-
-    case "company":
-      return "Юридическое лицо";
-
-    default:
-      return "Не указано";
-  }
-}
-
-function getUserName(
-  value: {
-    first_name:
-      string | null;
-
-    last_name:
-      string | null;
-  }
-) {
-  return (
-    [
-      value.first_name,
-      value.last_name,
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .trim() ||
-    "Пользователь"
-  );
-}
-
-function formatBudget(
-  min:
-    | number
-    | string
-    | null,
-
-  max:
-    | number
-    | string
-    | null
-) {
-  const formatter =
-    new Intl.NumberFormat(
-      "ru-RU",
-      {
-        style:
-          "currency",
-
-        currency:
-          "RUB",
-
-        maximumFractionDigits:
-          0,
-      }
-    );
-
-  if (
-    min !== null &&
-    max !== null
-  ) {
-    return `${formatter.format(
-      Number(min)
-    )} — ${formatter.format(
-      Number(max)
-    )}`;
-  }
-
-  if (
-    min !== null
-  ) {
-    return `От ${formatter.format(
-      Number(min)
-    )}`;
-  }
-
-  if (
-    max !== null
-  ) {
-    return `До ${formatter.format(
-      Number(max)
-    )}`;
-  }
-
-  return "Бюджет не указан";
-}
-
-function formatDate(
-  value:
-    string
-) {
-  return new Intl.DateTimeFormat(
-    "ru-RU",
-    {
-      dateStyle:
-        "medium",
-    }
-  ).format(
-    new Date(value)
-  );
-}
-
-function formatDateTime(
-  value:
-    string | null
-) {
-  if (!value) {
-    return "Не указано";
-  }
-
-  return new Intl.DateTimeFormat(
-    "ru-RU",
-    {
-      dateStyle:
-        "medium",
-
-      timeStyle:
-        "short",
-    }
-  ).format(
-    new Date(value)
-  );
-}
-
-function EmptyText({
-  text,
-}: {
-  text:
-    string;
-}) {
-  return (
-    <p className="text-sm text-muted-foreground">
-      {text}
-    </p>
-  );
-}
+function Stat({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) { return <div className="rounded-[1.5rem] border border-border bg-card p-5"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary text-primary">{icon}</div><p className="mt-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p><p className="mt-2 text-lg font-bold text-foreground">{value}</p></div>; }
+function formatDate(value: Date | string | null) { if (!value) return "—"; return new Intl.DateTimeFormat("ru-RU", { dateStyle: "medium" }).format(value instanceof Date ? value : new Date(value)); }
+function formatDateTime(value: Date | string | null) { if (!value) return "—"; return new Intl.DateTimeFormat("ru-RU", { dateStyle: "medium", timeStyle: "short" }).format(value instanceof Date ? value : new Date(value)); }
+function formatRole(role: string) { const labels: Record<string, string> = { customer: "Заказчик", contractor: "Подрядчик", admin: "Администратор", moderator: "Модератор", manager: "Менеджер" }; return labels[role] ?? role; }
+function formatVerificationStatus(status: string) { const labels: Record<string, string> = { draft: "Черновик", pending: "На проверке", verified: "Подтверждён", rejected: "Отклонён", suspended: "Приостановлен" }; return labels[status] ?? status; }
+function formatStatus(status: string) { const labels: Record<string, string> = { draft: "Черновик", published: "Опубликован", collecting_bids: "Сбор предложений", contractor_selected: "Подрядчик выбран", in_progress: "В работе", completed: "Завершён", disputed: "Спор", cancelled: "Отменён" }; return labels[status] ?? status; }

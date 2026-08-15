@@ -1,21 +1,14 @@
-import { createClient } from
-  "@/lib/supabase/server";
+import "server-only";
+
+import { db } from "@/lib/db/pool";
 
 type Input = {
   adminId: string;
-
   actionType: string;
-
   entityType: string;
-
   entityId: string;
-
   description?: string | null;
-
-  metadata?: Record<
-    string,
-    unknown
-  >;
+  metadata?: Record<string, unknown>;
 };
 
 export async function createAdminAuditLog({
@@ -26,59 +19,35 @@ export async function createAdminAuditLog({
   description = null,
   metadata = {},
 }: Input) {
-  const supabase =
-    await createClient();
-
-  const {
-    error,
-  } = await supabase
-    .from(
-      "admin_audit_logs"
-    )
-    .insert({
-      admin_id:
+  try {
+    await db.query(
+      `
+        INSERT INTO public.admin_audit_logs (
+          admin_id,
+          action_type,
+          entity_type,
+          entity_id,
+          description,
+          metadata
+        )
+        VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+      `,
+      [
         adminId,
-
-      action_type:
         actionType,
-
-      entity_type:
         entityType,
-
-      entity_id:
         entityId,
-
-      description,
-
-      metadata,
-    });
-
-  if (error) {
-    console.error(
-      "Ошибка записи административного журнала:",
-      {
-        message:
-          error.message,
-
-        details:
-          error.details,
-
-        hint:
-          error.hint,
-
-        code:
-          error.code,
-      }
+        description,
+        JSON.stringify(metadata),
+      ]
     );
 
+    return { success: true };
+  } catch (error) {
+    console.error("Ошибка записи административного журнала:", error);
     return {
       success: false,
-      message:
-        "Не удалось записать действие в журнал",
+      message: "Не удалось записать действие в журнал",
     };
   }
-
-  return {
-    success: true,
-  };
 }

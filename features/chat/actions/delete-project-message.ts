@@ -2,277 +2,120 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { DeleteObjectCommand } from "@aws-sdk/client-s3";
 
-import { createClient } from
-  "@/lib/supabase/server";
+import { db } from "@/lib/db/pool";
+import { s3 } from "@/lib/storage/s3";
+import { requireActiveUser } from "@/lib/auth/require-active-user";
+import { getProjectChatAccess } from "@/features/chat/server/get-project-chat-access";
 
-const deleteProjectMessageSchema =
-  z.object({
-    messageId: z
-      .string()
-      .uuid(
-        "Некорректный идентификатор сообщения"
-      ),
+const deleteProjectMessageSchema = z.object({
+  messageId: z.string().uuid("Некорректный идентификатор сообщения"),
+  projectId: z.string().uuid("Некорректный идентификатор проекта"),
+});
 
-    projectId: z
-      .string()
-      .uuid(
-        "Некорректный идентификатор проекта"
-      ),
-  });
+type DeleteProjectMessageInput = z.infer<typeof deleteProjectMessageSchema>;
+export type DeleteProjectMessageResult = { success: boolean; message: string };
 
-type DeleteProjectMessageInput =
-  z.infer<
-    typeof deleteProjectMessageSchema
-  >;
-
-export type DeleteProjectMessageResult = {
-  success: boolean;
-  message: string;
+type AttachmentRow = {
+  id: string;
+  storage_bucket: string;
+  storage_path: string;
 };
 
 export async function deleteProjectMessage(
   input: DeleteProjectMessageInput
 ): Promise<DeleteProjectMessageResult> {
-  const parsed =
-    deleteProjectMessageSchema.safeParse(
-      input
-    );
-
+  const parsed = deleteProjectMessageSchema.safeParse(input);
   if (!parsed.success) {
-    return {
-      success: false,
-      message:
-        parsed.error.issues[0]
-          ?.message ??
-        "Проверьте данные сообщения",
-    };
+    return { success: false, message: parsed.error.issues[0]?.message ?? "Проверьте данные сообщения" };
   }
 
-  const supabase =
-    await createClient();
+  const activeUser = await requireActiveUser();
+  if (!activeUser.success) return { success: false, message: activeUser.message };
 
-  const {
-    data: { user },
-    error: userError,
-  } =
-    await supabase.auth.getUser();
+  const { messageId, projectId } = parsed.data;
+  const access = await getProjectChatAccess(projectId, activeUser.user.id);
+  if (!access) return { success: false, message: "У вас нет доступа к чату этого проекта" };
 
-  if (userError || !user) {
-    return {
-      success: false,
-      message: "Необходимо войти",
-    };
-  }
-
-  const {
-    messageId,
-    projectId,
-  } = parsed.data;
-
-  const {
-    data: existingMessage,
-    error: messageError,
-  } = await supabase
-    .from("project_messages")
-    .select(`
-      id,
-      project_id,
-      sender_id,
-      is_deleted
-    `)
-    .eq("id", messageId)
-    .eq("project_id", projectId)
-    .eq("sender_id", user.id)
-    .maybeSingle();
-
-  if (
-    messageError ||
-    !existingMessage
-  ) {
-    return {
-      success: false,
-      message:
-        "Сообщение не найдено или недоступно",
-    };
-  }
-
-  if (existingMessage.is_deleted) {
-    return {
-      success: true,
-      message:
-        "Сообщение уже удалено",
-    };
-  }
-
-  /*
-   * Сначала получаем вложения,
-   * чтобы удалить файлы из Storage.
-   */
-  const {
-    data: attachments,
-    error: attachmentsError,
-  } = await supabase
-    .from("project_message_files")
-    .select(`
-      id,
-      storage_bucket,
-      storage_path
-    `)
-    .eq("message_id", messageId)
-    .eq("project_id", projectId);
-
-  if (attachmentsError) {
-    console.error(
-      "Ошибка загрузки вложений сообщения:",
-      attachmentsError
-    );
-
-    return {
-      success: false,
-      message:
-        "Не удалось проверить вложения сообщения",
-    };
-  }
-
-  const groupedPaths =
-    new Map<
-      string,
-      string[]
-    >();
-
-  for (
-    const attachment of
-    attachments ?? []
-  ) {
-    const bucket =
-      attachment.storage_bucket ||
-      "chat-files";
-
-    const paths =
-      groupedPaths.get(bucket) ??
-      [];
-
-    paths.push(
-      attachment.storage_path
-    );
-
-    groupedPaths.set(
-      bucket,
-      paths
-    );
-  }
-
-  /*
-   * Удаляем файлы из Storage.
-   */
-  for (
-    const [
-      bucket,
-      paths,
-    ] of groupedPaths
-  ) {
-    if (paths.length === 0) {
-      continue;
-    }
-
-    const {
-      error: storageError,
-    } = await supabase.storage
-      .from(bucket)
-      .remove(paths);
-
-    if (storageError) {
-      console.error(
-        "Ошибка удаления вложений из Storage:",
-        storageError
-      );
-
-      return {
-        success: false,
-        message:
-          "Не удалось удалить вложения сообщения",
-      };
-    }
-  }
-
-  /*
-   * Удаляем записи о вложениях.
-   */
-  if (
-    (attachments ?? []).length > 0
-  ) {
-    const {
-      error: filesDeleteError,
-    } = await supabase
-      .from("project_message_files")
-      .delete()
-      .eq("message_id", messageId)
-      .eq("project_id", projectId)
-      .eq("uploaded_by", user.id);
-
-    if (filesDeleteError) {
-      console.error(
-        "Ошибка удаления записей вложений:",
-        filesDeleteError
-      );
-
-      return {
-        success: false,
-        message:
-          "Файлы удалены из хранилища, но не удалось удалить их записи",
-      };
-    }
-  }
-
-  const deletedAt =
-    new Date().toISOString();
-
-  const {
-    data: deletedMessage,
-    error: updateError,
-  } = await supabase
-    .from("project_messages")
-    .update({
-    message_text: "Сообщение удалено",
-    is_deleted: true,
-    deleted_at: deletedAt,
-    deleted_by: user.id,
-    edited_at: null,
-    })
-    .eq("id", messageId)
-    .eq("project_id", projectId)
-    .eq("sender_id", user.id)
-    .eq("is_deleted", false)
-    .select("id")
-    .maybeSingle();
-
-  if (
-    updateError ||
-    !deletedMessage
-  ) {
-    console.error(
-      "Ошибка мягкого удаления сообщения:",
-      updateError
-    );
-
-    return {
-      success: false,
-      message:
-        "Не удалось удалить сообщение",
-    };
-  }
-
-  revalidatePath(
-    `/customer/work/${projectId}`
+  const messageResult = await db.query<{ id: string; is_deleted: boolean }>(
+    `
+      SELECT id, is_deleted
+      FROM public.project_messages
+      WHERE id = $1 AND project_id = $2 AND sender_id = $3
+      LIMIT 1
+    `,
+    [messageId, projectId, activeUser.user.id]
   );
 
-  revalidatePath(
-    `/contractor/work/${projectId}`
+  const existing = messageResult.rows[0];
+  if (!existing) return { success: false, message: "Сообщение не найдено или недоступно" };
+  if (existing.is_deleted) return { success: true, message: "Сообщение уже удалено" };
+
+  const attachmentsResult = await db.query<AttachmentRow>(
+    `
+      SELECT id, storage_bucket, storage_path
+      FROM public.project_message_files
+      WHERE message_id = $1 AND project_id = $2 AND uploaded_by = $3
+    `,
+    [messageId, projectId, activeUser.user.id]
   );
 
-  return {
-    success: true,
-    message: "Сообщение удалено",
-  };
+  for (const attachment of attachmentsResult.rows) {
+    try {
+      await s3.send(
+        new DeleteObjectCommand({
+          Bucket: attachment.storage_bucket || "chat-files",
+          Key: attachment.storage_path,
+        })
+      );
+    } catch (error) {
+      console.error("Ошибка удаления вложения чата из S3:", {
+        attachmentId: attachment.id,
+        error,
+      });
+      return { success: false, message: "Не удалось удалить вложения сообщения" };
+    }
+  }
+
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+
+    await client.query(
+      `
+        DELETE FROM public.project_message_files
+        WHERE message_id = $1 AND project_id = $2 AND uploaded_by = $3
+      `,
+      [messageId, projectId, activeUser.user.id]
+    );
+
+    const update = await client.query<{ id: string }>(
+      `
+        UPDATE public.project_messages
+        SET
+          message_text = 'Сообщение удалено',
+          is_deleted = true,
+          deleted_at = now(),
+          deleted_by = $1,
+          edited_at = NULL
+        WHERE id = $2 AND project_id = $3 AND sender_id = $1 AND is_deleted = false
+        RETURNING id
+      `,
+      [activeUser.user.id, messageId, projectId]
+    );
+
+    if (!update.rows[0]) throw new Error("Сообщение не было удалено");
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Ошибка мягкого удаления сообщения:", error);
+    return { success: false, message: "Не удалось удалить сообщение" };
+  } finally {
+    client.release();
+  }
+
+  revalidatePath(`/customer/work/${projectId}`);
+  revalidatePath(`/contractor/work/${projectId}`);
+  return { success: true, message: "Сообщение удалено" };
 }

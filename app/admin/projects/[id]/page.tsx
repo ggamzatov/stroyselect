@@ -1,1064 +1,220 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ProjectAdminActions } from
-  "@/features/admin/components/project-admin-actions";
 
-import {
-  ArrowLeft,
-  Banknote,
-  Building2,
-  CalendarDays,
-  CheckCircle2,
-  Clock3,
-  FolderKanban,
-  MapPin,
-  ShieldCheck,
-  UserRound,
-  UsersRound,
-} from "lucide-react";
+import { ArrowLeft, Building2, CalendarDays, CircleDollarSign, MapPin, UserRound } from "lucide-react";
 
-import { createClient } from
-  "@/lib/supabase/server";
+import { db } from "@/lib/db/pool";
+import { ProjectAdminActions } from "@/features/admin/components/project-admin-actions";
 
-type Props = {
-  params: Promise<{
-    id: string;
-  }>;
+type Props = { params: Promise<{ id: string }> };
+
+type ProjectRow = {
+  id: string;
+  customer_id: string;
+  title: string;
+  description: string | null;
+  city: string | null;
+  region: string | null;
+  address: string | null;
+  status: string;
+  budget_min: number | string | null;
+  budget_max: number | string | null;
+  desired_start_date: Date | string | null;
+  desired_end_date: Date | string | null;
+  selected_contractor_id: string | null;
+  selected_bid_id: string | null;
+  is_admin_blocked: boolean;
+  admin_block_reason: string | null;
+  admin_blocked_at: Date | string | null;
+  published_at: Date | string | null;
+  created_at: Date | string;
+  customer_first_name: string | null;
+  customer_last_name: string | null;
+  customer_email: string | null;
+  contractor_name: string | null;
 };
 
-export default async function AdminProjectPage({
-  params,
-}: Props) {
-  const { id } =
-    await params;
+export default async function AdminProjectPage({ params }: Props) {
+  const { id } = await params;
 
-  const supabase =
-    await createClient();
+  const projectResult = await db.query<ProjectRow>(
+    `
+      SELECT
+        p.id,
+        p.customer_id,
+        p.title,
+        p.description,
+        p.city,
+        p.region,
+        p.address,
+        p.status::text AS status,
+        p.budget_min,
+        p.budget_max,
+        p.desired_start_date,
+        p.desired_end_date,
+        p.selected_contractor_id,
+        p.selected_bid_id,
+        p.is_admin_blocked,
+        p.admin_block_reason,
+        p.admin_blocked_at,
+        p.published_at,
+        p.created_at,
+        customer.first_name AS customer_first_name,
+        customer.last_name AS customer_last_name,
+        customer.email AS customer_email,
+        contractor.public_name AS contractor_name
+      FROM public.projects p
+      LEFT JOIN public.profiles customer ON customer.id = p.customer_id
+      LEFT JOIN public.contractor_companies contractor ON contractor.id = p.selected_contractor_id
+      WHERE p.id = $1
+      LIMIT 1
+    `,
+    [id]
+  );
 
-  const {
-    data: project,
-    error,
-  } = await supabase
-    .from("projects")
-        .select(`
-    id,
-    customer_id,
-    selected_contractor_id,
-    selected_bid_id,
-    title,
-    description,
-    status,
-    property_type,
-    region,
-    city,
-    address,
-    budget_min,
-    budget_max,
-    desired_start_date,
-    desired_end_date,
+  const project = projectResult.rows[0];
+  if (!project) notFound();
 
-    is_admin_blocked,
-    admin_block_reason,
-    admin_blocked_at,
-    admin_blocked_by,
+  const [bidsResult, stagesResult, eventsResult] = await Promise.all([
+    db.query<{
+      id: string;
+      status: string;
+      price: number | string;
+      duration_days: number;
+      company_name: string | null;
+      created_at: Date | string;
+    }>(
+      `
+        SELECT
+          b.id,
+          b.status::text AS status,
+          b.price,
+          b.duration_days,
+          c.public_name AS company_name,
+          b.created_at
+        FROM public.project_bids b
+        LEFT JOIN public.contractor_companies c ON c.id = b.contractor_id
+        WHERE b.project_id = $1
+        ORDER BY b.created_at DESC
+      `,
+      [id]
+    ),
+    db.query<{ id: string; title: string; status: string; progress_weight: number }>(
+      `
+        SELECT id, title, status::text AS status, progress_weight
+        FROM public.project_stages
+        WHERE project_id = $1
+        ORDER BY sort_order ASC
+      `,
+      [id]
+    ),
+    db.query<{ id: string; title: string; description: string | null; event_type: string; created_at: Date | string }>(
+      `
+        SELECT id, title, description, event_type::text AS event_type, created_at
+        FROM public.project_events
+        WHERE project_id = $1
+        ORDER BY created_at DESC
+        LIMIT 30
+      `,
+      [id]
+    ),
+  ]);
 
-    contractor_selected_at,
-    work_started_at,
-    completed_at,
-    created_at,
-    updated_at
-    `)
-    .eq(
-      "id",
-      id
-    )
-    .maybeSingle();
-
-  if (
-    error ||
-    !project
-  ) {
-    if (error) {
-      console.error(
-        "Ошибка загрузки проекта администратором:",
-        error
-      );
-    }
-
-    notFound();
-  }
-
-  /*
-   * Заказчик.
-   */
-  const {
-    data: customer,
-  } = await supabase
-    .from("profiles")
-    .select(`
-      id,
-      first_name,
-      last_name,
-      phone,
-      email,
-      city
-    `)
-    .eq(
-      "id",
-      project.customer_id
-    )
-    .maybeSingle();
-
-  /*
-   * Подрядчик.
-   */
-  const {
-    data: contractor,
-  } =
-    project.selected_contractor_id
-      ? await supabase
-          .from(
-            "contractor_companies"
-          )
-          .select(`
-            id,
-            public_name,
-            legal_name,
-            contact_phone,
-            contact_email,
-            verification_status,
-            rating,
-            rating_count
-          `)
-          .eq(
-            "id",
-            project.selected_contractor_id
-          )
-          .maybeSingle()
-      : {
-          data: null,
-        };
-
-  /*
-   * Этапы.
-   */
-  const {
-    data: stages,
-  } = await supabase
-    .from(
-      "project_stages"
-    )
-    .select(`
-      id,
-      title,
-      status,
-      price,
-      progress_weight,
-      planned_start_date,
-      planned_end_date,
-      actual_started_at,
-      actual_completed_at
-    `)
-    .eq(
-      "project_id",
-      project.id
-    )
-    .order(
-      "sort_order",
-      {
-        ascending: true,
-      }
-    );
-
-  /*
-   * События.
-   */
-  const {
-    data: events,
-  } = await supabase
-    .from(
-      "project_events"
-    )
-    .select(`
-      id,
-      event_type,
-      title,
-      description,
-      created_at
-    `)
-    .eq(
-      "project_id",
-      project.id
-    )
-    .order(
-      "created_at",
-      {
-        ascending: false,
-      }
-    )
-    .limit(20);
-
-  const completedStages =
-    (
-      stages ??
-      []
-    ).filter(
-      (stage) =>
-        stage.status ===
-        "completed"
-    );
-
-  const progress =
-    calculateProgress(
-      stages ??
-      []
-    );
+  const customerName = [project.customer_first_name, project.customer_last_name].filter(Boolean).join(" ") || project.customer_email || "Заказчик";
 
   return (
     <div className="space-y-6">
-      <Link
-        href="/admin/projects"
-        className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground transition hover:text-primary"
-      >
-        <ArrowLeft className="h-4 w-4" />
-
-        Вернуться к проектам
+      <Link href="/admin/projects" className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-primary">
+        <ArrowLeft className="h-4 w-4" /> К проектам
       </Link>
 
-      {/* Hero */}
-
-      <section className="relative overflow-hidden rounded-[2rem] border border-border bg-card p-6 shadow-[var(--shadow-soft)] md:p-8">
-        <div className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full bg-secondary/70 blur-3xl" />
-
-        <div className="relative flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
-          <div className="flex min-w-0 items-start gap-4">
-            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[1.3rem] bg-primary text-primary-foreground">
-              <FolderKanban className="h-6 w-6" />
-            </span>
-
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-primary">
-                Проект
-              </p>
-
-              <h1 className="mt-1 text-3xl font-black tracking-[-0.04em] text-foreground md:text-4xl">
-                {
-                  project.title
-                }
-              </h1>
-
-              {(project.city ||
-                project.region) && (
-                <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
-                  <MapPin className="h-4 w-4" />
-
-                  {[
-                    project.region,
-                    project.city,
-                  ]
-                    .filter(Boolean)
-                    .join(", ")}
-                </p>
-              )}
+      <section className="rounded-[2rem] border border-border bg-card p-6 shadow-[var(--shadow-soft)] md:p-8">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-primary">Проект</p>
+            <h1 className="mt-2 text-3xl font-black tracking-[-0.04em] text-foreground">{project.title}</h1>
+            <div className="mt-4 flex flex-wrap gap-3 text-sm text-muted-foreground">
+              <span className="rounded-full bg-secondary px-3 py-1 font-semibold">{formatStatus(project.status)}</span>
+              {project.city && <span className="inline-flex items-center gap-1"><MapPin className="h-4 w-4" />{project.city}</span>}
+              <span className="inline-flex items-center gap-1"><UserRound className="h-4 w-4" />{customerName}</span>
             </div>
           </div>
-
-         <div className="flex flex-col items-end gap-3">
-            <ProjectStatusBadge
-                status={project.status}
+          <div className="w-full max-w-md">
+            <ProjectAdminActions
+              projectId={project.id}
+              isBlocked={project.is_admin_blocked}
+              blockReason={project.admin_block_reason}
             />
+          </div>
+        </div>
+        {project.description && <p className="mt-6 whitespace-pre-wrap text-sm leading-7 text-muted-foreground">{project.description}</p>}
+      </section>
 
-            {project.is_admin_blocked && (
-                <span className="rounded-full bg-red-600 px-4 py-2 text-xs font-bold text-white">
-                Заблокирован администрацией
-                </span>
-            )}
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <Stat label="Заказчик" value={customerName} icon={<UserRound className="h-5 w-5" />} />
+        <Stat label="Подрядчик" value={project.contractor_name ?? "Не выбран"} icon={<Building2 className="h-5 w-5" />} />
+        <Stat label="Бюджет" value={formatBudget(project.budget_min, project.budget_max)} icon={<CircleDollarSign className="h-5 w-5" />} />
+        <Stat label="Сроки" value={formatDateRange(project.desired_start_date, project.desired_end_date)} icon={<CalendarDays className="h-5 w-5" />} />
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-2">
+        <Panel title={`Предложения (${bidsResult.rows.length})`}>
+          {bidsResult.rows.length === 0 ? <Empty text="Предложений нет." /> : (
+            <div className="divide-y divide-border">
+              {bidsResult.rows.map((bid) => (
+                <div key={bid.id} className="flex items-start justify-between gap-4 py-4 first:pt-0 last:pb-0">
+                  <div><p className="font-semibold text-foreground">{bid.company_name ?? "Подрядчик"}</p><p className="mt-1 text-xs text-muted-foreground">{formatStatus(bid.status)} · {bid.duration_days} дн.</p></div>
+                  <p className="text-sm font-bold text-foreground">{formatMoney(bid.price)}</p>
+                </div>
+              ))}
             </div>
-        </div>
+          )}
+        </Panel>
+
+        <Panel title={`Этапы (${stagesResult.rows.length})`}>
+          {stagesResult.rows.length === 0 ? <Empty text="Этапов нет." /> : (
+            <div className="divide-y divide-border">
+              {stagesResult.rows.map((stage) => (
+                <div key={stage.id} className="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0">
+                  <div><p className="font-semibold text-foreground">{stage.title}</p><p className="mt-1 text-xs text-muted-foreground">{formatStatus(stage.status)}</p></div>
+                  <span className="text-sm font-bold text-primary">{stage.progress_weight}%</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Panel>
       </section>
 
-      {/* KPI */}
-
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <DataCard
-          icon={
-            <Banknote className="h-5 w-5" />
-          }
-          label="Бюджет"
-          value={formatBudget(
-            project.budget_min,
-            project.budget_max
-          )}
-        />
-
-        <DataCard
-          icon={
-            <CheckCircle2 className="h-5 w-5" />
-          }
-          label="Прогресс"
-          value={`${progress}%`}
-        />
-
-        <DataCard
-          icon={
-            <Clock3 className="h-5 w-5" />
-          }
-          label="Этапы"
-          value={`${completedStages.length} / ${
-            stages?.length ??
-            0
-          }`}
-        />
-
-        <DataCard
-          icon={
-            <CalendarDays className="h-5 w-5" />
-          }
-          label="Создан"
-          value={formatDateTime(
-            project.created_at
-          )}
-        />
-      </section>
-
-      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="space-y-6">
-          {/* Описание */}
-
-          <Section
-            title="Описание проекта"
-            icon={
-              <FolderKanban className="h-5 w-5" />
-            }
-          >
-            <p className="whitespace-pre-wrap text-sm leading-7 text-muted-foreground">
-              {project.description ||
-                "Описание не указано."}
-            </p>
-          </Section>
-
-          {/* Данные */}
-
-          <Section
-            title="Параметры проекта"
-            icon={
-              <Building2 className="h-5 w-5" />
-            }
-          >
-            <InfoRow
-              label="Тип объекта"
-              value={
-                project.property_type
-              }
-            />
-
-            <InfoRow
-              label="Регион"
-              value={
-                project.region
-              }
-            />
-
-            <InfoRow
-              label="Город"
-              value={
-                project.city
-              }
-            />
-
-            <InfoRow
-              label="Адрес"
-              value={
-                project.address
-              }
-            />
-
-            <InfoRow
-              label="Плановое начало"
-              value={formatDate(
-                project.desired_start_date
-              )}
-            />
-
-            <InfoRow
-              label="Плановое окончание"
-              value={formatDate(
-                project.desired_end_date
-              )}
-            />
-          </Section>
-
-          {/* Этапы */}
-
-          <Section
-            title="Этапы работ"
-            icon={
-              <CheckCircle2 className="h-5 w-5" />
-            }
-          >
-            {!stages ||
-            stages.length ===
-              0 ? (
-              <EmptyText text="Этапы проекта не созданы." />
-            ) : (
-              <div className="space-y-3">
-                {stages.map(
-                  (
-                    stage,
-                    index
-                  ) => (
-                    <article
-                      key={
-                        stage.id
-                      }
-                      className="rounded-[1.25rem] border border-border bg-background/60 p-4"
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <p className="text-xs text-muted-foreground">
-                            Этап{" "}
-                            {index +
-                              1}
-                          </p>
-
-                          <h3 className="mt-1 font-bold text-foreground">
-                            {
-                              stage.title
-                            }
-                          </h3>
-                        </div>
-
-                        <StageStatusBadge
-                          status={
-                            stage.status
-                          }
-                        />
-                      </div>
-
-                      <div className="mt-4 flex flex-wrap gap-4 text-sm text-muted-foreground">
-                        <span>
-                          Доля:{" "}
-                          <strong className="text-foreground">
-                            {
-                              stage.progress_weight
-                            }
-                            %
-                          </strong>
-                        </span>
-
-                        <span>
-                          Стоимость:{" "}
-                          <strong className="text-foreground">
-                            {formatMoney(
-                              stage.price
-                            )}
-                          </strong>
-                        </span>
-                      </div>
-                    </article>
-                  )
-                )}
+      <Panel title="Последние события">
+        {eventsResult.rows.length === 0 ? <Empty text="Событий нет." /> : (
+          <div className="space-y-4">
+            {eventsResult.rows.map((event) => (
+              <div key={event.id} className="rounded-xl border border-border bg-background/60 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="font-semibold text-foreground">{event.title}</p>
+                  <span className="text-xs text-muted-foreground">{formatDate(event.created_at)}</span>
+                </div>
+                {event.description && <p className="mt-2 text-sm text-muted-foreground">{event.description}</p>}
               </div>
-            )}
-          </Section>
-
-          {/* История */}
-
-          <Section
-            title="История проекта"
-            icon={
-              <Clock3 className="h-5 w-5" />
-            }
-          >
-            {!events ||
-            events.length ===
-              0 ? (
-              <EmptyText text="Событий пока нет." />
-            ) : (
-              <div className="space-y-4">
-                {events.map(
-                  (event) => (
-                    <article
-                      key={
-                        event.id
-                      }
-                      className="border-l-2 border-border pl-4"
-                    >
-                      <p className="text-xs text-muted-foreground">
-                        {formatDateTime(
-                          event.created_at
-                        )}
-                      </p>
-
-                      <h3 className="mt-1 font-semibold text-foreground">
-                        {
-                          event.title
-                        }
-                      </h3>
-
-                      {event.description && (
-                        <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                          {
-                            event.description
-                          }
-                        </p>
-                      )}
-                    </article>
-                  )
-                )}
-              </div>
-            )}
-          </Section>
-        </div>
-
-       {/* Правая колонка */}
-
-            <aside className="space-y-5 xl:sticky xl:top-24">
-            <Section
-                title="Управление проектом"
-                icon={
-                <ShieldCheck className="h-5 w-5" />
-                }
-            >
-                <ProjectAdminActions
-                projectId={project.id}
-                isBlocked={project.is_admin_blocked}
-                blockReason={project.admin_block_reason}
-                />
-            </Section>
-
-            <Section
-                title="Заказчик"
-                icon={
-                <UserRound className="h-5 w-5" />
-                }
-            >
-    ...
-            {customer ? (
-              <div className="space-y-3">
-                <InfoRow
-                  label="Имя"
-                  value={getPersonName(
-                    customer
-                  )}
-                />
-
-                <InfoRow
-                  label="Телефон"
-                  value={
-                    customer.phone
-                  }
-                />
-
-                <InfoRow
-                  label="Email"
-                  value={
-                    customer.email
-                  }
-                />
-
-                <InfoRow
-                  label="Город"
-                  value={
-                    customer.city
-                  }
-                />
-              </div>
-            ) : (
-              <EmptyText text="Данные заказчика не найдены." />
-            )}
-          </Section>
-
-          <Section
-            title="Подрядчик"
-            icon={
-              <UsersRound className="h-5 w-5" />
-            }
-          >
-            {!contractor ? (
-              <EmptyText text="Подрядчик ещё не выбран." />
-            ) : (
-              <div className="space-y-3">
-                <InfoRow
-                  label="Компания"
-                  value={
-                    contractor.public_name
-                  }
-                />
-
-                <InfoRow
-                  label="Юридическое имя"
-                  value={
-                    contractor.legal_name
-                  }
-                />
-
-                <InfoRow
-                  label="Телефон"
-                  value={
-                    contractor.contact_phone
-                  }
-                />
-
-                <InfoRow
-                  label="Рейтинг"
-                  value={`${Number(
-                    contractor.rating ??
-                      0
-                  ).toFixed(1)} · ${
-                    contractor.rating_count ??
-                    0
-                  } отзывов`}
-                />
-
-                <Link
-                  href={`/admin/contractors/${contractor.id}`}
-                  className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-secondary px-4 py-3 text-sm font-semibold text-primary transition hover:bg-secondary/80"
-                >
-                  Открыть подрядчика
-                </Link>
-              </div>
-            )}
-          </Section>
-
-          <Section
-            title="Основные даты"
-            icon={
-              <CalendarDays className="h-5 w-5" />
-            }
-          >
-            <InfoRow
-              label="Подрядчик выбран"
-              value={formatDateTimeNullable(
-                project.contractor_selected_at
-              )}
-            />
-
-            <InfoRow
-              label="Работы начаты"
-              value={formatDateTimeNullable(
-                project.work_started_at
-              )}
-            />
-
-            <InfoRow
-              label="Завершён"
-              value={formatDateTimeNullable(
-                project.completed_at
-              )}
-            />
-          </Section>
-        </aside>
-      </div>
+            ))}
+          </div>
+        )}
+      </Panel>
     </div>
   );
 }
 
-function Section({
-  title,
-  icon,
-  children,
-}: {
-  title: string;
-  icon:
-    React.ReactNode;
-  children:
-    React.ReactNode;
-}) {
-  return (
-    <section className="rounded-[1.75rem] border border-border bg-card p-6 shadow-[var(--shadow-soft)]">
-      <div className="flex items-center gap-3">
-        <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-secondary text-primary">
-          {icon}
-        </span>
-
-        <h2 className="font-bold text-foreground">
-          {title}
-        </h2>
-      </div>
-
-      <div className="mt-5">
-        {children}
-      </div>
-    </section>
-  );
+function Panel({ title, children }: { title: string; children: React.ReactNode }) {
+  return <section className="rounded-[1.75rem] border border-border bg-card p-6 shadow-[var(--shadow-soft)]"><h2 className="text-xl font-bold text-foreground">{title}</h2><div className="mt-5">{children}</div></section>;
 }
 
-function DataCard({
-  icon,
-  label,
-  value,
-}: {
-  icon:
-    React.ReactNode;
-
-  label:
-    string;
-
-  value:
-    string;
-}) {
-  return (
-    <div className="rounded-[1.5rem] border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
-      <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-secondary text-primary">
-        {icon}
-      </span>
-
-      <p className="mt-4 text-xs text-muted-foreground">
-        {label}
-      </p>
-
-      <p className="mt-1 font-bold text-foreground">
-        {value}
-      </p>
-    </div>
-  );
+function Stat({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
+  return <div className="rounded-[1.5rem] border border-border bg-card p-5"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary text-primary">{icon}</div><p className="mt-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p><p className="mt-2 text-lg font-bold text-foreground">{value}</p></div>;
 }
 
-function InfoRow({
-  label,
-  value,
-}: {
-  label:
-    string;
-
-  value:
-    string | null | undefined;
-}) {
-  return (
-    <div className="flex items-start justify-between gap-4 border-b border-border py-3 first:pt-0 last:border-0 last:pb-0">
-      <span className="text-sm text-muted-foreground">
-        {label}
-      </span>
-
-      <span className="max-w-[60%] break-words text-right text-sm font-semibold text-foreground">
-        {value ||
-          "Не указано"}
-      </span>
-    </div>
-  );
-}
-
-function ProjectStatusBadge({
-  status,
-}: {
-  status:
-    string;
-}) {
-  const config =
-    getStatusConfig(
-      status
-    );
-
-  return (
-    <span
-      className={`rounded-full px-4 py-2 text-xs font-bold ${config.className}`}
-    >
-      {
-        config.label
-      }
-    </span>
-  );
-}
-
-function StageStatusBadge({
-  status,
-}: {
-  status:
-    string;
-}) {
-  const labels:
-    Record<
-      string,
-      string
-    > = {
-    planned:
-      "Запланирован",
-
-    in_progress:
-      "Выполняется",
-
-    awaiting_review:
-      "На проверке",
-
-    revision_required:
-      "Доработка",
-
-    completed:
-      "Завершён",
-
-    cancelled:
-      "Отменён",
-  };
-
-  return (
-    <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-primary">
-      {labels[
-        status
-      ] ??
-        status}
-    </span>
-  );
-}
-
-function getStatusConfig(
-  status:
-    string
-) {
-  switch (
-    status
-  ) {
-    case "draft":
-      return {
-        label:
-          "Черновик",
-        className:
-          "bg-slate-100 text-slate-700",
-      };
-
-    case "published":
-      return {
-        label:
-          "Опубликован",
-        className:
-          "bg-blue-50 text-blue-700",
-      };
-
-    case "contractor_selected":
-      return {
-        label:
-          "Подрядчик выбран",
-        className:
-          "bg-violet-50 text-violet-700",
-      };
-
-    case "in_progress":
-      return {
-        label:
-          "В работе",
-        className:
-          "bg-amber-50 text-amber-700",
-      };
-
-    case "completed":
-      return {
-        label:
-          "Завершён",
-        className:
-          "bg-emerald-50 text-emerald-700",
-      };
-
-    case "disputed":
-      return {
-        label:
-          "Спор",
-        className:
-          "bg-red-50 text-red-700",
-      };
-
-    default:
-      return {
-        label:
-          status,
-        className:
-          "bg-secondary text-primary",
-      };
-  }
-}
-
-function calculateProgress(
-  stages: Array<{
-    status:
-      string;
-
-    progress_weight:
-      number;
-  }>
-) {
-  if (
-    stages.length ===
-    0
-  ) {
-    return 0;
-  }
-
-  return Math.min(
-    100,
-    stages
-      .filter(
-        (stage) =>
-          stage.status ===
-          "completed"
-      )
-      .reduce(
-        (
-          total,
-          stage
-        ) =>
-          total +
-          Number(
-            stage.progress_weight ??
-              0
-          ),
-        0
-      )
-  );
-}
-
-function getPersonName(
-  value: {
-    first_name:
-      string | null;
-
-    last_name:
-      string | null;
-  }
-) {
-  return (
-    [
-      value.first_name,
-      value.last_name,
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .trim() ||
-    "Пользователь"
-  );
-}
-
-function formatMoney(
-  value:
-    | number
-    | string
-    | null
-) {
-  if (
-    value === null
-  ) {
-    return "Не указана";
-  }
-
-  return new Intl.NumberFormat(
-    "ru-RU",
-    {
-      style:
-        "currency",
-
-      currency:
-        "RUB",
-
-      maximumFractionDigits:
-        0,
-    }
-  ).format(
-    Number(value)
-  );
-}
-
-function formatBudget(
-  min:
-    | number
-    | string
-    | null,
-
-  max:
-    | number
-    | string
-    | null
-) {
-  if (
-    min !== null &&
-    max !== null
-  ) {
-    return `${formatMoney(
-      min
-    )} — ${formatMoney(
-      max
-    )}`;
-  }
-
-  if (
-    min !== null
-  ) {
-    return `От ${formatMoney(
-      min
-    )}`;
-  }
-
-  if (
-    max !== null
-  ) {
-    return `До ${formatMoney(
-      max
-    )}`;
-  }
-
-  return "Не указан";
-}
-
-function formatDate(
-  value:
-    | string
-    | null
-) {
-  if (!value) {
-    return "Не указано";
-  }
-
-  return new Intl.DateTimeFormat(
-    "ru-RU",
-    {
-      dateStyle:
-        "medium",
-    }
-  ).format(
-    new Date(
-      `${value}T00:00:00`
-    )
-  );
-}
-
-function formatDateTime(
-  value:
-    string
-) {
-  return new Intl.DateTimeFormat(
-    "ru-RU",
-    {
-      dateStyle:
-        "medium",
-
-      timeStyle:
-        "short",
-    }
-  ).format(
-    new Date(value)
-  );
-}
-
-function formatDateTimeNullable(
-  value:
-    | string
-    | null
-) {
-  if (!value) {
-    return "Не указано";
-  }
-
-  return formatDateTime(
-    value
-  );
-}
-
-function EmptyText({
-  text,
-}: {
-  text:
-    string;
-}) {
-  return (
-    <p className="text-sm text-muted-foreground">
-      {text}
-    </p>
-  );
-}
+function Empty({ text }: { text: string }) { return <p className="text-sm text-muted-foreground">{text}</p>; }
+function formatMoney(value: number | string) { return new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format(Number(value)); }
+function formatBudget(min: number | string | null, max: number | string | null) { if (min != null && max != null) return `${formatMoney(min)} — ${formatMoney(max)}`; if (min != null) return `от ${formatMoney(min)}`; if (max != null) return `до ${formatMoney(max)}`; return "Не указан"; }
+function formatDate(value: Date | string | null) { if (!value) return "—"; return new Intl.DateTimeFormat("ru-RU", { dateStyle: "medium" }).format(value instanceof Date ? value : new Date(value)); }
+function formatDateRange(start: Date | string | null, end: Date | string | null) { if (!start && !end) return "Не указаны"; return `${formatDate(start)} — ${formatDate(end)}`; }
+function formatStatus(status: string) { const labels: Record<string, string> = { draft: "Черновик", published: "Опубликован", collecting_bids: "Сбор предложений", submitted: "Отправлено", viewed: "Просмотрено", shortlisted: "Короткий список", accepted: "Принято", rejected: "Отклонено", contractor_selected: "Подрядчик выбран", planned: "Запланирован", in_progress: "В работе", awaiting_review: "На проверке", revision_required: "Доработка", completed: "Завершён", disputed: "Спор", cancelled: "Отменён" }; return labels[status] ?? status; }

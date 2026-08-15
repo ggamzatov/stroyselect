@@ -1,138 +1,111 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { DeleteObjectCommand } from "@aws-sdk/client-s3";
 
-import { createClient } from
-  "@/lib/supabase/server";
+import { db } from "@/lib/db/pool";
+import { requireActiveUser } from "@/lib/auth/require-active-user";
+import { s3 } from "@/lib/storage/s3";
+
+const PROJECT_FILES_BUCKET = "project-files";
 
 export type DeleteStageFileResult = {
   success: boolean;
   message: string;
 };
 
+type FileRow = {
+  id: string;
+  uploaded_by: string;
+  storage_path: string;
+  stage_status: string;
+};
+
 export async function deleteStageFile(
   fileId: string,
   projectId: string
 ): Promise<DeleteStageFileResult> {
-  const supabase =
-    await createClient();
+  const activeUser = await requireActiveUser();
 
-  const {
-    data: { user },
-  } =
-    await supabase.auth.getUser();
-
-  if (!user) {
-    return {
-      success: false,
-      message: "Необходимо войти",
-    };
+  if (!activeUser.success) {
+    return { success: false, message: activeUser.message };
   }
 
-  const {
-    data: file,
-    error: fileError,
-  } = await supabase
-    .from("project_stage_files")
-    .select(`
-      id,
-      project_id,
-      stage_id,
-      uploaded_by,
-      storage_path,
-      project_stages!inner (
-        status
-      )
-    `)
-    .eq("id", fileId)
-    .eq("project_id", projectId)
-    .eq("uploaded_by", user.id)
-    .maybeSingle();
+  let file: FileRow | undefined;
 
-  if (
-    fileError ||
-    !file
-  ) {
-    return {
-      success: false,
-      message:
-        "Файл не найден или недоступен",
-    };
-  }
-
-  const relation =
-    Array.isArray(
-      file.project_stages
-    )
-      ? file.project_stages[0]
-      : file.project_stages;
-
-  if (
-    relation?.status ===
-    "completed"
-  ) {
-    return {
-      success: false,
-      message:
-        "Нельзя удалить файл принятого этапа",
-    };
-  }
-
-  const {
-    error: storageError,
-  } = await supabase.storage
-    .from("project-files")
-    .remove([
-      file.storage_path,
-    ]);
-
-  if (storageError) {
-    console.error(
-      "Ошибка удаления из Storage:",
-      storageError
+  try {
+    const result = await db.query<FileRow>(
+      `
+        SELECT
+          f.id,
+          f.uploaded_by,
+          f.storage_path,
+          s.status AS stage_status
+        FROM public.project_stage_files f
+        JOIN public.project_stages s
+          ON s.id = f.stage_id
+         AND s.project_id = f.project_id
+        WHERE f.id = $1
+          AND f.project_id = $2
+          AND f.uploaded_by = $3
+        LIMIT 1
+      `,
+      [fileId, projectId, activeUser.user.id]
     );
 
+    file = result.rows[0];
+  } catch (error) {
+    console.error("Ошибка поиска файла этапа:", error);
+    return { success: false, message: "Файл не найден или недоступен" };
+  }
+
+  if (!file) {
+    return { success: false, message: "Файл не найден или недоступен" };
+  }
+
+  if (file.stage_status === "completed") {
+    return { success: false, message: "Нельзя удалить файл принятого этапа" };
+  }
+
+  try {
+    await s3.send(
+      new DeleteObjectCommand({
+        Bucket: PROJECT_FILES_BUCKET,
+        Key: file.storage_path,
+      })
+    );
+  } catch (error) {
+    console.error("Ошибка удаления файла из S3:", error);
     return {
       success: false,
-      message:
-        "Не удалось удалить файл из хранилища",
+      message: "Не удалось удалить файл из хранилища",
     };
   }
 
-  const {
-    error: deleteError,
-  } = await supabase
-    .from("project_stage_files")
-    .delete()
-    .eq("id", file.id)
-    .eq(
-      "uploaded_by",
-      user.id
+  try {
+    const result = await db.query<{ id: string }>(
+      `
+        DELETE FROM public.project_stage_files
+        WHERE id = $1
+          AND uploaded_by = $2
+        RETURNING id
+      `,
+      [file.id, activeUser.user.id]
     );
 
-  if (deleteError) {
-    console.error(
-      "Ошибка удаления записи:",
-      deleteError
-    );
-
+    if (!result.rows[0]) {
+      throw new Error("Запись файла не удалена");
+    }
+  } catch (error) {
+    console.error("Ошибка удаления записи файла:", error);
     return {
       success: false,
-      message:
-        "Файл удалён из хранилища, но не удалось удалить запись",
+      message: "Файл удалён из хранилища, но не удалось удалить запись",
     };
   }
 
-  revalidatePath(
-    `/contractor/work/${projectId}`
-  );
+  revalidatePath(`/contractor/work/${projectId}`);
+  revalidatePath(`/customer/work/${projectId}`);
 
-  revalidatePath(
-    `/customer/work/${projectId}`
-  );
-
-  return {
-    success: true,
-    message: "Файл удалён",
-  };
+  return { success: true, message: "Файл удалён" };
 }
