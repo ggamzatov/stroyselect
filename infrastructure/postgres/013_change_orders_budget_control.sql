@@ -1,3 +1,8 @@
+ALTER TYPE public.project_event_type ADD VALUE IF NOT EXISTS 'change_order_created';
+ALTER TYPE public.project_event_type ADD VALUE IF NOT EXISTS 'change_order_approved';
+ALTER TYPE public.project_event_type ADD VALUE IF NOT EXISTS 'change_order_rejected';
+ALTER TYPE public.project_event_type ADD VALUE IF NOT EXISTS 'payment_recorded';
+
 BEGIN;
 
 CREATE TABLE IF NOT EXISTS public.project_change_orders (
