@@ -47,6 +47,11 @@ export function StageFileUpload({
       null
     );
 
+  const previewUrlRef =
+    useRef<string | null>(
+      null
+    );
+
   const [
     selectedFile,
     setSelectedFile,
@@ -82,31 +87,51 @@ export function StageFileUpload({
     ) ?? false;
 
   useEffect(() => {
+    return () => {
+      if (
+        previewUrlRef.current
+      ) {
+        URL.revokeObjectURL(
+          previewUrlRef.current
+        );
+      }
+    };
+  }, []);
+
+  function replaceSelectedFile(
+    file: File | null
+  ) {
     if (
-      !selectedFile ||
-      !selectedFile.type.startsWith(
-        "image/"
-      )
+      previewUrlRef.current
     ) {
-      setPreviewUrl(null);
-      return;
+      URL.revokeObjectURL(
+        previewUrlRef.current
+      );
+
+      previewUrlRef.current =
+        null;
     }
 
-    const objectUrl =
-      URL.createObjectURL(
-        selectedFile
-      );
+    const nextPreviewUrl =
+      file?.type.startsWith(
+        "image/"
+      )
+        ? URL.createObjectURL(
+            file
+          )
+        : null;
 
-    setPreviewUrl(
-      objectUrl
+    previewUrlRef.current =
+      nextPreviewUrl;
+
+    setSelectedFile(
+      file
     );
 
-    return () => {
-      URL.revokeObjectURL(
-        objectUrl
-      );
-    };
-  }, [selectedFile]);
+    setPreviewUrl(
+      nextPreviewUrl
+    );
+  }
 
   function handleFileChange(
     event:
@@ -122,7 +147,9 @@ export function StageFileUpload({
     setSuccessMessage("");
 
     if (!file) {
-      setSelectedFile(null);
+      replaceSelectedFile(
+        null
+      );
       return;
     }
 
@@ -136,7 +163,7 @@ export function StageFileUpload({
       event.target.value =
         "";
 
-      setSelectedFile(
+      replaceSelectedFile(
         null
       );
 
@@ -147,7 +174,7 @@ export function StageFileUpload({
       return;
     }
 
-    setSelectedFile(
+    replaceSelectedFile(
       file
     );
   }
@@ -160,7 +187,7 @@ export function StageFileUpload({
         "";
     }
 
-    setSelectedFile(
+    replaceSelectedFile(
       null
     );
 
@@ -215,7 +242,7 @@ export function StageFileUpload({
 
       formRef.current?.reset();
 
-      setSelectedFile(
+      replaceSelectedFile(
         null
       );
 
