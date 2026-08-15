@@ -7,10 +7,8 @@ import {
   Banknote,
   CalendarClock,
   CircleDollarSign,
-  Clock3,
   FilePenLine,
   Receipt,
-  ShieldCheck,
   XCircle,
 } from "lucide-react";
 import {
@@ -87,7 +85,7 @@ export function ProjectBudgetControl({ data, backHref }: { data: Data; backHref:
             Бюджет и изменения проекта
           </h1>
           <p className="mt-3 max-w-3xl text-sm leading-7 text-muted-foreground md:text-base">
-            {data.project.title}. Все изменения цены и срока проходят отдельное согласование и остаются в истории проекта.
+            {data.project.title}. Изменения цены и срока согласуются отдельно и фиксируются в истории проекта.
           </p>
         </section>
 
@@ -131,7 +129,7 @@ export function ProjectBudgetControl({ data, backHref }: { data: Data; backHref:
                       <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-muted-foreground"><strong className="text-foreground">Изменение объёма:</strong> {change.scopeChange}</p>
                       {change.decisionComment && <p className="mt-3 rounded-xl bg-secondary/50 p-3 text-sm text-foreground">Комментарий: {change.decisionComment}</p>}
 
-                      {change.status === "pending" && data.role === "customer" && !change.requestedByCurrentUser && (
+                      {change.status === "pending" && data.role === "customer" && (
                         <form action={decisionAction} className="mt-4 space-y-3">
                           <input type="hidden" name="projectId" value={data.project.id} />
                           <input type="hidden" name="changeOrderId" value={change.id} />
@@ -143,7 +141,7 @@ export function ProjectBudgetControl({ data, backHref }: { data: Data; backHref:
                         </form>
                       )}
 
-                      {change.status === "pending" && change.requestedByCurrentUser && (
+                      {change.status === "pending" && data.role === "contractor" && change.requestedByCurrentUser && (
                         <form action={cancelAction} className="mt-4">
                           <input type="hidden" name="projectId" value={data.project.id} />
                           <input type="hidden" name="changeOrderId" value={change.id} />
@@ -173,21 +171,24 @@ export function ProjectBudgetControl({ data, backHref }: { data: Data; backHref:
           </div>
 
           <aside className="space-y-5 xl:sticky xl:top-24">
-            <section className="rounded-[1.75rem] border border-border bg-card p-5">
-              <h2 className="font-black text-foreground">Запросить изменение</h2>
-              <form action={changeAction} className="mt-4 space-y-3">
-                <input type="hidden" name="projectId" value={data.project.id} />
-                <Field name="title" placeholder="Например: дополнительная электрика" required />
-                <textarea name="reason" required placeholder="Почему возникло изменение" className="min-h-24 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm" />
-                <textarea name="scopeChange" required placeholder="Что именно меняется в объёме работ" className="min-h-28 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm" />
-                <div className="grid grid-cols-2 gap-2">
-                  <Field name="amountDelta" type="number" step="0.01" defaultValue="0" placeholder="Изменение ₽" required />
-                  <Field name="durationDeltaDays" type="number" defaultValue="0" placeholder="Изменение дней" required />
-                </div>
-                <button disabled={changePending} className="min-h-11 w-full rounded-xl bg-primary px-4 text-sm font-bold text-primary-foreground">Отправить на согласование</button>
-              </form>
-              <ActionMessage state={changeState} />
-            </section>
+            {data.role === "contractor" && (
+              <section className="rounded-[1.75rem] border border-border bg-card p-5">
+                <h2 className="font-black text-foreground">Запросить изменение</h2>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">Укажите причину, изменение стоимости и влияние на срок. Заказчик должен отдельно согласовать запрос.</p>
+                <form action={changeAction} className="mt-4 space-y-3">
+                  <input type="hidden" name="projectId" value={data.project.id} />
+                  <Field name="title" placeholder="Например: дополнительная электрика" required />
+                  <textarea name="reason" required placeholder="Почему возникло изменение" className="min-h-24 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm" />
+                  <textarea name="scopeChange" required placeholder="Что именно меняется в объёме работ" className="min-h-28 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm" />
+                  <div className="grid grid-cols-2 gap-2">
+                    <Field name="amountDelta" type="number" step="0.01" defaultValue="0" placeholder="Изменение ₽" required />
+                    <Field name="durationDeltaDays" type="number" defaultValue="0" placeholder="Изменение дней" required />
+                  </div>
+                  <button disabled={changePending} className="min-h-11 w-full rounded-xl bg-primary px-4 text-sm font-bold text-primary-foreground">Отправить на согласование</button>
+                </form>
+                <ActionMessage state={changeState} />
+              </section>
+            )}
 
             {data.role === "customer" && (
               <section className="rounded-[1.75rem] border border-border bg-card p-5">
