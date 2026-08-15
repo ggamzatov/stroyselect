@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useMemo,
   useState,
@@ -152,6 +153,63 @@ export function StageFileGallery({
         ]
       : null;
 
+  const showPreviousImage =
+    useCallback(() => {
+      if (
+        imageFiles.length ===
+          0 ||
+        selectedImageIndex <
+          0
+      ) {
+        return;
+      }
+
+      const previousIndex =
+        selectedImageIndex ===
+        0
+          ? imageFiles.length -
+            1
+          : selectedImageIndex -
+            1;
+
+      setSelectedImageId(
+        imageFiles[
+          previousIndex
+        ].id
+      );
+    }, [
+      imageFiles,
+      selectedImageIndex,
+    ]);
+
+  const showNextImage =
+    useCallback(() => {
+      if (
+        imageFiles.length ===
+          0 ||
+        selectedImageIndex <
+          0
+      ) {
+        return;
+      }
+
+      const nextIndex =
+        selectedImageIndex ===
+        imageFiles.length - 1
+          ? 0
+          : selectedImageIndex +
+            1;
+
+      setSelectedImageId(
+        imageFiles[
+          nextIndex
+        ].id
+      );
+    }, [
+      imageFiles,
+      selectedImageIndex,
+    ]);
+
   useEffect(() => {
     if (!selectedImage) {
       return;
@@ -203,58 +261,9 @@ export function StageFileGallery({
     };
   }, [
     selectedImage,
-    selectedImageIndex,
-    imageFiles,
+    showNextImage,
+    showPreviousImage,
   ]);
-
-  function showPreviousImage() {
-    if (
-      imageFiles.length ===
-        0 ||
-      selectedImageIndex <
-        0
-    ) {
-      return;
-    }
-
-    const previousIndex =
-      selectedImageIndex ===
-      0
-        ? imageFiles.length -
-          1
-        : selectedImageIndex -
-          1;
-
-    setSelectedImageId(
-      imageFiles[
-        previousIndex
-      ].id
-    );
-  }
-
-  function showNextImage() {
-    if (
-      imageFiles.length ===
-        0 ||
-      selectedImageIndex <
-        0
-    ) {
-      return;
-    }
-
-    const nextIndex =
-      selectedImageIndex ===
-      imageFiles.length - 1
-        ? 0
-        : selectedImageIndex +
-          1;
-
-    setSelectedImageId(
-      imageFiles[
-        nextIndex
-      ].id
-    );
-  }
 
   function handleDelete(
     file: StageFile
