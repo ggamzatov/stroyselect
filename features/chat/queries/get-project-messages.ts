@@ -1,325 +1,188 @@
-﻿import { createClient } from
-  "@/lib/supabase/server";
+import "server-only";
 
-export async function getProjectMessages(
-  projectId: string
-) {
-  const supabase =
-    await createClient();
+import { db } from "@/lib/db/pool";
+import { getCurrentSessionUserId } from "@/lib/auth/session";
+import { getSignedFileUrl } from "@/lib/storage/get-signed-file-url";
+import { getProjectChatAccess } from "@/features/chat/server/get-project-chat-access";
 
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
+type MessageRow = {
+  id: string;
+  project_id: string;
+  sender_id: string;
+  message_text: string;
+  is_deleted: boolean;
+  deleted_at: Date | string | null;
+  deleted_by: string | null;
+  reply_to_id: string | null;
+  edited_at: Date | string | null;
+  created_at: Date | string;
+  sender_first_name: string | null;
+  sender_last_name: string | null;
+  sender_role: string;
+};
 
-  if (userError || !user) {
-    throw new Error(
-      "Необходимо войти"
-    );
-  }
+type AttachmentRow = {
+  id: string;
+  project_id: string;
+  message_id: string;
+  uploaded_by: string;
+  storage_bucket: string;
+  storage_path: string;
+  original_name: string;
+  mime_type: string;
+  size_bytes: number | string;
+  file_category: string;
+  created_at: Date | string;
+};
 
-  /*
-   * Загружаем сообщения без self-join,
-   * чтобы не зависеть от schema cache PostgREST.
-   */
-  const [
-    messagesResult,
-    readsResult,
-  ] = await Promise.all([
-    supabase
-      .from("project_messages")
-      .select(`
-        id,
-        project_id,
-        sender_id,
-        message_text,
-        is_deleted,
-        deleted_at,
-        deleted_by,
-        reply_to_id,
-        edited_at,
-        created_at,
+type ReadRow = {
+  project_id: string;
+  user_id: string;
+  last_read_message_id: string | null;
+  last_read_at: Date | string;
+  updated_at: Date | string;
+};
 
-        sender:profiles!project_messages_sender_id_fkey (
-          id,
-          first_name,
-          last_name,
-          role
-        ),
+export async function getProjectMessages(projectId: string) {
+  const userId = await getCurrentSessionUserId();
+  if (!userId) throw new Error("Необходимо войти");
 
-        attachments:project_message_files (
-          id,
-          project_id,
-          message_id,
-          uploaded_by,
-          storage_bucket,
-          storage_path,
-          original_name,
-          mime_type,
-          size_bytes,
-          file_category,
-          created_at
-        )
-      `)
-      .eq("project_id", projectId)
-      .order("created_at", {
-        ascending: true,
-      }),
+  const access = await getProjectChatAccess(projectId, userId);
+  if (!access) throw new Error("У вас нет доступа к чату этого проекта");
 
-    supabase
-      .from("project_chat_reads")
-      .select(`
-        project_id,
-        user_id,
-        last_read_message_id,
-        last_read_at,
-        updated_at
-      `)
-      .eq("project_id", projectId),
+  const [messagesResult, attachmentsResult, readsResult] = await Promise.all([
+    db.query<MessageRow>(
+      `
+        SELECT
+          m.id,
+          m.project_id,
+          m.sender_id,
+          m.message_text,
+          m.is_deleted,
+          m.deleted_at,
+          m.deleted_by,
+          m.reply_to_id,
+          m.edited_at,
+          m.created_at,
+          p.first_name AS sender_first_name,
+          p.last_name AS sender_last_name,
+          p.role::text AS sender_role
+        FROM public.project_messages m
+        JOIN public.profiles p ON p.id = m.sender_id
+        WHERE m.project_id = $1
+        ORDER BY m.created_at ASC
+      `,
+      [projectId]
+    ),
+    db.query<AttachmentRow>(
+      `
+        SELECT
+          id, project_id, message_id, uploaded_by,
+          storage_bucket, storage_path, original_name,
+          mime_type, size_bytes, file_category, created_at
+        FROM public.project_message_files
+        WHERE project_id = $1
+        ORDER BY created_at ASC
+      `,
+      [projectId]
+    ),
+    db.query<ReadRow>(
+      `
+        SELECT project_id, user_id, last_read_message_id, last_read_at, updated_at
+        FROM public.project_chat_reads
+        WHERE project_id = $1
+      `,
+      [projectId]
+    ),
   ]);
 
-  if (messagesResult.error) {
-    console.error(
-      "Ошибка загрузки сообщений:",
-      messagesResult.error
-    );
+  const attachmentsByMessage = new Map<string, Array<AttachmentRow & { signed_url: string | null }>>();
 
-    throw new Error(
-      "Не удалось загрузить сообщения"
-    );
-  }
-
-  if (readsResult.error) {
-    console.error(
-      "Ошибка загрузки отметок чтения:",
-      readsResult.error
-    );
-
-    throw new Error(
-      "Не удалось загрузить состояние чата"
-    );
-  }
-
-  const rawMessages =
-    messagesResult.data ?? [];
-
-  const readStates =
-    readsResult.data ?? [];
-
-  /*
-   * Собираем ID сообщений,
-   * на которые были сделаны ответы.
-   */
-  const repliedMessageIds = [
-    ...new Set(
-      rawMessages
-        .map(
-          (message) =>
-            message.reply_to_id
-        )
-        .filter(
-          (
-            value
-          ): value is string =>
-            Boolean(value)
-        )
-    ),
-  ];
-
-  /*
-   * Загружаем цитируемые сообщения
-   * отдельным запросом.
-   */
-  let repliedMessages: Array<{
-    id: string;
-    sender_id: string;
-    message_text: string;
-    is_deleted: boolean;
-    created_at: string;
-    sender:
-      | {
-          id: string;
-          first_name: string;
-          last_name: string | null;
-          role: string;
-        }
-      | Array<{
-          id: string;
-          first_name: string;
-          last_name: string | null;
-          role: string;
-        }>
-      | null;
-  }> = [];
-
-  if (repliedMessageIds.length > 0) {
-    const {
-      data,
-      error,
-    } = await supabase
-      .from("project_messages")
-      .select(`
-        id,
-        sender_id,
-        message_text,
-        is_deleted,
-        created_at,
-
-        sender:profiles!project_messages_sender_id_fkey (
-          id,
-          first_name,
-          last_name,
-          role
-        )
-      `)
-      .in("id", repliedMessageIds);
-
-    if (error) {
-      console.error(
-        "Ошибка загрузки цитируемых сообщений:",
-        error
-      );
-    } else {
-      repliedMessages =
-        data ?? [];
-    }
-  }
-
-  const repliedMessagesMap =
-    new Map(
-      repliedMessages.map(
-        (message) => [
-          message.id,
-          message,
-        ]
-      )
-    );
-
-  /*
-   * Собираем пути вложений.
-   */
-  const storagePaths =
-    rawMessages.flatMap(
-      (message) =>
-        (
-          message.attachments ??
-          []
-        )
-          .map(
-            (attachment) =>
-              attachment.storage_path
-          )
-          .filter(
-            (
-              path
-            ): path is string =>
-              Boolean(path)
-          )
-    );
-
-  /*
-   * Создаём временные ссылки
-   * для приватного bucket.
-   */
-  const signedUrlMap =
-    new Map<string, string>();
-
-  if (storagePaths.length > 0) {
-    const {
-      data: signedFiles,
-      error: signedFilesError,
-    } = await supabase.storage
-      .from("chat-files")
-      .createSignedUrls(
-        storagePaths,
-        60 * 60
-      );
-
-    if (signedFilesError) {
-      console.error(
-        "Ошибка создания ссылок на вложения:",
-        signedFilesError
-      );
-    } else {
-      for (
-        const signedFile of
-        signedFiles ?? []
-      ) {
-        if (
-          signedFile.path &&
-          signedFile.signedUrl
-        ) {
-          signedUrlMap.set(
-            signedFile.path,
-            signedFile.signedUrl
-          );
-        }
+  await Promise.all(
+    attachmentsResult.rows.map(async (attachment) => {
+      let signedUrl: string | null = null;
+      try {
+        signedUrl = await getSignedFileUrl({
+          bucket: attachment.storage_bucket || "chat-files",
+          key: attachment.storage_path,
+          expiresIn: 60 * 60,
+        });
+      } catch (error) {
+        console.error("Ошибка создания ссылки на вложение чата:", {
+          attachmentId: attachment.id,
+          error,
+        });
       }
-    }
-  }
 
-  /*
-   * Добавляем цитату и signed_url
-   * к каждому сообщению.
-   */
-  const messages =
-    rawMessages.map(
-      (message) => ({
-        ...message,
+      const item = {
+        ...attachment,
+        created_at: toIsoString(attachment.created_at),
+        signed_url: signedUrl,
+      };
 
-        replied_message:
-          message.reply_to_id
-            ? repliedMessagesMap.get(
-                message.reply_to_id
-              ) ?? null
-            : null,
+      const current = attachmentsByMessage.get(attachment.message_id) ?? [];
+      current.push(item);
+      attachmentsByMessage.set(attachment.message_id, current);
+    })
+  );
 
-        attachments:
-          (
-            message.attachments ??
-            []
-          ).map(
-            (attachment) => ({
-              ...attachment,
+  const normalizedMessages = messagesResult.rows.map((row) => ({
+    id: row.id,
+    project_id: row.project_id,
+    sender_id: row.sender_id,
+    message_text: row.message_text,
+    is_deleted: row.is_deleted,
+    deleted_at: toNullableIsoString(row.deleted_at),
+    deleted_by: row.deleted_by,
+    reply_to_id: row.reply_to_id,
+    edited_at: toNullableIsoString(row.edited_at),
+    created_at: toIsoString(row.created_at),
+    sender: {
+      id: row.sender_id,
+      first_name: row.sender_first_name ?? "Пользователь",
+      last_name: row.sender_last_name,
+      role: row.sender_role,
+    },
+    attachments: attachmentsByMessage.get(row.id) ?? [],
+  }));
 
-              signed_url:
-                signedUrlMap.get(
-                  attachment.storage_path
-                ) ?? null,
-            })
-          ),
-      })
-    );
+  const messageMap = new Map(normalizedMessages.map((message) => [message.id, message]));
 
-  const currentUserReadState =
-    readStates.find(
-      (item) =>
-        item.user_id === user.id
-    ) ?? null;
+  const messages = normalizedMessages.map((message) => {
+    const replied = message.reply_to_id
+      ? messageMap.get(message.reply_to_id) ?? null
+      : null;
 
-  const otherUserReadState =
-    readStates.find(
-      (item) =>
-        item.user_id !== user.id
-    ) ?? null;
+    return {
+      ...message,
+      replied_message: replied
+        ? {
+            id: replied.id,
+            sender_id: replied.sender_id,
+            message_text: replied.message_text,
+            is_deleted: replied.is_deleted,
+            created_at: replied.created_at,
+            sender: replied.sender,
+          }
+        : null,
+    };
+  });
 
-  const lastReadAt =
-    currentUserReadState
-      ?.last_read_at ?? null;
+  const readStates = readsResult.rows.map((item) => ({
+    ...item,
+    last_read_at: toIsoString(item.last_read_at),
+    updated_at: toIsoString(item.updated_at),
+  }));
 
-  const unreadCount =
-    messages.filter(
-      (message) =>
-        message.sender_id !==
-          user.id &&
-        (
-          !lastReadAt ||
-          new Date(
-            message.created_at
-          ) >
-            new Date(lastReadAt)
-        )
-    ).length;
+  const currentUserReadState = readStates.find((item) => item.user_id === userId) ?? null;
+  const otherUserReadState = readStates.find((item) => item.user_id !== userId) ?? null;
+  const lastReadAt = currentUserReadState?.last_read_at ?? null;
+
+  const unreadCount = messages.filter(
+    (message) =>
+      message.sender_id !== userId &&
+      (!lastReadAt || new Date(message.created_at) > new Date(lastReadAt))
+  ).length;
 
   return {
     messages,
@@ -329,9 +192,12 @@ export async function getProjectMessages(
   };
 }
 
-export type ProjectChatData =
-  Awaited<
-    ReturnType<
-      typeof getProjectMessages
-    >
-  >;
+function toNullableIsoString(value: Date | string | null) {
+  return value ? toIsoString(value) : null;
+}
+
+function toIsoString(value: Date | string) {
+  return value instanceof Date ? value.toISOString() : String(value);
+}
+
+export type ProjectChatData = Awaited<ReturnType<typeof getProjectMessages>>;
