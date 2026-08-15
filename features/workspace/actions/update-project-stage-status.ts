@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import type { PoolClient } from "pg";
 
 import { db } from "@/lib/db/pool";
 import { requireActiveUser } from "@/lib/auth/require-active-user";
@@ -336,7 +337,7 @@ async function notifyParticipant({
 }
 
 async function insertStageEvent(
-  client: Awaited<ReturnType<typeof db.connect>>,
+  client: PoolClient,
   {
     projectId,
     authorId,
