@@ -14,7 +14,7 @@ type Row = {
   rating: string | number;
   rating_count: number;
   completed_projects_count: number;
-  recommendation_score: string | number;
+  stroyselect_score: string | number | null;
   price: string | number;
   duration_days: number;
   proposed_start_date: Date | string | null;
@@ -59,7 +59,7 @@ export async function getProjectBidComparison(projectId: string) {
       cc.rating,
       cc.rating_count,
       cc.completed_projects_count,
-      cc.recommendation_score,
+      score.stroyselect_score,
       pb.price,
       pb.duration_days,
       pb.proposed_start_date,
@@ -75,6 +75,7 @@ export async function getProjectBidComparison(projectId: string) {
     FROM public.project_bids pb
     JOIN public.projects p ON p.id = pb.project_id
     JOIN public.contractor_companies cc ON cc.id = pb.contractor_id
+    LEFT JOIN public.contractor_score_components score ON score.contractor_id = cc.id
     WHERE pb.project_id = $1
       AND p.customer_id = $2
       AND pb.status <> 'withdrawn'
@@ -89,14 +90,14 @@ export async function getProjectBidComparison(projectId: string) {
     const priceScore = minPrice === Infinity ? 0 : Math.min(100, (minPrice / item.price) * 100);
     const durationScore = minDuration === Infinity ? 0 : Math.min(100, (minDuration / item.durationDays) * 100);
     const ratingScore = item.ratingCount > 0 ? Math.min(100, (item.rating / 5) * 100) : 55;
-    const reputationScore = Math.min(100, Math.max(0, item.recommendationScore));
+    const reputationScore = Math.min(100, Math.max(0, item.stroyselectScore));
 
     const comparisonScore = Math.round(
-      item.completenessScore * 0.35 +
+      item.completenessScore * 0.30 +
       priceScore * 0.25 +
       durationScore * 0.15 +
-      ratingScore * 0.15 +
-      reputationScore * 0.10
+      ratingScore * 0.10 +
+      reputationScore * 0.20
     );
 
     const riskFlags: string[] = [];
@@ -104,6 +105,7 @@ export async function getProjectBidComparison(projectId: string) {
     if (item.warrantyMonths === null || item.warrantyMonths === 0) riskFlags.push("Нет гарантии на работы");
     if (!item.priceIncludesMaterials) riskFlags.push("Материалы оплачиваются отдельно");
     if (item.completenessScore < 85) riskFlags.push("Предложение заполнено не полностью");
+    if (item.stroyselectScore < 50) riskFlags.push("Низкий StroySelect Score");
     if (item.projectBudgetMax !== null && item.price > item.projectBudgetMax) riskFlags.push("Цена выше бюджета проекта");
 
     return { ...item, comparisonScore, riskFlags };
@@ -113,6 +115,8 @@ export async function getProjectBidComparison(projectId: string) {
 }
 
 function mapRow(row: Row) {
+  const stroyselectScore = safeNumber(row.stroyselect_score);
+
   return {
     id: row.bid_id,
     projectId: row.project_id,
@@ -123,7 +127,8 @@ function mapRow(row: Row) {
     rating: Number(row.rating),
     ratingCount: row.rating_count,
     completedProjectsCount: row.completed_projects_count,
-    recommendationScore: Number(row.recommendation_score),
+    recommendationScore: stroyselectScore,
+    stroyselectScore,
     price: Number(row.price),
     durationDays: row.duration_days,
     proposedStartDate: row.proposed_start_date ? toDateString(row.proposed_start_date) : null,
@@ -137,6 +142,11 @@ function mapRow(row: Row) {
     priceIncludesMaterials: row.price_includes_materials,
     completenessScore: row.completeness_score,
   };
+}
+
+function safeNumber(value: unknown) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.min(100, Math.max(0, number)) : 0;
 }
 
 function toNullableNumber(value: unknown) {
