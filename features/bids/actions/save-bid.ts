@@ -212,22 +212,39 @@ export async function saveBid(input: BidInput): Promise<SaveBidResult> {
     if (!savedBidId) throw new Error("Предложение не было сохранено");
 
     if (isNewBid) {
-      await client.query(`
-        INSERT INTO public.project_events (
-          project_id, author_id, event_type, title, description, metadata
-        ) VALUES ($1, $2, 'bid_created', 'Получено новое предложение', $3, $4::jsonb)
-      `, [
-        values.projectId,
-        user.id,
-        company.public_name ? `${company.public_name} оставил предложение` : "Подрядчик оставил предложение",
-        JSON.stringify({
-          bid_id: savedBidId,
-          contractor_id: company.id,
-          price: values.price,
-          duration_days: values.durationDays,
-          completeness_score: completenessScore,
-        }),
-      ]);
+      const eventType = "bid_created";
+      const eventTitle = "Получено новое предложение";
+      const eventDescription = company.public_name
+        ? `${company.public_name} оставил предложение`
+        : "Подрядчик оставил предложение";
+      const eventMetadata = JSON.stringify({
+        bid_id: savedBidId,
+        contractor_id: company.id,
+        price: values.price,
+        duration_days: values.durationDays,
+        completeness_score: completenessScore,
+      });
+
+      await client.query(
+        `
+          INSERT INTO public.project_events (
+            project_id,
+            author_id,
+            event_type,
+            title,
+            description,
+            metadata
+          ) VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+        `,
+        [
+          values.projectId,
+          user.id,
+          eventType,
+          eventTitle,
+          eventDescription,
+          eventMetadata,
+        ]
+      );
     }
 
     notificationData = { customerId: project.customer_id, projectTitle: project.title, company };
