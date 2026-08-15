@@ -394,6 +394,13 @@ export async function getProjectWorkspace(projectId: string) {
     created_at: toIsoString(event.created_at),
   }));
 
+  const customer = customerResult.rows[0]
+    ? {
+        ...customerResult.rows[0],
+        first_name: customerResult.rows[0].first_name ?? "",
+      }
+    : null;
+
   return {
     currentUser: {
       id: user.id,
@@ -403,7 +410,7 @@ export async function getProjectWorkspace(projectId: string) {
       contractorCompanyId: currentContractorCompany?.id ?? null,
     },
     project,
-    customer: customerResult.rows[0] ?? null,
+    customer,
     contractor: contractorResult.rows[0] ?? null,
     selectedBid,
     stages,
