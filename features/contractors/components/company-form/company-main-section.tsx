@@ -1,6 +1,5 @@
 import {
   Building2,
-  FileText,
 } from "lucide-react";
 
 import type {
