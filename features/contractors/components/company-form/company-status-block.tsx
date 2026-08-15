@@ -1,5 +1,4 @@
 import {
-  CheckCircle2,
   Clock3,
   FileEdit,
   ShieldCheck,
