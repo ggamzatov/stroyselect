@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import {
   ArrowRight,
+  Banknote,
   CheckCircle2,
   Edit3,
   FolderOpen,
@@ -85,6 +86,9 @@ export function ProjectActions({ projectId, status }: Props) {
           <ActionLink href={`/customer/work/${projectId}`} icon={<FolderOpen className="h-5 w-5" />} primary>
             Открыть рабочее пространство
           </ActionLink>
+          <ActionLink href={`/customer/work/${projectId}/changes`} icon={<Banknote className="h-5 w-5" />}>
+            Бюджет и изменения
+          </ActionLink>
           <ActionLink href={`/customer/projects/${projectId}/advisor`} icon={<ListTodo className="h-5 w-5" />}>
             История выбора подрядчика
           </ActionLink>
@@ -92,7 +96,7 @@ export function ProjectActions({ projectId, status }: Props) {
             История предложений
           </ActionLink>
           <StatusMessage variant="success" icon={<CheckCircle2 className="h-5 w-5" />} title="Подрядчик выбран">
-            Project Advisor сохраняет историю shortlist, контактов и решений, а выполнение проекта продолжается в рабочем пространстве.
+            Project Advisor сохраняет историю выбора, а стоимость и дополнительные работы фиксируются в Budget Control.
           </StatusMessage>
         </>
       )}
@@ -102,11 +106,14 @@ export function ProjectActions({ projectId, status }: Props) {
           <ActionLink href={`/customer/work/${projectId}`} icon={<FolderOpen className="h-5 w-5" />} primary>
             Открыть рабочее пространство
           </ActionLink>
+          <ActionLink href={`/customer/work/${projectId}/changes`} icon={<Banknote className="h-5 w-5" />}>
+            Бюджет и изменения
+          </ActionLink>
           <ActionLink href={`/customer/projects/${projectId}/advisor`} icon={<ListTodo className="h-5 w-5" />}>
             История выбора
           </ActionLink>
           <StatusMessage variant="neutral" icon={<Info className="h-5 w-5" />} title="Работы выполняются">
-            Следите за этапами, документами и сообщениями подрядчика в рабочем пространстве проекта.
+            Следите за этапами, документами, платежами и согласованными изменениями проекта.
           </StatusMessage>
         </>
       )}
@@ -116,11 +123,14 @@ export function ProjectActions({ projectId, status }: Props) {
           <ActionLink href={`/customer/work/${projectId}`} icon={<FolderOpen className="h-5 w-5" />}>
             Посмотреть рабочее пространство
           </ActionLink>
+          <ActionLink href={`/customer/work/${projectId}/changes`} icon={<Banknote className="h-5 w-5" />}>
+            Итоговый бюджет
+          </ActionLink>
           <ActionLink href={`/customer/projects/${projectId}/advisor`} icon={<ListTodo className="h-5 w-5" />}>
             История выбора
           </ActionLink>
           <StatusMessage variant="success" icon={<CheckCircle2 className="h-5 w-5" />} title="Проект завершён">
-            Рабочее пространство, этапы и история выбора подрядчика остаются доступными для просмотра.
+            Рабочее пространство, финальный бюджет и история выбора подрядчика остаются доступными для просмотра.
           </StatusMessage>
         </>
       )}
@@ -129,6 +139,9 @@ export function ProjectActions({ projectId, status }: Props) {
         <>
           <ActionLink href={`/customer/work/${projectId}`} icon={<Gavel className="h-5 w-5" />} primary>
             Перейти в рабочее пространство
+          </ActionLink>
+          <ActionLink href={`/customer/work/${projectId}/changes`} icon={<Banknote className="h-5 w-5" />}>
+            Бюджет и изменения
           </ActionLink>
           <StatusMessage variant="warning" icon={<Gavel className="h-5 w-5" />} title="По проекту открыт спор">
             Продолжайте взаимодействие и фиксируйте информацию через рабочее пространство проекта.
