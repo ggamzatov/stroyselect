@@ -35,6 +35,11 @@ type AttachmentRow = {
   created_at: Date | string;
 };
 
+type NormalizedAttachment = Omit<AttachmentRow, "created_at"> & {
+  created_at: string;
+  signed_url: string | null;
+};
+
 type ReadRow = {
   project_id: string;
   user_id: string;
@@ -96,11 +101,12 @@ export async function getProjectMessages(projectId: string) {
     ),
   ]);
 
-  const attachmentsByMessage = new Map<string, Array<AttachmentRow & { signed_url: string | null }>>();
+  const attachmentsByMessage = new Map<string, NormalizedAttachment[]>();
 
   await Promise.all(
     attachmentsResult.rows.map(async (attachment) => {
       let signedUrl: string | null = null;
+
       try {
         signedUrl = await getSignedFileUrl({
           bucket: attachment.storage_bucket || "chat-files",
@@ -114,7 +120,7 @@ export async function getProjectMessages(projectId: string) {
         });
       }
 
-      const item = {
+      const item: NormalizedAttachment = {
         ...attachment,
         created_at: toIsoString(attachment.created_at),
         signed_url: signedUrl,
@@ -146,7 +152,9 @@ export async function getProjectMessages(projectId: string) {
     attachments: attachmentsByMessage.get(row.id) ?? [],
   }));
 
-  const messageMap = new Map(normalizedMessages.map((message) => [message.id, message]));
+  const messageMap = new Map(
+    normalizedMessages.map((message) => [message.id, message])
+  );
 
   const messages = normalizedMessages.map((message) => {
     const replied = message.reply_to_id
@@ -174,8 +182,12 @@ export async function getProjectMessages(projectId: string) {
     updated_at: toIsoString(item.updated_at),
   }));
 
-  const currentUserReadState = readStates.find((item) => item.user_id === userId) ?? null;
-  const otherUserReadState = readStates.find((item) => item.user_id !== userId) ?? null;
+  const currentUserReadState =
+    readStates.find((item) => item.user_id === userId) ?? null;
+
+  const otherUserReadState =
+    readStates.find((item) => item.user_id !== userId) ?? null;
+
   const lastReadAt = currentUserReadState?.last_read_at ?? null;
 
   const unreadCount = messages.filter(
