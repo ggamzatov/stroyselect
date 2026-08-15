@@ -41,6 +41,8 @@ type PaymentRow = {
   created_at: Date | string;
 };
 
+type BudgetControlRole = "customer" | "contractor";
+
 export async function getProjectBudgetControl(projectId: string) {
   const userId = await getCurrentSessionUserId();
   if (!userId) redirect("/login");
@@ -71,7 +73,7 @@ export async function getProjectBudgetControl(projectId: string) {
   const project = projectResult.rows[0];
   if (!project) notFound();
 
-  const role = project.customer_id === userId
+  const role: BudgetControlRole | null = project.customer_id === userId
     ? "customer"
     : project.contractor_owner_id === userId
       ? "contractor"
