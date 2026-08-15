@@ -34,7 +34,7 @@ type CompanyRow = {
     } | null;
   }>;
   contractor_service_areas: Array<{
-    id: string;
+    id: number;
     city: string;
     region: string | null;
     travel_radius_km: number | null;
@@ -69,7 +69,7 @@ export async function getContractorReview(contractorId: string) {
           COALESCE((
             SELECT jsonb_agg(
               jsonb_build_object(
-                'id', csa.id,
+                'id', csa.id::int,
                 'city', csa.city,
                 'region', csa.region,
                 'travel_radius_km', csa.travel_radius_km,
