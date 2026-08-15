@@ -6,7 +6,11 @@ import { cookies, headers } from "next/headers";
 
 import { db } from "@/lib/db/pool";
 
-const SESSION_COOKIE = "stroyselect_session";
+const SESSION_COOKIE =
+  process.env.NODE_ENV === "production"
+    ? "__Host-stroyselect_session"
+    : "stroyselect_session";
+
 const SESSION_TTL_DAYS = 30;
 const LAST_SEEN_UPDATE_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -50,10 +54,6 @@ async function getRequestMetadata() {
   const userAgent =
     headerStore.get("user-agent");
 
-  /*
-   * x-forwarded-for доверяем только как диагностическому полю.
-   * Он не участвует в авторизации или проверке сессии.
-   */
   const forwardedFor =
     headerStore.get("x-forwarded-for");
 
@@ -110,6 +110,7 @@ export async function createUserSession(
       sameSite: "lax",
       path: "/",
       expires: expiresAt,
+      priority: "high",
     }
   );
 }
@@ -156,10 +157,6 @@ export async function getCurrentSessionUserId(): Promise<
     return null;
   }
 
-  /*
-   * Не пишем last_seen_at на каждый Server Component/Action.
-   * Иначе один просмотр страницы создаёт несколько UPDATE.
-   */
   const lastSeenAt = toDate(session.last_seen_at);
 
   if (
