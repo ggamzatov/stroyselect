@@ -42,6 +42,11 @@ export function ChatAttachmentUpload({
       null
     );
 
+  const previewUrlRef =
+    useRef<string | null>(
+      null
+    );
+
   const [
     selectedFile,
     setSelectedFile,
@@ -72,31 +77,51 @@ export function ChatAttachmentUpload({
     ) ?? false;
 
   useEffect(() => {
+    return () => {
+      if (
+        previewUrlRef.current
+      ) {
+        URL.revokeObjectURL(
+          previewUrlRef.current
+        );
+      }
+    };
+  }, []);
+
+  function replaceSelectedFile(
+    file: File | null
+  ) {
     if (
-      !selectedFile ||
-      !selectedFile.type.startsWith(
-        "image/"
-      )
+      previewUrlRef.current
     ) {
-      setPreviewUrl(null);
-      return;
+      URL.revokeObjectURL(
+        previewUrlRef.current
+      );
+
+      previewUrlRef.current =
+        null;
     }
 
-    const objectUrl =
-      URL.createObjectURL(
-        selectedFile
-      );
+    const nextPreviewUrl =
+      file?.type.startsWith(
+        "image/"
+      )
+        ? URL.createObjectURL(
+            file
+          )
+        : null;
 
-    setPreviewUrl(
-      objectUrl
+    previewUrlRef.current =
+      nextPreviewUrl;
+
+    setSelectedFile(
+      file
     );
 
-    return () => {
-      URL.revokeObjectURL(
-        objectUrl
-      );
-    };
-  }, [selectedFile]);
+    setPreviewUrl(
+      nextPreviewUrl
+    );
+  }
 
   function openFilePicker() {
     inputRef.current?.click();
@@ -113,7 +138,9 @@ export function ChatAttachmentUpload({
     setErrorMessage("");
 
     if (!file) {
-      setSelectedFile(null);
+      replaceSelectedFile(
+        null
+      );
       return;
     }
 
@@ -127,7 +154,7 @@ export function ChatAttachmentUpload({
       event.target.value =
         "";
 
-      setSelectedFile(
+      replaceSelectedFile(
         null
       );
 
@@ -138,13 +165,13 @@ export function ChatAttachmentUpload({
       return;
     }
 
-    setSelectedFile(
+    replaceSelectedFile(
       file
     );
   }
 
   function clearSelectedFile() {
-    setSelectedFile(
+    replaceSelectedFile(
       null
     );
 
