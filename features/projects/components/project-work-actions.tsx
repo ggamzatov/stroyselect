@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   useState,
   useTransition,
@@ -78,6 +79,8 @@ export function ProjectWorkActions({
             : "Начать работы"}
         </button>
 
+        <BudgetLink projectId={projectId} />
+
         {message && (
           <p className="mt-4 rounded-lg bg-green-50 p-3 text-sm text-green-800">
             {message}
@@ -104,6 +107,8 @@ export function ProjectWorkActions({
           Фактическое начало работ уже
           зафиксировано.
         </p>
+
+        <BudgetLink projectId={projectId} />
       </section>
     );
   }
@@ -114,6 +119,8 @@ export function ProjectWorkActions({
         <h2 className="font-semibold text-green-950">
           Проект завершён
         </h2>
+
+        <BudgetLink projectId={projectId} />
       </section>
     );
   }
@@ -124,9 +131,22 @@ export function ProjectWorkActions({
         <h2 className="font-semibold text-red-950">
           По проекту открыт спор
         </h2>
+
+        <BudgetLink projectId={projectId} />
       </section>
     );
   }
 
   return null;
+}
+
+function BudgetLink({ projectId }: { projectId: string }) {
+  return (
+    <Link
+      href={`/contractor/work/${projectId}/changes`}
+      className="mt-4 flex min-h-11 w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 hover:bg-slate-50"
+    >
+      Бюджет и изменения
+    </Link>
+  );
 }
