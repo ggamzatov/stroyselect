@@ -82,18 +82,13 @@ export default async function CustomerContractorPage({
   return (
     <main className="min-h-screen bg-background">
       <div className="app-container py-8 md:py-12">
-        {/* Назад */}
-
         <Link
           href="/customer/contractors"
           className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground transition hover:text-primary"
         >
           <ArrowLeft className="h-4 w-4" />
-
           Вернуться к подрядчикам
         </Link>
-
-        {/* HERO */}
 
         <section className="relative mt-5 overflow-hidden rounded-[2rem] border border-border bg-card p-6 shadow-[var(--shadow-soft)] md:p-8">
           <div className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full bg-accent/20 blur-3xl" />
@@ -115,7 +110,6 @@ export default async function CustomerContractorPage({
                       "verified" && (
                       <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
                         <BadgeCheck className="h-4 w-4" />
-
                         Проверен
                       </span>
                     )}
@@ -158,9 +152,7 @@ export default async function CustomerContractorPage({
                     {company.employee_count && (
                       <div className="inline-flex items-center gap-2 text-muted-foreground">
                         <UsersRound className="h-4 w-4" />
-
-                        {company.employee_count}{" "}
-                        чел.
+                        {company.employee_count} чел.
                       </div>
                     )}
                   </div>
@@ -177,11 +169,7 @@ export default async function CustomerContractorPage({
         </section>
 
         <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
-          {/* Основная колонка */}
-
           <div className="space-y-6">
-            {/* Специализации */}
-
             <SectionCard
               title="Специализации"
             >
@@ -189,24 +177,12 @@ export default async function CustomerContractorPage({
               0 ? (
                 <div className="flex flex-wrap gap-2">
                   {services.map(
-                    (
-                      service:
-                        any
-                    ) => {
-                      const rawCategory =
+                    (service) => {
+                      const category =
                         service
                           .service_categories;
 
-                      const category =
-                        Array.isArray(
-                          rawCategory
-                        )
-                          ? rawCategory[0]
-                          : rawCategory;
-
-                      if (
-                        !category
-                      ) {
+                      if (!category) {
                         return null;
                       }
 
@@ -230,8 +206,6 @@ export default async function CustomerContractorPage({
               )}
             </SectionCard>
 
-            {/* Портфолио */}
-
             <SectionCard
               title={`Портфолио (${portfolio.length})`}
             >
@@ -239,10 +213,7 @@ export default async function CustomerContractorPage({
               0 ? (
                 <div className="grid gap-5 md:grid-cols-2">
                   {portfolio.map(
-                    (
-                      project:
-                        any
-                    ) => {
+                    (project) => {
                       const files =
                         project
                           .contractor_portfolio_files ??
@@ -250,10 +221,7 @@ export default async function CustomerContractorPage({
 
                       const cover =
                         files.find(
-                          (
-                            file:
-                              any
-                          ) =>
+                          (file) =>
                             Boolean(
                               file.signed_url
                             )
@@ -285,38 +253,28 @@ export default async function CustomerContractorPage({
 
                           <div className="p-5">
                             <h3 className="font-bold text-foreground">
-                              {
-                                project.title
-                              }
+                              {project.title}
                             </h3>
 
                             <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
                               {project.city && (
                                 <span className="inline-flex items-center gap-1">
                                   <MapPin className="h-3.5 w-3.5" />
-
-                                  {
-                                    project.city
-                                  }
+                                  {project.city}
                                 </span>
                               )}
 
                               {project.completed_year && (
                                 <span className="inline-flex items-center gap-1">
                                   <CalendarDays className="h-3.5 w-3.5" />
-
-                                  {
-                                    project.completed_year
-                                  }
+                                  {project.completed_year}
                                 </span>
                               )}
                             </div>
 
                             {project.description && (
                               <p className="mt-3 line-clamp-3 text-sm leading-6 text-muted-foreground">
-                                {
-                                  project.description
-                                }
+                                {project.description}
                               </p>
                             )}
                           </div>
@@ -331,8 +289,6 @@ export default async function CustomerContractorPage({
                 </EmptyText>
               )}
             </SectionCard>
-
-            {/* Отзывы */}
 
             <SectionCard
               title={`Отзывы (${reviews.total})`}
@@ -372,10 +328,7 @@ export default async function CustomerContractorPage({
 
                   <div className="mt-6 space-y-4">
                     {reviews.reviews.map(
-                      (
-                        review:
-                          any
-                      ) => (
+                      (review) => (
                         <article
                           key={
                             review.id
@@ -403,18 +356,13 @@ export default async function CustomerContractorPage({
 
                             <div className="inline-flex items-center gap-1 font-bold">
                               <Star className="h-4 w-4 fill-current text-amber-500" />
-
-                              {
-                                review.rating
-                              }
+                              {review.rating}
                             </div>
                           </div>
 
                           {review.comment && (
                             <p className="mt-4 text-sm leading-6 text-muted-foreground">
-                              {
-                                review.comment
-                              }
+                              {review.comment}
                             </p>
                           )}
                         </article>
@@ -429,8 +377,6 @@ export default async function CustomerContractorPage({
               )}
             </SectionCard>
           </div>
-
-          {/* Правая колонка */}
 
           <aside className="space-y-5 xl:sticky xl:top-24 xl:self-start">
             <SectionCard
@@ -475,10 +421,7 @@ export default async function CustomerContractorPage({
                       className="mt-1 inline-flex items-center gap-2 text-sm font-semibold text-foreground hover:text-primary"
                     >
                       <Phone className="h-4 w-4" />
-
-                      {
-                        company.contact_phone
-                      }
+                      {company.contact_phone}
                     </a>
                   </div>
                 )}
@@ -493,10 +436,8 @@ export default async function CustomerContractorPage({
                 <div className="space-y-3">
                   {areas.map(
                     (
-                      area:
-                        any,
-                      index:
-                        number
+                      area,
+                      index
                     ) => (
                       <div
                         key={`${area.city}-${index}`}
@@ -504,17 +445,12 @@ export default async function CustomerContractorPage({
                       >
                         <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
                           <MapPin className="h-4 w-4 text-primary" />
-
-                          {
-                            area.city
-                          }
+                          {area.city}
                         </div>
 
                         {area.region && (
                           <p className="mt-1 pl-6 text-xs text-muted-foreground">
-                            {
-                              area.region
-                            }
+                            {area.region}
                           </p>
                         )}
                       </div>
