@@ -1,97 +1,60 @@
 "use client";
 
-import {
-  useEffect,
-  useRef,
-} from "react";
+import { useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 
-import { useRouter } from
-  "next/navigation";
+import { getMyNotifications } from "@/features/notifications/queries/get-my-notifications";
 
-import { createClient } from
-  "@/lib/supabase/client";
-
-export function useNotifications(
-  userId: string
-) {
+export function useNotifications(userId: string) {
   const router = useRouter();
-
-  const instanceIdRef =
-    useRef<string | null>(null);
-
-  if (!instanceIdRef.current) {
-    instanceIdRef.current =
-      crypto.randomUUID();
-  }
+  const signatureRef = useRef<string | null>(null);
+  const inFlightRef = useRef(false);
 
   useEffect(() => {
-    if (!userId) {
-      return;
-    }
+    if (!userId) return;
 
-    const supabase =
-      createClient();
+    let cancelled = false;
 
-    const channelName =
-      `notifications-${userId}-${instanceIdRef.current}`;
+    async function checkNotifications() {
+      if (cancelled || inFlightRef.current || document.visibilityState !== "visible") return;
 
-    const channel = supabase
-      .channel(channelName)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "notifications",
-          filter:
-            `user_id=eq.${userId}`,
-        },
-        (payload) => {
-          console.log(
-            "Realtime уведомлений:",
-            payload.eventType
-          );
+      inFlightRef.current = true;
+      try {
+        const result = await getMyNotifications(1);
+        const latest = result.notifications[0];
+        const signature = `${latest?.id ?? "none"}:${latest?.is_read ? "1" : "0"}:${result.unreadCount}`;
 
+        if (signatureRef.current === null) {
+          signatureRef.current = signature;
+          return;
+        }
+
+        if (signatureRef.current !== signature) {
+          signatureRef.current = signature;
           router.refresh();
         }
-      )
-      .subscribe(
-        (status, error) => {
-          if (
-            status ===
-            "SUBSCRIBED"
-          ) {
-            console.log(
-              "Подписка уведомлений активна:",
-              channelName
-            );
-          }
+      } catch (error) {
+        console.error("Ошибка обновления уведомлений:", error);
+      } finally {
+        inFlightRef.current = false;
+      }
+    }
 
-          if (
-            status ===
-              "CHANNEL_ERROR" ||
-            status ===
-              "TIMED_OUT"
-          ) {
-            console.error(
-              "Ошибка подписки уведомлений:",
-              {
-                status,
-                error,
-                channelName,
-              }
-            );
-          }
-        }
-      );
+    const timer = window.setInterval(() => {
+      void checkNotifications();
+    }, 5000);
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") void checkNotifications();
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    void checkNotifications();
 
     return () => {
-      void supabase.removeChannel(
-        channel
-      );
+      cancelled = true;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [
-    router,
-    userId,
-  ]);
+  }, [router, userId]);
 }
