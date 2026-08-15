@@ -91,7 +91,7 @@ export async function getProjectAdvisorData(projectId: string) {
           cc.rating,
           cc.rating_count,
           cc.completed_projects_count,
-          coalesce(csc.score, cc.recommendation_score, 0) AS score,
+          coalesce(csc.stroyselect_score, cc.recommendation_score, 0) AS score,
           crm.stage,
           crm.note,
           crm.last_contact_at,
