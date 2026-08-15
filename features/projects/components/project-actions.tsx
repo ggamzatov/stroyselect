@@ -23,13 +23,6 @@ export function ProjectActions({
   projectId,
   status,
 }: Props) {
-  const canOpenWorkspace = [
-    "contractor_selected",
-    "in_progress",
-    "completed",
-    "disputed",
-  ].includes(status);
-
   return (
     <section className="space-y-3">
       {status === "draft" && (
