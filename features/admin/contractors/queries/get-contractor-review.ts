@@ -4,9 +4,25 @@ import { notFound } from "next/navigation";
 
 import { db } from "@/lib/db/pool";
 
-type CompanyRow = Record<string, unknown> & {
+type CompanyRow = {
   id: string;
   owner_id: string;
+  public_name: string;
+  legal_name: string | null;
+  company_type: string | null;
+  inn: string | null;
+  ogrn: string | null;
+  founded_year: number | null;
+  employee_count: number | null;
+  description: string | null;
+  minimum_project_budget: number | string | null;
+  maximum_project_budget: number | string | null;
+  accepts_new_projects: boolean;
+  contact_phone: string | null;
+  contact_email: string | null;
+  website: string | null;
+  telegram: string | null;
+  verification_status: string;
   contractor_services: Array<{
     category_id: string | number;
     years_experience: number | null;
