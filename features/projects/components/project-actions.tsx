@@ -7,14 +7,14 @@ import {
   FolderOpen,
   Gavel,
   Info,
+  Scale,
   Search,
   Sparkles,
   UsersRound,
   XCircle,
 } from "lucide-react";
 
-import { PublishProjectButton } from
-  "@/features/projects/components/publish-project-button";
+import { PublishProjectButton } from "@/features/projects/components/publish-project-button";
 
 type Props = {
   projectId: string;
@@ -26,27 +26,14 @@ export function ProjectActions({ projectId, status }: Props) {
     <section className="space-y-3">
       {status === "draft" && (
         <>
-          <ActionLink
-            href={`/customer/projects/${projectId}/edit`}
-            icon={<Edit3 className="h-5 w-5" />}
-          >
+          <ActionLink href={`/customer/projects/${projectId}/edit`} icon={<Edit3 className="h-5 w-5" />}>
             Редактировать проект
           </ActionLink>
-
-          <ActionLink
-            href={`/customer/projects/${projectId}/matches`}
-            icon={<Sparkles className="h-5 w-5" />}
-          >
+          <ActionLink href={`/customer/projects/${projectId}/matches`} icon={<Sparkles className="h-5 w-5" />}>
             Проверить подбор подрядчиков
           </ActionLink>
-
           <PublishProjectButton projectId={projectId} />
-
-          <StatusMessage
-            variant="neutral"
-            icon={<Info className="h-5 w-5" />}
-            title="Проект пока не опубликован"
-          >
+          <StatusMessage variant="neutral" icon={<Info className="h-5 w-5" />} title="Проект пока не опубликован">
             Проверьте описание, бюджет и сроки. Подбор уже можно посмотреть до публикации, а после публикации проект станет доступен подходящим подрядчикам.
           </StatusMessage>
         </>
@@ -54,72 +41,44 @@ export function ProjectActions({ projectId, status }: Props) {
 
       {status === "published" && (
         <>
-          <ActionLink
-            href={`/customer/projects/${projectId}/matches`}
-            icon={<UsersRound className="h-5 w-5" />}
-            primary
-          >
+          <ActionLink href={`/customer/projects/${projectId}/matches`} icon={<UsersRound className="h-5 w-5" />} primary>
             Подходящие подрядчики
           </ActionLink>
-
-          <ActionLink
-            href={`/customer/bids?projectId=${projectId}`}
-            icon={<Search className="h-5 w-5" />}
-          >
-            Посмотреть предложения
+          <ActionLink href={`/customer/projects/${projectId}/bids/compare`} icon={<Scale className="h-5 w-5" />}>
+            Сравнить предложения
           </ActionLink>
-
-          <StatusMessage
-            variant="success"
-            icon={<CheckCircle2 className="h-5 w-5" />}
-            title="Проект опубликован"
-          >
-            Проект доступен подрядчикам. Matching помогает понять, какие проверенные компании лучше всего соответствуют задаче.
+          <ActionLink href={`/customer/bids?projectId=${projectId}`} icon={<Search className="h-5 w-5" />}>
+            Все предложения
+          </ActionLink>
+          <StatusMessage variant="success" icon={<CheckCircle2 className="h-5 w-5" />} title="Проект опубликован">
+            Проект доступен подрядчикам. Matching помогает найти подходящие компании, а Bid Compare — сравнить их сметы в едином формате.
           </StatusMessage>
         </>
       )}
 
       {status === "matching" && (
         <>
-          <ActionLink
-            href={`/customer/projects/${projectId}/matches`}
-            icon={<Sparkles className="h-5 w-5" />}
-            primary
-          >
-            Открыть умный подбор
-          </ActionLink>
-
-          <ActionLink
-            href={`/customer/bids?projectId=${projectId}`}
-            icon={<Search className="h-5 w-5" />}
-          >
+          <ActionLink href={`/customer/projects/${projectId}/bids/compare`} icon={<Scale className="h-5 w-5" />} primary>
             Сравнить предложения
           </ActionLink>
-
-          <StatusMessage
-            variant="neutral"
-            icon={<Info className="h-5 w-5" />}
-            title="Идёт подбор подрядчика"
-          >
-            Сравнивайте совпадение по проекту, предложения, сроки и стоимость работ перед выбором исполнителя.
+          <ActionLink href={`/customer/projects/${projectId}/matches`} icon={<Sparkles className="h-5 w-5" />}>
+            Открыть умный подбор
+          </ActionLink>
+          <StatusMessage variant="neutral" icon={<Info className="h-5 w-5" />} title="Идёт подбор подрядчика">
+            Сравнивайте совпадение по проекту, детализированные сметы, сроки, гарантии и условия оплаты перед выбором исполнителя.
           </StatusMessage>
         </>
       )}
 
       {status === "contractor_selected" && (
         <>
-          <ActionLink
-            href={`/customer/work/${projectId}`}
-            icon={<FolderOpen className="h-5 w-5" />}
-            primary
-          >
+          <ActionLink href={`/customer/work/${projectId}`} icon={<FolderOpen className="h-5 w-5" />} primary>
             Открыть рабочее пространство
           </ActionLink>
-          <StatusMessage
-            variant="success"
-            icon={<CheckCircle2 className="h-5 w-5" />}
-            title="Подрядчик выбран"
-          >
+          <ActionLink href={`/customer/projects/${projectId}/bids/compare`} icon={<Scale className="h-5 w-5" />}>
+            История предложений
+          </ActionLink>
+          <StatusMessage variant="success" icon={<CheckCircle2 className="h-5 w-5" />} title="Подрядчик выбран">
             Проект готов к переходу в рабочее пространство.
           </StatusMessage>
         </>
@@ -127,18 +86,10 @@ export function ProjectActions({ projectId, status }: Props) {
 
       {status === "in_progress" && (
         <>
-          <ActionLink
-            href={`/customer/work/${projectId}`}
-            icon={<FolderOpen className="h-5 w-5" />}
-            primary
-          >
+          <ActionLink href={`/customer/work/${projectId}`} icon={<FolderOpen className="h-5 w-5" />} primary>
             Открыть рабочее пространство
           </ActionLink>
-          <StatusMessage
-            variant="neutral"
-            icon={<Info className="h-5 w-5" />}
-            title="Работы выполняются"
-          >
+          <StatusMessage variant="neutral" icon={<Info className="h-5 w-5" />} title="Работы выполняются">
             Следите за этапами, документами и сообщениями подрядчика в рабочем пространстве проекта.
           </StatusMessage>
         </>
@@ -146,17 +97,10 @@ export function ProjectActions({ projectId, status }: Props) {
 
       {status === "completed" && (
         <>
-          <ActionLink
-            href={`/customer/work/${projectId}`}
-            icon={<FolderOpen className="h-5 w-5" />}
-          >
+          <ActionLink href={`/customer/work/${projectId}`} icon={<FolderOpen className="h-5 w-5" />}>
             Посмотреть рабочее пространство
           </ActionLink>
-          <StatusMessage
-            variant="success"
-            icon={<CheckCircle2 className="h-5 w-5" />}
-            title="Проект завершён"
-          >
+          <StatusMessage variant="success" icon={<CheckCircle2 className="h-5 w-5" />} title="Проект завершён">
             Рабочее пространство, этапы и история проекта остаются доступными для просмотра.
           </StatusMessage>
         </>
@@ -164,48 +108,23 @@ export function ProjectActions({ projectId, status }: Props) {
 
       {status === "disputed" && (
         <>
-          <ActionLink
-            href={`/customer/work/${projectId}`}
-            icon={<Gavel className="h-5 w-5" />}
-            primary
-          >
+          <ActionLink href={`/customer/work/${projectId}`} icon={<Gavel className="h-5 w-5" />} primary>
             Перейти в рабочее пространство
           </ActionLink>
-          <StatusMessage
-            variant="warning"
-            icon={<Gavel className="h-5 w-5" />}
-            title="По проекту открыт спор"
-          >
+          <StatusMessage variant="warning" icon={<Gavel className="h-5 w-5" />} title="По проекту открыт спор">
             Продолжайте взаимодействие и фиксируйте информацию через рабочее пространство проекта.
           </StatusMessage>
         </>
       )}
 
       {status === "cancelled" && (
-        <StatusMessage
-          variant="danger"
-          icon={<XCircle className="h-5 w-5" />}
-          title="Проект отменён"
-        >
+        <StatusMessage variant="danger" icon={<XCircle className="h-5 w-5" />} title="Проект отменён">
           Доступные действия по этому проекту ограничены.
         </StatusMessage>
       )}
 
-      {![
-        "draft",
-        "published",
-        "matching",
-        "contractor_selected",
-        "in_progress",
-        "completed",
-        "disputed",
-        "cancelled",
-      ].includes(status) && (
-        <StatusMessage
-          variant="neutral"
-          icon={<Info className="h-5 w-5" />}
-          title="Действия недоступны"
-        >
+      {!["draft", "published", "matching", "contractor_selected", "in_progress", "completed", "disputed", "cancelled"].includes(status) && (
+        <StatusMessage variant="neutral" icon={<Info className="h-5 w-5" />} title="Действия недоступны">
           Для текущего статуса проекта дополнительные действия пока не предусмотрены.
         </StatusMessage>
       )}
@@ -213,12 +132,7 @@ export function ProjectActions({ projectId, status }: Props) {
   );
 }
 
-function ActionLink({
-  href,
-  children,
-  icon,
-  primary = false,
-}: {
+function ActionLink({ href, children, icon, primary = false }: {
   href: string;
   children: React.ReactNode;
   icon: React.ReactNode;
@@ -235,14 +149,7 @@ function ActionLink({
       ].join(" ")}
     >
       <span className="flex items-center gap-3">
-        <span
-          className={[
-            "flex h-9 w-9 items-center justify-center rounded-xl",
-            primary ? "bg-white/10" : "bg-secondary text-primary",
-          ].join(" ")}
-        >
-          {icon}
-        </span>
+        <span className={["flex h-9 w-9 items-center justify-center rounded-xl", primary ? "bg-white/10" : "bg-secondary text-primary"].join(" ")}>{icon}</span>
         {children}
       </span>
       <ArrowRight className="h-4 w-4 shrink-0 transition group-hover:translate-x-1" />
@@ -250,12 +157,7 @@ function ActionLink({
   );
 }
 
-function StatusMessage({
-  variant,
-  icon,
-  title,
-  children,
-}: {
+function StatusMessage({ variant, icon, title, children }: {
   variant: "neutral" | "success" | "warning" | "danger";
   icon: React.ReactNode;
   title: string;
@@ -263,12 +165,9 @@ function StatusMessage({
 }) {
   const styles = {
     neutral: "border-border bg-secondary/40 text-foreground",
-    success:
-      "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-200",
-    warning:
-      "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200",
-    danger:
-      "border-red-200 bg-red-50 text-red-900 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-200",
+    success: "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-200",
+    warning: "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200",
+    danger: "border-red-200 bg-red-50 text-red-900 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-200",
   };
 
   return (
