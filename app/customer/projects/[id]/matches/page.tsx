@@ -19,6 +19,8 @@ import {
   getProjectContractorMatches,
   type ProjectContractorMatch,
 } from "@/features/projects/queries/get-project-contractor-matches";
+import { assessProjectIntake } from
+  "@/features/projects/lib/assess-project-intake";
 
 type Props = {
   params: Promise<{
@@ -38,6 +40,8 @@ export default async function CustomerProjectMatchesPage({ params }: Props) {
     getMyProject(id),
     getProjectContractorMatches(id, 8),
   ]);
+
+  const intake = assessProjectIntake(project);
 
   return (
     <main className="min-h-screen bg-background">
@@ -86,22 +90,77 @@ export default async function CustomerProjectMatchesPage({ params }: Props) {
           </div>
         </section>
 
-        <section className="mt-6 rounded-[1.75rem] border border-border bg-card p-5 shadow-[var(--shadow-soft)] md:p-6">
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-secondary text-primary">
-              <CheckCircle2 className="h-5 w-5" />
+        <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <section className="rounded-[1.75rem] border border-border bg-card p-5 shadow-[var(--shadow-soft)] md:p-6">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-secondary text-primary">
+                <CheckCircle2 className="h-5 w-5" />
+              </div>
+
+              <div>
+                <h2 className="font-bold text-foreground">
+                  Как формируется совпадение
+                </h2>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                  В подбор попадают только проверенные компании, которые принимают новые проекты и работают по нужной категории. Дополнительные баллы дают совпадение города или региона, совместимый бюджет, основная специализация, рейтинг и StroySelect Score.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-[1.75rem] border border-border bg-card p-5 shadow-[var(--shadow-soft)] md:p-6">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.1em] text-muted-foreground">
+                  Project Intake
+                </p>
+                <h2 className="mt-1 font-bold text-foreground">
+                  Готовность проекта
+                </h2>
+              </div>
+              <span className="text-2xl font-black text-primary">
+                {intake.score}%
+              </span>
             </div>
 
-            <div>
-              <h2 className="font-bold text-foreground">
-                Как формируется совпадение
-              </h2>
-              <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                В подбор попадают только проверенные компании, которые принимают новые проекты и работают по нужной категории. Дополнительные баллы дают совпадение города или региона, совместимый бюджет, основная специализация, рейтинг и StroySelect Score.
-              </p>
+            <div className="mt-4 h-2 overflow-hidden rounded-full bg-secondary">
+              <div
+                className="h-full rounded-full bg-primary"
+                style={{ width: `${intake.score}%` }}
+              />
             </div>
-          </div>
-        </section>
+
+            <p className="mt-3 text-xs leading-5 text-muted-foreground">
+              Заполнено {intake.completedChecks} из {intake.totalChecks} ключевых сигналов для точного подбора.
+            </p>
+
+            {intake.suggestions.length > 0 ? (
+              <div className="mt-4 space-y-2">
+                {intake.suggestions.map((suggestion) => (
+                  <p
+                    key={suggestion}
+                    className="rounded-xl bg-secondary/45 px-3 py-2 text-xs leading-5 text-foreground"
+                  >
+                    {suggestion}
+                  </p>
+                ))}
+
+                {project.status === "draft" && (
+                  <Link
+                    href={`/customer/projects/${project.id}/edit`}
+                    className="mt-2 inline-flex min-h-10 w-full items-center justify-center rounded-xl border border-primary/20 bg-secondary px-3 text-xs font-bold text-primary transition hover:bg-primary hover:text-primary-foreground"
+                  >
+                    Улучшить проект
+                  </Link>
+                )}
+              </div>
+            ) : (
+              <p className="mt-4 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                Проект хорошо подготовлен для matching.
+              </p>
+            )}
+          </section>
+        </div>
 
         {matches.length === 0 ? (
           <section className="mt-6 rounded-[1.75rem] border border-dashed border-border bg-card p-8 text-center">
