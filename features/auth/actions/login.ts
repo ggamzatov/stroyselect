@@ -15,8 +15,10 @@ import {
 } from "@/features/auth/schemas/login-schema";
 
 const LOGIN_WINDOW_MINUTES = 15;
-const LOGIN_MAX_FAILURES = 8;
+const LOGIN_COMPOSITE_MAX_FAILURES = 8;
+const LOGIN_EMAIL_MAX_FAILURES = 20;
 const LOGIN_LOCK_MINUTES = 15;
+const LOGIN_ATTEMPT_RETENTION_HOURS = 48;
 
 type UserRow = {
   id: string;
@@ -25,8 +27,13 @@ type UserRow = {
 };
 
 type LoginAttemptRow = {
-  failed_count: number;
+  attempt_key: string;
   locked_until: Date | string | null;
+};
+
+type LoginAttemptKeys = {
+  composite: string;
+  email: string;
 };
 
 export async function loginUser(
@@ -43,9 +50,11 @@ export async function loginUser(
 
   const email = parsed.data.email.trim().toLowerCase();
   const password = parsed.data.password;
-  const attemptKey = await getLoginAttemptKey(email);
+  const attemptKeys = await getLoginAttemptKeys(email);
 
-  if (await isLoginLocked(attemptKey)) {
+  await cleanupStaleLoginAttempts();
+
+  if (await isLoginLocked(attemptKeys)) {
     return {
       success: false,
       message: "Слишком много попыток входа. Попробуйте позже.",
@@ -68,7 +77,7 @@ export async function loginUser(
   const user = result.rows[0];
 
   if (!user || !user.password_hash) {
-    await registerLoginFailure(attemptKey);
+    await registerLoginFailure(attemptKeys);
 
     return {
       success: false,
@@ -93,7 +102,7 @@ export async function loginUser(
   }
 
   if (!passwordMatches) {
-    await registerLoginFailure(attemptKey);
+    await registerLoginFailure(attemptKeys);
 
     return {
       success: false,
@@ -102,7 +111,7 @@ export async function loginUser(
   }
 
   if (!user.is_active) {
-    await registerLoginFailure(attemptKey);
+    await registerLoginFailure(attemptKeys);
 
     return {
       success: false,
@@ -110,15 +119,15 @@ export async function loginUser(
     };
   }
 
-  await clearLoginFailures(attemptKey);
+  await clearLoginFailures(attemptKeys);
   await createUserSession(user.id);
 
   redirect("/dashboard");
 }
 
-async function getLoginAttemptKey(
+async function getLoginAttemptKeys(
   email: string
-) {
+): Promise<LoginAttemptKeys> {
   const headerStore = await headers();
 
   const forwardedFor = headerStore.get("x-forwarded-for");
@@ -129,43 +138,57 @@ async function getLoginAttemptKey(
     realIp?.trim() ||
     "unknown";
 
+  return {
+    composite: hashAttemptKey(`email-ip\n${email}\n${ipAddress}`),
+    email: hashAttemptKey(`email\n${email}`),
+  };
+}
+
+function hashAttemptKey(value: string) {
   return crypto
     .createHash("sha256")
-    .update(`${email}\n${ipAddress}`)
+    .update(value)
     .digest("hex");
 }
 
 async function isLoginLocked(
-  attemptKey: string
+  attemptKeys: LoginAttemptKeys
 ) {
+  const keys = [attemptKeys.composite, attemptKeys.email];
+
   const result = await db.query<LoginAttemptRow>(
     `
       SELECT
-        failed_count,
+        attempt_key,
         locked_until
       FROM public.auth_login_attempts
-      WHERE attempt_key = $1
-      LIMIT 1
+      WHERE attempt_key = ANY($1::text[])
+        AND locked_until > now()
     `,
-    [attemptKey]
+    [keys]
   );
 
-  const row = result.rows[0];
-
-  if (!row?.locked_until) {
-    return false;
-  }
-
-  const lockedUntil =
-    row.locked_until instanceof Date
-      ? row.locked_until
-      : new Date(row.locked_until);
-
-  return lockedUntil.getTime() > Date.now();
+  return result.rows.length > 0;
 }
 
 async function registerLoginFailure(
-  attemptKey: string
+  attemptKeys: LoginAttemptKeys
+) {
+  await Promise.all([
+    upsertLoginFailure(
+      attemptKeys.composite,
+      LOGIN_COMPOSITE_MAX_FAILURES
+    ),
+    upsertLoginFailure(
+      attemptKeys.email,
+      LOGIN_EMAIL_MAX_FAILURES
+    ),
+  ]);
+}
+
+async function upsertLoginFailure(
+  attemptKey: string,
+  maxFailures: number
 ) {
   await db.query(
     `
@@ -213,20 +236,31 @@ async function registerLoginFailure(
     [
       attemptKey,
       LOGIN_WINDOW_MINUTES,
-      LOGIN_MAX_FAILURES,
+      maxFailures,
       LOGIN_LOCK_MINUTES,
     ]
   );
 }
 
 async function clearLoginFailures(
-  attemptKey: string
+  attemptKeys: LoginAttemptKeys
 ) {
   await db.query(
     `
       DELETE FROM public.auth_login_attempts
-      WHERE attempt_key = $1
+      WHERE attempt_key = ANY($1::text[])
     `,
-    [attemptKey]
+    [[attemptKeys.composite, attemptKeys.email]]
+  );
+}
+
+async function cleanupStaleLoginAttempts() {
+  await db.query(
+    `
+      DELETE FROM public.auth_login_attempts
+      WHERE updated_at <
+        now() - ($1::text || ' hours')::interval
+    `,
+    [LOGIN_ATTEMPT_RETENTION_HOURS]
   );
 }
