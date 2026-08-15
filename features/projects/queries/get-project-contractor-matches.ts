@@ -20,7 +20,7 @@ type MatchRow = {
   rating: number | string | null;
   rating_count: number;
   completed_projects_count: number;
-  recommendation_score: number | string | null;
+  stroyselect_score: number | string | null;
   minimum_project_budget: number | string | null;
   maximum_project_budget: number | string | null;
   is_primary_service: boolean;
@@ -39,6 +39,7 @@ export type ProjectContractorMatch = {
   ratingCount: number;
   completedProjectsCount: number;
   recommendationScore: number;
+  stroyselectScore: number;
   minimumProjectBudget: number | null;
   maximumProjectBudget: number | null;
   yearsExperience: number | null;
@@ -91,7 +92,7 @@ export async function getProjectContractorMatches(
         cc.rating,
         cc.rating_count,
         cc.completed_projects_count,
-        cc.recommendation_score,
+        score.stroyselect_score,
         cc.minimum_project_budget,
         cc.maximum_project_budget,
         cs.is_primary AS is_primary_service,
@@ -122,7 +123,7 @@ export async function getProjectContractorMatches(
         END AS budget_match,
 
         round(
-          40
+          35
           + CASE WHEN cs.is_primary THEN 5 ELSE 0 END
           + CASE
               WHEN EXISTS (
@@ -149,7 +150,7 @@ export async function getProjectContractorMatches(
               THEN 15
               ELSE 0
             END
-          + least(greatest(coalesce(cc.recommendation_score, 0), 0), 100) / 10
+          + least(greatest(coalesce(score.stroyselect_score, 0), 0), 100) * 0.20
           + least(greatest(coalesce(cc.rating, 0), 0), 5)
         , 1) AS match_score
 
@@ -157,6 +158,8 @@ export async function getProjectContractorMatches(
       JOIN public.contractor_services cs
         ON cs.contractor_id = cc.id
        AND cs.category_id = $1
+      LEFT JOIN public.contractor_score_components score
+        ON score.contractor_id = cc.id
 
       WHERE cc.verification_status = 'verified'
         AND cc.accepts_new_projects = true
@@ -164,6 +167,7 @@ export async function getProjectContractorMatches(
 
       ORDER BY
         match_score DESC,
+        score.stroyselect_score DESC NULLS LAST,
         cc.rating DESC NULLS LAST,
         cc.completed_projects_count DESC,
         cc.created_at ASC
@@ -183,6 +187,7 @@ export async function getProjectContractorMatches(
 
   return result.rows.map((row) => {
     const reasons: string[] = ["Работает по нужной категории"];
+    const stroyselectScore = safeNumber(row.stroyselect_score);
 
     if (row.is_primary_service) {
       reasons.push("Это основная специализация");
@@ -196,6 +201,10 @@ export async function getProjectContractorMatches(
 
     if (row.budget_match) {
       reasons.push("Бюджет подходит");
+    }
+
+    if (stroyselectScore >= 80) {
+      reasons.push("Высокий StroySelect Score");
     }
 
     if (Number(row.rating ?? 0) >= 4.5 && row.rating_count > 0) {
@@ -216,12 +225,13 @@ export async function getProjectContractorMatches(
         0,
         Number(row.completed_projects_count) || 0
       ),
-      recommendationScore: safeNumber(row.recommendation_score),
+      recommendationScore: stroyselectScore,
+      stroyselectScore,
       minimumProjectBudget: toNullableNumber(row.minimum_project_budget),
       maximumProjectBudget: toNullableNumber(row.maximum_project_budget),
       yearsExperience: row.years_experience,
       matchScore: Math.min(100, Math.max(0, safeNumber(row.match_score))),
-      reasons: reasons.slice(0, 4),
+      reasons: reasons.slice(0, 5),
     };
   });
 }
