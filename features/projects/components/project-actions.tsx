@@ -8,6 +8,8 @@ import {
   Gavel,
   Info,
   Search,
+  Sparkles,
+  UsersRound,
   XCircle,
 } from "lucide-react";
 
@@ -19,37 +21,33 @@ type Props = {
   status: string;
 };
 
-export function ProjectActions({
-  projectId,
-  status,
-}: Props) {
+export function ProjectActions({ projectId, status }: Props) {
   return (
     <section className="space-y-3">
       {status === "draft" && (
         <>
           <ActionLink
             href={`/customer/projects/${projectId}/edit`}
-            icon={
-              <Edit3 className="h-5 w-5" />
-            }
+            icon={<Edit3 className="h-5 w-5" />}
           >
             Редактировать проект
           </ActionLink>
 
-          <PublishProjectButton
-            projectId={projectId}
-          />
+          <ActionLink
+            href={`/customer/projects/${projectId}/matches`}
+            icon={<Sparkles className="h-5 w-5" />}
+          >
+            Проверить подбор подрядчиков
+          </ActionLink>
+
+          <PublishProjectButton projectId={projectId} />
 
           <StatusMessage
             variant="neutral"
-            icon={
-              <Info className="h-5 w-5" />
-            }
+            icon={<Info className="h-5 w-5" />}
             title="Проект пока не опубликован"
           >
-            Проверьте описание, бюджет и сроки.
-            После публикации проект станет доступен
-            подходящим подрядчикам.
+            Проверьте описание, бюджет и сроки. Подбор уже можно посмотреть до публикации, а после публикации проект станет доступен подходящим подрядчикам.
           </StatusMessage>
         </>
       )}
@@ -57,25 +55,26 @@ export function ProjectActions({
       {status === "published" && (
         <>
           <ActionLink
-            href={`/customer/bids?projectId=${projectId}`}
-            icon={
-              <Search className="h-5 w-5" />
-            }
+            href={`/customer/projects/${projectId}/matches`}
+            icon={<UsersRound className="h-5 w-5" />}
             primary
+          >
+            Подходящие подрядчики
+          </ActionLink>
+
+          <ActionLink
+            href={`/customer/bids?projectId=${projectId}`}
+            icon={<Search className="h-5 w-5" />}
           >
             Посмотреть предложения
           </ActionLink>
 
           <StatusMessage
             variant="success"
-            icon={
-              <CheckCircle2 className="h-5 w-5" />
-            }
+            icon={<CheckCircle2 className="h-5 w-5" />}
             title="Проект опубликован"
           >
-            Проект доступен подрядчикам.
-            Новые предложения будут появляться
-            в разделе предложений.
+            Проект доступен подрядчикам. Matching помогает понять, какие проверенные компании лучше всего соответствуют задаче.
           </StatusMessage>
         </>
       )}
@@ -83,24 +82,26 @@ export function ProjectActions({
       {status === "matching" && (
         <>
           <ActionLink
-            href={`/customer/bids?projectId=${projectId}`}
-            icon={
-              <Search className="h-5 w-5" />
-            }
+            href={`/customer/projects/${projectId}/matches`}
+            icon={<Sparkles className="h-5 w-5" />}
             primary
           >
-            Перейти к подбору подрядчика
+            Открыть умный подбор
+          </ActionLink>
+
+          <ActionLink
+            href={`/customer/bids?projectId=${projectId}`}
+            icon={<Search className="h-5 w-5" />}
+          >
+            Сравнить предложения
           </ActionLink>
 
           <StatusMessage
             variant="neutral"
-            icon={
-              <Info className="h-5 w-5" />
-            }
+            icon={<Info className="h-5 w-5" />}
             title="Идёт подбор подрядчика"
           >
-            Сравнивайте предложения, сроки и стоимость
-            работ перед выбором исполнителя.
+            Сравнивайте совпадение по проекту, предложения, сроки и стоимость работ перед выбором исполнителя.
           </StatusMessage>
         </>
       )}
@@ -109,19 +110,14 @@ export function ProjectActions({
         <>
           <ActionLink
             href={`/customer/work/${projectId}`}
-            icon={
-              <FolderOpen className="h-5 w-5" />
-            }
+            icon={<FolderOpen className="h-5 w-5" />}
             primary
           >
             Открыть рабочее пространство
           </ActionLink>
-
           <StatusMessage
             variant="success"
-            icon={
-              <CheckCircle2 className="h-5 w-5" />
-            }
+            icon={<CheckCircle2 className="h-5 w-5" />}
             title="Подрядчик выбран"
           >
             Проект готов к переходу в рабочее пространство.
@@ -133,23 +129,17 @@ export function ProjectActions({
         <>
           <ActionLink
             href={`/customer/work/${projectId}`}
-            icon={
-              <FolderOpen className="h-5 w-5" />
-            }
+            icon={<FolderOpen className="h-5 w-5" />}
             primary
           >
             Открыть рабочее пространство
           </ActionLink>
-
           <StatusMessage
             variant="neutral"
-            icon={
-              <Info className="h-5 w-5" />
-            }
+            icon={<Info className="h-5 w-5" />}
             title="Работы выполняются"
           >
-            Следите за этапами, документами и сообщениями
-            подрядчика в рабочем пространстве проекта.
+            Следите за этапами, документами и сообщениями подрядчика в рабочем пространстве проекта.
           </StatusMessage>
         </>
       )}
@@ -158,22 +148,16 @@ export function ProjectActions({
         <>
           <ActionLink
             href={`/customer/work/${projectId}`}
-            icon={
-              <FolderOpen className="h-5 w-5" />
-            }
+            icon={<FolderOpen className="h-5 w-5" />}
           >
             Посмотреть рабочее пространство
           </ActionLink>
-
           <StatusMessage
             variant="success"
-            icon={
-              <CheckCircle2 className="h-5 w-5" />
-            }
+            icon={<CheckCircle2 className="h-5 w-5" />}
             title="Проект завершён"
           >
-            Рабочее пространство, этапы и история проекта
-            остаются доступными для просмотра.
+            Рабочее пространство, этапы и история проекта остаются доступными для просмотра.
           </StatusMessage>
         </>
       )}
@@ -182,23 +166,17 @@ export function ProjectActions({
         <>
           <ActionLink
             href={`/customer/work/${projectId}`}
-            icon={
-              <Gavel className="h-5 w-5" />
-            }
+            icon={<Gavel className="h-5 w-5" />}
             primary
           >
             Перейти в рабочее пространство
           </ActionLink>
-
           <StatusMessage
             variant="warning"
-            icon={
-              <Gavel className="h-5 w-5" />
-            }
+            icon={<Gavel className="h-5 w-5" />}
             title="По проекту открыт спор"
           >
-            Продолжайте взаимодействие и фиксируйте
-            информацию через рабочее пространство проекта.
+            Продолжайте взаимодействие и фиксируйте информацию через рабочее пространство проекта.
           </StatusMessage>
         </>
       )}
@@ -206,16 +184,14 @@ export function ProjectActions({
       {status === "cancelled" && (
         <StatusMessage
           variant="danger"
-          icon={
-            <XCircle className="h-5 w-5" />
-          }
+          icon={<XCircle className="h-5 w-5" />}
           title="Проект отменён"
         >
           Доступные действия по этому проекту ограничены.
         </StatusMessage>
       )}
 
-      {![ 
+      {![
         "draft",
         "published",
         "matching",
@@ -227,13 +203,10 @@ export function ProjectActions({
       ].includes(status) && (
         <StatusMessage
           variant="neutral"
-          icon={
-            <Info className="h-5 w-5" />
-          }
+          icon={<Info className="h-5 w-5" />}
           title="Действия недоступны"
         >
-          Для текущего статуса проекта дополнительные
-          действия пока не предусмотрены.
+          Для текущего статуса проекта дополнительные действия пока не предусмотрены.
         </StatusMessage>
       )}
     </section>
@@ -265,17 +238,13 @@ function ActionLink({
         <span
           className={[
             "flex h-9 w-9 items-center justify-center rounded-xl",
-            primary
-              ? "bg-white/10"
-              : "bg-secondary text-primary",
+            primary ? "bg-white/10" : "bg-secondary text-primary",
           ].join(" ")}
         >
           {icon}
         </span>
-
         {children}
       </span>
-
       <ArrowRight className="h-4 w-4 shrink-0 transition group-hover:translate-x-1" />
     </Link>
   );
@@ -287,18 +256,13 @@ function StatusMessage({
   title,
   children,
 }: {
-  variant:
-    | "neutral"
-    | "success"
-    | "warning"
-    | "danger";
+  variant: "neutral" | "success" | "warning" | "danger";
   icon: React.ReactNode;
   title: string;
   children: React.ReactNode;
 }) {
   const styles = {
-    neutral:
-      "border-border bg-secondary/40 text-foreground",
+    neutral: "border-border bg-secondary/40 text-foreground",
     success:
       "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-200",
     warning:
@@ -308,25 +272,12 @@ function StatusMessage({
   };
 
   return (
-    <div
-      className={[
-        "rounded-[1.25rem] border p-4",
-        styles[variant],
-      ].join(" ")}
-    >
+    <div className={["rounded-[1.25rem] border p-4", styles[variant]].join(" ")}>
       <div className="flex items-start gap-3">
-        <div className="mt-0.5 shrink-0">
-          {icon}
-        </div>
-
+        <div className="mt-0.5 shrink-0">{icon}</div>
         <div>
-          <p className="text-sm font-semibold">
-            {title}
-          </p>
-
-          <p className="mt-1 text-sm leading-6 opacity-80">
-            {children}
-          </p>
+          <p className="text-sm font-semibold">{title}</p>
+          <p className="mt-1 text-sm leading-6 opacity-80">{children}</p>
         </div>
       </div>
     </div>
