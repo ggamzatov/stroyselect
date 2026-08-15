@@ -180,7 +180,7 @@ export async function getCustomerBids() {
           row.message,
 
         proposed_start_date:
-          toNullableDateString(
+          toNullableDateOnlyString(
             row.proposed_start_date
           ),
 
@@ -258,7 +258,7 @@ export async function getCustomerBids() {
   }
 }
 
-function toNullableDateString(
+function toNullableDateOnlyString(
   value:
     Date | string | null
 ) {
@@ -266,9 +266,19 @@ function toNullableDateString(
     return null;
   }
 
-  return value instanceof Date
-    ? value.toISOString()
-    : String(value);
+  const normalized =
+    value instanceof Date
+      ? value.toISOString()
+      : String(value);
+
+  const dateOnly =
+    normalized.slice(0, 10);
+
+  return /^\d{4}-\d{2}-\d{2}$/.test(
+    dateOnly
+  )
+    ? dateOnly
+    : null;
 }
 
 function toIsoString(
