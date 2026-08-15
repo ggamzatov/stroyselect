@@ -53,7 +53,7 @@ export default async function CompareProjectBidsPage({ params }: Props) {
               Сравнение предложений
             </h1>
             <p className="mt-3 max-w-3xl text-sm leading-7 text-muted-foreground md:text-base">
-              Проект «{project.title}». Сравнение учитывает цену, срок, полноту сметы, рейтинг подрядчика и StroySelect Score.
+              Проект «{project.title}». Сравнение учитывает цену, срок, полноту сметы, рейтинг подрядчика и объяснимый StroySelect Score.
             </p>
           </div>
         </section>
@@ -83,10 +83,13 @@ function BidCard({ bid, position }: { bid: BidComparisonItem; position: number }
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full bg-primary px-2.5 py-1 text-[11px] font-bold text-primary-foreground">#{position}</span>
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
                 <BadgeCheck className="h-3.5 w-3.5" /> Проверен
               </span>
               <span className="rounded-full bg-background px-2.5 py-1 text-[11px] font-bold text-foreground">Полнота {bid.completenessScore}%</span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2.5 py-1 text-[11px] font-bold text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">
+                <Sparkles className="h-3.5 w-3.5" /> Score {Math.round(bid.stroyselectScore)}
+              </span>
             </div>
             <h2 className="mt-3 text-xl font-black text-foreground">{bid.publicName}</h2>
           </div>
@@ -124,7 +127,7 @@ function BidCard({ bid, position }: { bid: BidComparisonItem; position: number }
         </div>
 
         {bid.riskFlags.length > 0 && (
-          <div className="mt-5 rounded-[1.25rem] border border-amber-200 bg-amber-50 p-4 text-amber-900">
+          <div className="mt-5 rounded-[1.25rem] border border-amber-200 bg-amber-50 p-4 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
             <div className="flex items-start gap-3">
               <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0" />
               <div>
@@ -142,7 +145,7 @@ function BidCard({ bid, position }: { bid: BidComparisonItem; position: number }
             href={`/customer/contractors/${bid.contractorId}`}
             className="inline-flex min-h-11 flex-1 items-center justify-center rounded-xl border border-border bg-background px-4 text-sm font-semibold text-primary"
           >
-            Профиль подрядчика
+            Профиль и Score
           </Link>
           {!['accepted', 'rejected', 'withdrawn'].includes(bid.status) && (
             <div className="min-w-[220px] flex-1">
@@ -178,5 +181,5 @@ function formatMoney(value: number) {
 }
 
 function formatDate(value: string) {
-  return new Intl.DateTimeFormat("ru-RU", { dateStyle: "medium" }).format(new Date(value));
+  return new Intl.DateTimeFormat("ru-RU", { dateStyle: "medium" }).format(new Date(`${value}T00:00:00`));
 }
