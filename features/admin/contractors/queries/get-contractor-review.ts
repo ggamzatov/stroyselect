@@ -24,11 +24,11 @@ type CompanyRow = {
   telegram: string | null;
   verification_status: string;
   contractor_services: Array<{
-    category_id: string | number;
+    category_id: number;
     years_experience: number | null;
     is_primary: boolean;
     service_categories: {
-      id: string | number;
+      id: number;
       name: string;
       slug: string;
     } | null;
@@ -51,11 +51,11 @@ export async function getContractorReview(contractorId: string) {
           COALESCE((
             SELECT jsonb_agg(
               jsonb_build_object(
-                'category_id', cs.category_id,
+                'category_id', cs.category_id::int,
                 'years_experience', cs.years_experience,
                 'is_primary', cs.is_primary,
                 'service_categories', jsonb_build_object(
-                  'id', sc.id,
+                  'id', sc.id::int,
                   'name', sc.name,
                   'slug', sc.slug
                 )
