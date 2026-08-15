@@ -47,30 +47,56 @@ export async function createChangeOrder(formData: FormData) {
 
   const userId = await getCurrentSessionUserId();
   if (!userId) return { success: false, message: "Необходимо войти" };
-
   const access = await getAccess(parsed.data.projectId, userId);
-  if (!access) return { success: false, message: "Нет доступа к проекту" };
+  if (!access || access.role !== "contractor") {
+    return { success: false, message: "Запрос изменения может создать выбранный подрядчик" };
+  }
 
-  await db.query(
-    `
-      INSERT INTO public.project_change_orders (
-        project_id, requested_by, title, reason, scope_change,
-        amount_delta, duration_delta_days
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7)
-    `,
-    [
-      parsed.data.projectId,
-      userId,
-      parsed.data.title,
-      parsed.data.reason,
-      parsed.data.scopeChange,
-      parsed.data.amountDelta,
-      parsed.data.durationDeltaDays,
-    ]
-  );
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+    const created = await client.query<{ id: string }>(
+      `
+        INSERT INTO public.project_change_orders (
+          project_id, requested_by, title, reason, scope_change,
+          amount_delta, duration_delta_days
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7)
+        RETURNING id
+      `,
+      [
+        parsed.data.projectId,
+        userId,
+        parsed.data.title,
+        parsed.data.reason,
+        parsed.data.scopeChange,
+        parsed.data.amountDelta,
+        parsed.data.durationDeltaDays,
+      ]
+    );
+
+    await insertEvent(client, {
+      projectId: parsed.data.projectId,
+      authorId: userId,
+      eventType: "change_order_created",
+      title: "Запрошено изменение проекта",
+      description: parsed.data.title,
+      metadata: {
+        change_order_id: created.rows[0]?.id,
+        amount_delta: parsed.data.amountDelta,
+        duration_delta_days: parsed.data.durationDeltaDays,
+      },
+    });
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Ошибка создания change order:", error);
+    return { success: false, message: "Не удалось создать запрос изменения" };
+  } finally {
+    client.release();
+  }
 
   revalidate(parsed.data.projectId);
-  return { success: true, message: "Изменение отправлено на согласование" };
+  return { success: true, message: "Изменение отправлено заказчику на согласование" };
 }
 
 export async function decideChangeOrder(formData: FormData) {
@@ -84,29 +110,56 @@ export async function decideChangeOrder(formData: FormData) {
 
   const userId = await getCurrentSessionUserId();
   if (!userId) return { success: false, message: "Необходимо войти" };
-
   const access = await getAccess(parsed.data.projectId, userId);
   if (!access || access.role !== "customer") {
     return { success: false, message: "Согласовать изменение может только заказчик" };
   }
 
-  const result = await db.query(
-    `
-      UPDATE public.project_change_orders
-      SET status = $1,
-          decision_comment = $2,
-          decided_by = $3,
-          decided_at = now(),
-          updated_at = now()
-      WHERE id = $4
-        AND project_id = $5
-        AND status = 'pending'
-      RETURNING id
-    `,
-    [parsed.data.decision, parsed.data.comment ?? null, userId, parsed.data.changeOrderId, parsed.data.projectId]
-  );
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+    const result = await client.query<{ title: string; amount_delta: string | number; duration_delta_days: number }>(
+      `
+        UPDATE public.project_change_orders
+        SET status = $1,
+            decision_comment = $2,
+            decided_by = $3,
+            decided_at = now(),
+            updated_at = now()
+        WHERE id = $4
+          AND project_id = $5
+          AND status = 'pending'
+        RETURNING title, amount_delta, duration_delta_days
+      `,
+      [parsed.data.decision, parsed.data.comment ?? null, userId, parsed.data.changeOrderId, parsed.data.projectId]
+    );
+    const change = result.rows[0];
+    if (!change) {
+      await client.query("ROLLBACK");
+      return { success: false, message: "Изменение уже обработано или не найдено" };
+    }
 
-  if (!result.rowCount) return { success: false, message: "Изменение уже обработано или не найдено" };
+    await insertEvent(client, {
+      projectId: parsed.data.projectId,
+      authorId: userId,
+      eventType: parsed.data.decision === "approved" ? "change_order_approved" : "change_order_rejected",
+      title: parsed.data.decision === "approved" ? "Изменение согласовано" : "Изменение отклонено",
+      description: change.title,
+      metadata: {
+        change_order_id: parsed.data.changeOrderId,
+        amount_delta: Number(change.amount_delta),
+        duration_delta_days: change.duration_delta_days,
+      },
+    });
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Ошибка решения change order:", error);
+    return { success: false, message: "Не удалось сохранить решение" };
+  } finally {
+    client.release();
+  }
+
   revalidate(parsed.data.projectId);
   return { success: true, message: parsed.data.decision === "approved" ? "Изменение согласовано" : "Изменение отклонено" };
 }
@@ -116,6 +169,8 @@ export async function cancelChangeOrder(formData: FormData) {
   const changeOrderId = String(formData.get("changeOrderId") ?? "");
   const userId = await getCurrentSessionUserId();
   if (!userId) return { success: false, message: "Необходимо войти" };
+  const access = await getAccess(projectId, userId);
+  if (!access || access.role !== "contractor") return { success: false, message: "Нет доступа" };
 
   const result = await db.query(
     `
@@ -145,11 +200,36 @@ export async function recordProjectPayment(formData: FormData) {
   const access = await getAccess(parsed.data.projectId, userId);
   if (!access || access.role !== "customer") return { success: false, message: "Платежи фиксирует заказчик" };
 
-  await db.query(
-    `INSERT INTO public.project_payments (project_id, recorded_by, amount, paid_at, note)
-     VALUES ($1,$2,$3,$4,$5)`,
-    [parsed.data.projectId, userId, parsed.data.amount, parsed.data.paidAt, parsed.data.note ?? null]
-  );
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+    const result = await client.query<{ id: string }>(
+      `INSERT INTO public.project_payments (project_id, recorded_by, amount, paid_at, note)
+       VALUES ($1,$2,$3,$4,$5)
+       RETURNING id`,
+      [parsed.data.projectId, userId, parsed.data.amount, parsed.data.paidAt, parsed.data.note ?? null]
+    );
+    await insertEvent(client, {
+      projectId: parsed.data.projectId,
+      authorId: userId,
+      eventType: "payment_recorded",
+      title: "Зафиксирован платёж",
+      description: parsed.data.note ?? null,
+      metadata: {
+        payment_id: result.rows[0]?.id,
+        amount: parsed.data.amount,
+        paid_at: parsed.data.paidAt,
+      },
+    });
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Ошибка записи платежа:", error);
+    return { success: false, message: "Не удалось добавить платёж" };
+  } finally {
+    client.release();
+  }
+
   revalidate(parsed.data.projectId);
   return { success: true, message: "Платёж добавлен" };
 }
@@ -170,6 +250,34 @@ async function getAccess(projectId: string, userId: string) {
   if (row.customer_id === userId) return { role: "customer" as const };
   if (row.contractor_owner_id === userId) return { role: "contractor" as const };
   return null;
+}
+
+async function insertEvent(
+  client: { query: (text: string, values?: unknown[]) => Promise<unknown> },
+  input: {
+    projectId: string;
+    authorId: string;
+    eventType: string;
+    title: string;
+    description: string | null;
+    metadata: Record<string, unknown>;
+  }
+) {
+  await client.query(
+    `
+      INSERT INTO public.project_events (
+        project_id, author_id, event_type, title, description, metadata
+      ) VALUES ($1,$2,$3,$4,$5,$6::jsonb)
+    `,
+    [
+      input.projectId,
+      input.authorId,
+      input.eventType,
+      input.title,
+      input.description,
+      JSON.stringify(input.metadata),
+    ]
+  );
 }
 
 function revalidate(projectId: string) {
