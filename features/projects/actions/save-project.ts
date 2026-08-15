@@ -3,7 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { createClient } from "@/lib/supabase/server";
+import { db } from
+  "@/lib/db/pool";
+
+import {
+  requireActiveUser,
+} from "@/lib/auth/require-active-user";
 
 import {
   projectSchema,
@@ -16,44 +21,51 @@ export type SaveProjectResult = {
   projectId?: string;
 };
 
+type ExistingProjectRow = {
+  id: string;
+  status: string;
+};
+
 export async function saveProject(
   input: ProjectInput,
   projectId?: string
 ): Promise<SaveProjectResult> {
-  const parsed = projectSchema.safeParse(input);
+  const parsed =
+    projectSchema.safeParse(
+      input
+    );
 
   if (!parsed.success) {
     return {
       success: false,
       message:
-        parsed.error.issues[0]?.message ??
+        parsed.error.issues[0]
+          ?.message ??
         "Проверьте заполнение формы",
     };
   }
 
-  const supabase = await createClient();
+  const auth =
+    await requireActiveUser();
 
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
+  if (!auth.success) {
+    if (
+      auth.reason ===
+      "unauthorized"
+    ) {
+      redirect("/login");
+    }
 
-  if (userError || !user) {
-    redirect("/login");
+    return {
+      success: false,
+      message:
+        auth.message,
+    };
   }
 
-  const { data: profile, error: profileError } =
-    await supabase
-      .from("profiles")
-      .select("role, is_blocked")
-      .eq("id", user.id)
-      .single();
-
   if (
-    profileError ||
-    !profile ||
-    profile.role !== "customer" ||
-    profile.is_blocked
+    auth.profile.role !==
+    "customer"
   ) {
     return {
       success: false,
@@ -62,109 +74,234 @@ export async function saveProject(
     };
   }
 
-  const values = parsed.data;
+  const values =
+    parsed.data;
 
-  const payload = {
-    customer_id: user.id,
-    category_id: values.categoryId,
-    title: values.title,
-    description: values.description,
-    property_type: values.propertyType,
-    region: values.region,
-    city: values.city,
-    address: values.address || null,
-    budget_min: values.budgetMin ?? null,
-    budget_max: values.budgetMax ?? null,
-    desired_start_date:
-      values.desiredStartDate || null,
-    desired_end_date:
-      values.desiredEndDate || null,
-    updated_at: new Date().toISOString(),
-  };
+  try {
+    if (projectId) {
+      const existingResult =
+        await db.query<ExistingProjectRow>(
+          `
+            SELECT
+              id,
+              status
+            FROM
+              public.projects
+            WHERE
+              id = $1
+              AND customer_id = $2
+            LIMIT 1
+          `,
+          [
+            projectId,
+            auth.user.id,
+          ]
+        );
 
-  if (projectId) {
-    const { data: existingProject } =
-      await supabase
-        .from("projects")
-        .select("id, status")
-        .eq("id", projectId)
-        .eq("customer_id", user.id)
-        .maybeSingle();
+      const existingProject =
+        existingResult.rows[0];
 
-    if (!existingProject) {
-      return {
-        success: false,
-        message: "Проект не найден",
-      };
-    }
+      if (!existingProject) {
+        return {
+          success: false,
+          message:
+            "Проект не найден",
+        };
+      }
 
-    if (existingProject.status !== "draft") {
-      return {
-        success: false,
-        message:
-          "Редактировать можно только черновик",
-      };
-    }
+      if (
+        existingProject.status !==
+        "draft"
+      ) {
+        return {
+          success: false,
+          message:
+            "Редактировать можно только черновик",
+        };
+      }
 
-    const { error } = await supabase
-      .from("projects")
-      .update(payload)
-      .eq("id", projectId)
-      .eq("customer_id", user.id);
+      const result =
+        await db.query<{
+          id: string;
+        }>(
+          `
+            UPDATE
+              public.projects
 
-    if (error) {
-      console.error(
-        "Ошибка обновления проекта:",
-        error
+            SET
+              category_id = $1,
+              title = $2,
+              description = $3,
+              property_type = $4,
+              region = $5,
+              city = $6,
+              address = $7,
+              budget_min = $8,
+              budget_max = $9,
+              desired_start_date = $10,
+              desired_end_date = $11,
+              updated_at = now()
+
+            WHERE
+              id = $12
+              AND customer_id = $13
+              AND status = 'draft'
+
+            RETURNING
+              id
+          `,
+          [
+            values.categoryId,
+            values.title,
+            values.description,
+            values.propertyType,
+            values.region,
+            values.city,
+            values.address ||
+              null,
+            values.budgetMin ??
+              null,
+            values.budgetMax ??
+              null,
+            values.desiredStartDate ||
+              null,
+            values.desiredEndDate ||
+              null,
+            projectId,
+            auth.user.id,
+          ]
+        );
+
+      if (!result.rows[0]) {
+        return {
+          success: false,
+          message:
+            "Не удалось обновить проект",
+        };
+      }
+
+      revalidatePath(
+        "/customer/projects"
+      );
+
+      revalidatePath(
+        `/customer/projects/${projectId}/edit`
+      );
+
+      revalidatePath(
+        `/customer/projects/${projectId}`
+      );
+
+      revalidatePath(
+        "/customer/dashboard"
       );
 
       return {
-        success: false,
+        success: true,
         message:
-          "Не удалось обновить проект",
+          "Черновик обновлён",
+        projectId,
       };
     }
 
-    revalidatePath("/customer/projects");
+    const result =
+      await db.query<{
+        id: string;
+      }>(
+        `
+          INSERT INTO
+            public.projects (
+              customer_id,
+              category_id,
+              title,
+              description,
+              property_type,
+              region,
+              city,
+              address,
+              budget_min,
+              budget_max,
+              desired_start_date,
+              desired_end_date,
+              status
+            )
+          VALUES (
+            $1,
+            $2,
+            $3,
+            $4,
+            $5,
+            $6,
+            $7,
+            $8,
+            $9,
+            $10,
+            $11,
+            $12,
+            'draft'
+          )
+          RETURNING
+            id
+        `,
+        [
+          auth.user.id,
+          values.categoryId,
+          values.title,
+          values.description,
+          values.propertyType,
+          values.region,
+          values.city,
+          values.address ||
+            null,
+          values.budgetMin ??
+            null,
+          values.budgetMax ??
+            null,
+          values.desiredStartDate ||
+            null,
+          values.desiredEndDate ||
+            null,
+        ]
+      );
+
+    const project =
+      result.rows[0];
+
+    if (!project) {
+      return {
+        success: false,
+        message:
+          "Не удалось создать проект",
+      };
+    }
+
     revalidatePath(
-      `/customer/projects/${projectId}/edit`
+      "/customer/projects"
+    );
+
+    revalidatePath(
+      "/customer/dashboard"
     );
 
     return {
       success: true,
-      message: "Черновик обновлён",
-      projectId,
+      message:
+        "Черновик проекта создан",
+      projectId:
+        project.id,
     };
-  }
-
-  const { data, error } = await supabase
-    .from("projects")
-    .insert({
-      ...payload,
-      status: "draft",
-    })
-    .select("id")
-    .single();
-
-  if (error || !data) {
+  } catch (error) {
     console.error(
-      "Ошибка создания проекта:",
+      "Ошибка сохранения проекта:",
       error
     );
 
     return {
       success: false,
       message:
-        "Не удалось создать проект",
+        projectId
+          ? "Не удалось обновить проект"
+          : "Не удалось создать проект",
     };
   }
-
-  revalidatePath("/customer/projects");
-  revalidatePath("/customer/dashboard");
-
-  return {
-    success: true,
-    message: "Черновик проекта создан",
-    projectId: data.id,
-  };
 }

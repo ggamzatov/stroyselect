@@ -1,69 +1,162 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath } from
+  "next/cache";
 
-import { createClient } from "@/lib/supabase/server";
+import { db } from
+  "@/lib/db/pool";
+
+import { requireActiveUser } from
+  "@/lib/auth/require-active-user";
 
 export type StartProjectWorkResult = {
   success: boolean;
   message: string;
 };
 
+type CompanyRow = {
+  id: string;
+};
+
 export async function startProjectWork(
   projectId: string
 ): Promise<StartProjectWorkResult> {
-  const supabase = await createClient();
+  const activeUser =
+    await requireActiveUser();
 
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-
-  if (userError || !user) {
-    return {
-      success: false,
-      message: "Необходимо войти",
-    };
-  }
-
-  const { data: company, error: companyError } =
-    await supabase
-      .from("contractor_companies")
-      .select("id")
-      .eq("owner_id", user.id)
-      .maybeSingle();
-
-  if (companyError || !company) {
+  if (!activeUser.success) {
     return {
       success: false,
       message:
-        "Профиль подрядчика не найден",
+        activeUser.message,
     };
   }
 
-  const now = new Date().toISOString();
+  if (
+    activeUser.profile.role !==
+    "contractor"
+  ) {
+    return {
+      success: false,
+      message:
+        "Начать работы может только подрядчик",
+    };
+  }
 
-  const { data: project, error } =
-    await supabase
-      .from("projects")
-      .update({
-        status: "in_progress",
-        work_started_at: now,
-        updated_at: now,
-      })
-      .eq("id", projectId)
-      .eq(
-        "selected_contractor_id",
-        company.id
-      )
-      .eq(
-        "status",
-        "contractor_selected"
-      )
-      .select("id, status")
-      .maybeSingle();
+  try {
+    const companyResult =
+      await db.query<CompanyRow>(
+        `
+          SELECT
+            id
 
-  if (error || !project) {
+          FROM
+            public.contractor_companies
+
+          WHERE
+            owner_id = $1
+
+          LIMIT 1
+        `,
+        [
+          activeUser.user.id,
+        ]
+      );
+
+    const company =
+      companyResult.rows[0];
+
+    if (!company) {
+      return {
+        success: false,
+        message:
+          "Профиль подрядчика не найден",
+      };
+    }
+
+    const result =
+      await db.query<{
+        id: string;
+        status: string;
+      }>(
+        `
+          UPDATE
+            public.projects
+
+          SET
+            status =
+              'in_progress',
+
+            work_started_at =
+              now(),
+
+            updated_at =
+              now()
+
+          WHERE
+            id = $1
+
+            AND selected_contractor_id =
+              $2
+
+            AND status =
+              'contractor_selected'
+
+            AND is_admin_blocked =
+              false
+
+          RETURNING
+            id,
+            status
+        `,
+        [
+          projectId,
+          company.id,
+        ]
+      );
+
+    const project =
+      result.rows[0];
+
+    if (!project) {
+      return {
+        success: false,
+        message:
+          "Не удалось начать работы по проекту",
+      };
+    }
+
+    revalidatePath(
+      "/contractor/dashboard"
+    );
+
+    revalidatePath(
+      "/contractor/work"
+    );
+
+    revalidatePath(
+      `/contractor/work/${projectId}`
+    );
+
+    revalidatePath(
+      `/customer/projects/${projectId}`
+    );
+
+    revalidatePath(
+      `/customer/work/${projectId}`
+    );
+
+    revalidatePath(
+      "/customer/dashboard"
+    );
+
+    return {
+      success: true,
+
+      message:
+        "Проект переведён в статус «В работе»",
+    };
+  } catch (error) {
     console.error(
       "Ошибка начала работ:",
       error
@@ -75,19 +168,4 @@ export async function startProjectWork(
         "Не удалось начать работы по проекту",
     };
   }
-
-  revalidatePath("/contractor/dashboard");
-  revalidatePath("/contractor/work");
-  revalidatePath(
-    `/contractor/work/${projectId}`
-  );
-  revalidatePath(
-    `/customer/projects/${projectId}`
-  );
-
-  return {
-    success: true,
-    message:
-      "Проект переведён в статус «В работе»",
-  };
 }

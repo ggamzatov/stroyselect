@@ -1,46 +1,64 @@
-import { createClient } from "@/lib/supabase/server";
+import "server-only";
+
+import { db } from "@/lib/db/pool";
+
+import {
+  getCurrentSessionUserId,
+} from "@/lib/auth/session";
+
+type CountRow = {
+  count: string | number;
+};
 
 export async function getAvailableProjectsCount() {
-  const supabase = await createClient();
+  const userId =
+    await getCurrentSessionUserId();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
+  if (!userId) {
     return 0;
   }
 
-  const { data: company } = await supabase
-    .from("contractor_companies")
-    .select(`
-      id,
-      verification_status,
-      accepts_new_projects
-    `)
-    .eq("owner_id", user.id)
-    .maybeSingle();
+  try {
+    const result =
+      await db.query<CountRow>(
+        `
+          SELECT
+            COUNT(p.id)
+              AS count
 
-  if (
-    !company ||
-    company.verification_status !== "verified" ||
-    !company.accepts_new_projects
-  ) {
-    return 0;
-  }
+          FROM
+            public.contractor_companies cc
 
-  const { count, error } = await supabase
-    .from("projects")
-    .select("id", {
-      count: "exact",
-      head: true,
-    })
-    .in("status", [
-      "published",
-      "collecting_bids",
-    ]);
+          JOIN
+            public.projects p
+            ON p.status IN (
+              'published',
+              'collecting_bids'
+            )
 
-  if (error) {
+          WHERE
+            cc.owner_id = $1
+            AND cc.verification_status =
+              'verified'
+            AND cc.accepts_new_projects =
+              true
+        `,
+        [userId]
+      );
+
+    const count =
+      Number(
+        result.rows[0]
+          ?.count ??
+        0
+      );
+
+    return Number.isFinite(
+      count
+    )
+      ? count
+      : 0;
+  } catch (error) {
     console.error(
       "Ошибка подсчёта проектов:",
       error
@@ -48,6 +66,4 @@ export async function getAvailableProjectsCount() {
 
     return 0;
   }
-
-  return count ?? 0;
 }

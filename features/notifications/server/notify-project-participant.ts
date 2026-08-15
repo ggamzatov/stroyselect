@@ -1,5 +1,10 @@
-import { createClient } from
-  "@/lib/supabase/server";
+import "server-only";
+
+import { db } from
+  "@/lib/db/pool";
+
+import { createNotification } from
+  "@/features/notifications/server/create-notification";
 
 export type ProjectNotificationType =
   | "new_message"
@@ -39,6 +44,16 @@ type Input = {
   contractorUrl?: string | null;
 };
 
+type ProjectRow = {
+  customer_id: string;
+
+  selected_contractor_id:
+    string | null;
+
+  contractor_owner_id:
+    string | null;
+};
+
 export async function notifyProjectParticipant({
   projectId,
   actorUserId,
@@ -48,49 +63,50 @@ export async function notifyProjectParticipant({
   customerUrl,
   contractorUrl,
 }: Input) {
-  const supabase =
-    await createClient();
+  let project:
+    ProjectRow |
+    undefined;
 
-  /*
-   * Получаем заказчика
-   * и выбранную компанию подрядчика.
-   */
-  const {
-    data: project,
-    error: projectError,
-  } = await supabase
-    .from("projects")
-    .select(`
-      id,
-      customer_id,
-      selected_contractor_id
-    `)
-    .eq(
-      "id",
-      projectId
-    )
-    .maybeSingle();
+  try {
+    const result =
+      await db.query<ProjectRow>(
+        `
+          SELECT
+            p.customer_id,
 
-  if (
-    projectError ||
-    !project
-  ) {
+            p.selected_contractor_id,
+
+            cc.owner_id
+              AS contractor_owner_id
+
+          FROM
+            public.projects p
+
+          LEFT JOIN
+            public.contractor_companies cc
+            ON cc.id =
+              p.selected_contractor_id
+
+          WHERE
+            p.id = $1
+
+          LIMIT 1
+        `,
+        [
+          projectId,
+        ]
+      );
+
+    project =
+      result.rows[0];
+  } catch (error) {
     console.error(
       "Ошибка определения проекта для уведомления:",
       {
         projectId,
-
-        message:
-          projectError?.message,
-
-        details:
-          projectError?.details,
-
-        hint:
-          projectError?.hint,
-
-        code:
-          projectError?.code,
+        actorUserId,
+        notificationType,
+        error,
       }
     );
 
@@ -99,63 +115,17 @@ export async function notifyProjectParticipant({
     };
   }
 
-  let contractorUserId:
-    string | null =
-    null;
-
-  /*
-   * selected_contractor_id содержит id
-   * contractor_companies, поэтому отдельно
-   * получаем owner_id.
-   */
-  if (
-    project.selected_contractor_id
-  ) {
-    const {
-      data: company,
-      error: companyError,
-    } = await supabase
-      .from(
-        "contractor_companies"
-      )
-      .select(`
-        id,
-        owner_id
-      `)
-      .eq(
-        "id",
-        project.selected_contractor_id
-      )
-      .maybeSingle();
-
-    if (companyError) {
-      console.error(
-        "Ошибка определения владельца компании:",
-        {
-          projectId,
-
-          message:
-            companyError.message,
-
-          details:
-            companyError.details,
-
-          hint:
-            companyError.hint,
-
-          code:
-            companyError.code,
-        }
-      );
-    }
-
-    contractorUserId =
-      company?.owner_id ??
-      null;
+  if (!project) {
+    return {
+      success: false,
+    };
   }
 
   const customerUserId =
     project.customer_id;
+
+  const contractorUserId =
+    project.contractor_owner_id;
 
   let recipientId:
     string | null =
@@ -167,7 +137,7 @@ export async function notifyProjectParticipant({
 
   /*
    * Событие создал заказчик.
-   * Уведомляем подрядчика.
+   * Уведомляем выбранного подрядчика.
    */
   if (
     actorUserId ===
@@ -182,7 +152,7 @@ export async function notifyProjectParticipant({
   }
 
   /*
-   * Событие создал подрядчик.
+   * Событие создал выбранный подрядчик.
    * Уведомляем заказчика.
    */
   if (
@@ -200,8 +170,7 @@ export async function notifyProjectParticipant({
 
   /*
    * Подрядчик ещё не выбран
-   * или пользователь не является
-   * участником проекта.
+   * или actor не является участником проекта.
    */
   if (!recipientId) {
     return {
@@ -209,10 +178,6 @@ export async function notifyProjectParticipant({
     };
   }
 
-  /*
-   * Защита от уведомления
-   * самому себе.
-   */
   if (
     recipientId ===
     actorUserId
@@ -222,53 +187,47 @@ export async function notifyProjectParticipant({
     };
   }
 
-  const {
-    error: notificationError,
-  } = await supabase
-    .from("notifications")
-    .insert({
-      user_id:
+  const notificationResult =
+    await createNotification({
+      userId:
         recipientId,
 
-      notification_type:
-        notificationType,
+      actorId:
+        actorUserId,
+
+      notificationType,
 
       title:
         title.trim(),
 
       body:
-        body?.trim() ||
-        null,
+        normalizeNullableText(
+          body
+        ),
+
+      projectId,
 
       url:
         destinationUrl,
 
-      is_read:
-        false,
+      metadata: {
+        project_id:
+          projectId,
+      },
     });
 
   if (
-    notificationError
+    !notificationResult.success
   ) {
     console.error(
-      "Ошибка создания уведомления:",
+      "Ошибка создания уведомления участнику проекта:",
       {
         projectId,
         actorUserId,
         recipientId,
         notificationType,
-
         message:
-          notificationError.message,
-
-        details:
-          notificationError.details,
-
-        hint:
-          notificationError.hint,
-
-        code:
-          notificationError.code,
+          notificationResult.message,
       }
     );
 
@@ -280,4 +239,25 @@ export async function notifyProjectParticipant({
   return {
     success: true,
   };
+}
+
+function normalizeNullableText(
+  value:
+    | string
+    | null
+    | undefined
+) {
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    return null;
+  }
+
+  const normalized =
+    value.trim();
+
+  return normalized
+    ? normalized
+    : null;
 }

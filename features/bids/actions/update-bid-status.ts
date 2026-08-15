@@ -1,9 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath } from
+  "next/cache";
 
-import { createClient } from
-  "@/lib/supabase/server";
+import { db } from
+  "@/lib/db/pool";
 
 import { requireActiveUser } from
   "@/lib/auth/require-active-user";
@@ -32,12 +33,41 @@ export type UpdateBidStatusResult = {
   message: string;
 };
 
+type BidRow = {
+  id: string;
+  project_id: string;
+  contractor_id: string;
+  status: string;
+
+  price:
+    string | number;
+
+  duration_days:
+    number;
+};
+
+type ProjectRow = {
+  id: string;
+  title: string;
+  customer_id: string;
+  status: string;
+
+  selected_contractor_id:
+    string | null;
+
+  selected_bid_id:
+    string | null;
+
+  is_admin_blocked:
+    boolean;
+
+  admin_block_reason:
+    string | null;
+};
+
 export async function updateBidStatus(
   input: CustomerBidDecisionInput
 ): Promise<UpdateBidStatusResult> {
-  /*
-   * 1. Проверяем входные данные.
-   */
   const parsed =
     customerBidDecisionSchema.safeParse(
       input
@@ -57,12 +87,9 @@ export async function updateBidStatus(
   const {
     bidId,
     decision,
-  } = parsed.data;
+  } =
+    parsed.data;
 
-  /*
-   * 2. Проверяем активность
-   * учётной записи.
-   */
   const activeUser =
     await requireActiveUser();
 
@@ -77,12 +104,9 @@ export async function updateBidStatus(
   const {
     user,
     profile,
-  } = activeUser;
+  } =
+    activeUser;
 
-  /*
-   * Решения по предложениям
-   * принимает только заказчик.
-   */
   if (
     profile.role !==
     "customer"
@@ -95,60 +119,54 @@ export async function updateBidStatus(
   }
 
   /*
-   * 3. Supabase.
+   * Сначала определяем project_id
+   * предложения.
    */
-  const supabase =
-    await createClient();
+  let initialBid:
+    BidRow |
+    undefined;
 
-  /*
-   * 4. Загружаем предложение.
-   */
-  const {
-    data: bid,
-    error: bidError,
-  } = await supabase
-    .from("project_bids")
-    .select(`
-      id,
-      project_id,
-      contractor_id,
-      status,
-      price,
-      duration_days
-    `)
-    .eq(
-      "id",
-      bidId
-    )
-    .maybeSingle();
+  try {
+    const result =
+      await db.query<BidRow>(
+        `
+          SELECT
+            id,
+            project_id,
+            contractor_id,
+            status,
+            price,
+            duration_days
 
-  if (bidError) {
+          FROM
+            public.project_bids
+
+          WHERE
+            id = $1
+
+          LIMIT 1
+        `,
+        [
+          bidId,
+        ]
+      );
+
+    initialBid =
+      result.rows[0];
+  } catch (error) {
     console.error(
       "Ошибка загрузки предложения:",
-      {
-        message:
-          bidError.message,
-
-        details:
-          bidError.details,
-
-        hint:
-          bidError.hint,
-
-        code:
-          bidError.code,
-      }
+      error
     );
 
     return {
       success: false,
-
       message:
         "Не удалось загрузить предложение",
     };
   }
 
-  if (!bid) {
+  if (!initialBid) {
     return {
       success: false,
       message:
@@ -156,13 +174,9 @@ export async function updateBidStatus(
     };
   }
 
-  /*
-   * 5. Проверяем административную
-   * блокировку проекта.
-   */
   const activeProject =
     await requireActiveProject(
-      bid.project_id
+      initialBid.project_id
     );
 
   if (!activeProject.success) {
@@ -173,432 +187,548 @@ export async function updateBidStatus(
     };
   }
 
-  /*
-   * 6. Проверяем, что проект
-   * принадлежит текущему заказчику.
-   */
-  const {
-    data: project,
-    error: projectError,
-  } = await supabase
-    .from("projects")
-    .select(`
-      id,
-      title,
-      customer_id,
-      status,
-      selected_contractor_id,
-      selected_bid_id
-    `)
-    .eq(
-      "id",
-      bid.project_id
-    )
-    .eq(
-      "customer_id",
-      user.id
-    )
-    .maybeSingle();
+  const client =
+    await db.connect();
 
-  if (projectError) {
-    console.error(
-      "Ошибка загрузки проекта:",
-      {
-        message:
-          projectError.message,
+  let projectId:
+    string;
 
-        details:
-          projectError.details,
-
-        hint:
-          projectError.hint,
-
-        code:
-          projectError.code,
-      }
+  try {
+    await client.query(
+      "BEGIN"
     );
 
-    return {
-      success: false,
-      message:
-        "Не удалось проверить проект",
-    };
-  }
+    const bidResult =
+      await client.query<BidRow>(
+        `
+          SELECT
+            id,
+            project_id,
+            contractor_id,
+            status,
+            price,
+            duration_days
 
-  if (!project) {
-    return {
-      success: false,
+          FROM
+            public.project_bids
 
-      message:
-        "Проект не найден или у вас нет доступа",
-    };
-  }
+          WHERE
+            id = $1
 
-  /*
-   * Дополнительная защита:
-   * проект из helper должен совпасть
-   * с проектом предложения.
-   */
-  if (
-    activeProject.project.id !==
-    project.id
-  ) {
-    return {
-      success: false,
-      message:
-        "Проект предложения не найден",
-    };
-  }
+          LIMIT 1
 
-  /*
-   * 7. Изменять можно только
-   * активные предложения.
-   */
-  const editableStatuses =
-    [
-      "submitted",
-      "viewed",
-      "shortlisted",
-    ];
+          FOR UPDATE
+        `,
+        [
+          bidId,
+        ]
+      );
 
-  if (
-    !editableStatuses.includes(
-      bid.status
-    )
-  ) {
-    return {
-      success: false,
+    const bid =
+      bidResult.rows[0];
 
-      message:
-        "Статус этого предложения уже нельзя изменить",
-    };
-  }
+    if (!bid) {
+      await client.query(
+        "ROLLBACK"
+      );
 
-  const now =
-    new Date().toISOString();
+      return {
+        success: false,
+        message:
+          "Предложение не найдено",
+      };
+    }
 
-  /*
-   * ===================================
-   * ПРИНЯТИЕ ПРЕДЛОЖЕНИЯ
-   * ===================================
-   */
-  if (
-    decision ===
-    "accepted"
-  ) {
-    /*
-     * Подрядчик уже выбран.
-     */
+    const projectResult =
+      await client.query<ProjectRow>(
+        `
+          SELECT
+            id,
+            title,
+            customer_id,
+            status,
+            selected_contractor_id,
+            selected_bid_id,
+            is_admin_blocked,
+            admin_block_reason
+
+          FROM
+            public.projects
+
+          WHERE
+            id = $1
+            AND customer_id = $2
+
+          LIMIT 1
+
+          FOR UPDATE
+        `,
+        [
+          bid.project_id,
+          user.id,
+        ]
+      );
+
+    const project =
+      projectResult.rows[0];
+
+    if (!project) {
+      await client.query(
+        "ROLLBACK"
+      );
+
+      return {
+        success: false,
+        message:
+          "Проект не найден или у вас нет доступа",
+      };
+    }
+
+    projectId =
+      project.id;
+
     if (
-      project.selected_contractor_id
+      activeProject.project.id !==
+      project.id
     ) {
+      await client.query(
+        "ROLLBACK"
+      );
+
+      return {
+        success: false,
+        message:
+          "Проект предложения не найден",
+      };
+    }
+
+    if (
+      project.is_admin_blocked
+    ) {
+      await client.query(
+        "ROLLBACK"
+      );
+
       return {
         success: false,
 
         message:
-          "По этому проекту уже выбран подрядчик",
+          project.admin_block_reason
+            ? `Проект ограничен администрацией. Причина: ${project.admin_block_reason}`
+            : "Проект ограничен администрацией",
       };
     }
 
-    const allowedProjectStatuses =
+    const editableStatuses =
       [
-        "published",
-        "collecting_bids",
+        "submitted",
+        "viewed",
+        "shortlisted",
       ];
 
     if (
-      !allowedProjectStatuses.includes(
-        project.status
+      !editableStatuses.includes(
+        bid.status
       )
     ) {
+      await client.query(
+        "ROLLBACK"
+      );
+
       return {
         success: false,
 
         message:
-          "Текущий статус проекта не позволяет выбрать подрядчика",
+          "Статус этого предложения уже нельзя изменить",
       };
     }
 
     /*
-     * 8. Назначаем подрядчика.
+     * ========================================
+     * ACCEPTED
+     * ========================================
      */
-    const {
-      data: updatedProject,
-      error: assignError,
-    } = await supabase
-      .from("projects")
-      .update({
-        status:
+    if (
+      decision ===
+      "accepted"
+    ) {
+      if (
+        project.selected_contractor_id
+      ) {
+        await client.query(
+          "ROLLBACK"
+        );
+
+        return {
+          success: false,
+          message:
+            "По этому проекту уже выбран подрядчик",
+        };
+      }
+
+      const allowedStatuses =
+        [
+          "published",
+          "collecting_bids",
+        ];
+
+      if (
+        !allowedStatuses.includes(
+          project.status
+        )
+      ) {
+        await client.query(
+          "ROLLBACK"
+        );
+
+        return {
+          success: false,
+          message:
+            "Текущий статус проекта не позволяет выбрать подрядчика",
+        };
+      }
+
+      const projectUpdate =
+        await client.query<{
+          id: string;
+        }>(
+          `
+            UPDATE
+              public.projects
+
+            SET
+              status =
+                'contractor_selected',
+
+              selected_contractor_id =
+                $1,
+
+              selected_bid_id =
+                $2,
+
+              contractor_selected_at =
+                now(),
+
+              updated_at =
+                now()
+
+            WHERE
+              id = $3
+
+              AND customer_id =
+                $4
+
+              AND selected_contractor_id
+                IS NULL
+
+              AND is_admin_blocked =
+                false
+
+            RETURNING
+              id
+          `,
+          [
+            bid.contractor_id,
+            bid.id,
+            project.id,
+            user.id,
+          ]
+        );
+
+      if (
+        !projectUpdate.rows[0]
+      ) {
+        throw new Error(
+          "Не удалось назначить подрядчика"
+        );
+      }
+
+      const acceptedUpdate =
+        await client.query<{
+          id: string;
+        }>(
+          `
+            UPDATE
+              public.project_bids
+
+            SET
+              status =
+                'accepted',
+
+              updated_at =
+                now()
+
+            WHERE
+              id = $1
+
+              AND project_id =
+                $2
+
+            RETURNING
+              id
+          `,
+          [
+            bid.id,
+            project.id,
+          ]
+        );
+
+      if (
+        !acceptedUpdate.rows[0]
+      ) {
+        throw new Error(
+          "Не удалось принять предложение"
+        );
+      }
+
+      await client.query(
+        `
+          UPDATE
+            public.project_bids
+
+          SET
+            status =
+              'rejected',
+
+            updated_at =
+              now()
+
+          WHERE
+            project_id = $1
+
+            AND id <> $2
+
+            AND status IN (
+              'submitted',
+              'viewed',
+              'shortlisted'
+            )
+        `,
+        [
+          project.id,
+          bid.id,
+        ]
+      );
+
+      await client.query(
+        `
+          INSERT INTO
+            public.project_events (
+              project_id,
+              author_id,
+              event_type,
+              title,
+              description,
+              metadata
+            )
+          VALUES (
+            $1,
+            $2,
+            $3,
+            $4,
+            $5,
+            $6::jsonb
+          )
+        `,
+        [
+          project.id,
+
+          user.id,
+
           "contractor_selected",
 
-        selected_contractor_id:
-          bid.contractor_id,
+          "Подрядчик выбран",
 
-        selected_bid_id:
-          bid.id,
+          "Заказчик принял предложение подрядчика",
 
-        contractor_selected_at:
-          now,
+          JSON.stringify({
+            bid_id:
+              bid.id,
 
-        updated_at:
-          now,
-      })
-      .eq(
-        "id",
-        project.id
-      )
-      .eq(
-        "customer_id",
-        user.id
-      )
-      .is(
-        "selected_contractor_id",
-        null
-      )
-      /*
-       * Защита от гонки:
-       * проект должен оставаться
-       * административно активным
-       * на момент UPDATE.
-       */
-      .eq(
-        "is_admin_blocked",
-        false
-      )
-      .select(`
-        id,
-        status,
-        selected_contractor_id
-      `)
-      .maybeSingle();
+            contractor_id:
+              bid.contractor_id,
 
-    if (
-      assignError ||
-      !updatedProject
-    ) {
-      console.error(
-        "Ошибка назначения подрядчика:",
-        {
-          message:
-            assignError?.message,
+            selected_at:
+              new Date()
+                .toISOString(),
 
-          details:
-            assignError?.details,
+            price:
+              bid.price,
 
-          hint:
-            assignError?.hint,
+            duration_days:
+              bid.duration_days,
+          }),
+        ]
+      );
 
-          code:
-            assignError?.code,
+      await client.query(
+        "COMMIT"
+      );
+
+      try {
+        const notificationResult =
+          await notifyContractorBidAccepted({
+            projectId:
+              project.id,
+
+            bidId:
+              bid.id,
+
+            customerId:
+              user.id,
+          });
+
+        if (
+          !notificationResult.success
+        ) {
+          console.error(
+            "Не удалось уведомить выбранного подрядчика:",
+            notificationResult.message
+          );
         }
+      } catch (error) {
+        console.error(
+          "Непредвиденная ошибка уведомления выбранного подрядчика:",
+          error
+        );
+      }
+
+      revalidateBidPaths(
+        project.id
       );
 
       return {
-        success: false,
-
+        success: true,
         message:
-          assignError?.message ??
-          "Не удалось назначить подрядчика",
+          "Предложение принято. Подрядчик назначен на проект.",
       };
     }
 
     /*
-     * 9. Принимаем выбранное предложение.
+     * ========================================
+     * VIEWED / SHORTLISTED / REJECTED
+     * ========================================
      */
-    const {
-      error: acceptedBidError,
-    } = await supabase
-      .from("project_bids")
-      .update({
-        status:
-          "accepted",
 
-        updated_at:
-          now,
-      })
-      .eq(
-        "id",
-        bid.id
-      )
-      .eq(
-        "project_id",
-        project.id
-      );
+    const updateResult =
+      await client.query<{
+        id: string;
+      }>(
+        `
+          UPDATE
+            public.project_bids
 
-    if (
-      acceptedBidError
-    ) {
-      console.error(
-        "Ошибка принятия предложения:",
-        {
-          message:
-            acceptedBidError.message,
+          SET
+            status = $1,
+            updated_at = now()
 
-          details:
-            acceptedBidError.details,
+          WHERE
+            id = $2
+            AND project_id = $3
 
-          hint:
-            acceptedBidError.hint,
-
-          code:
-            acceptedBidError.code,
-        }
-      );
-
-      return {
-        success: false,
-
-        message:
-          "Подрядчик назначен, но не удалось обновить статус предложения",
-      };
-    }
-
-    /*
-     * 10. Отклоняем остальные
-     * активные предложения.
-     */
-    const {
-      error:
-        rejectOthersError,
-    } = await supabase
-      .from("project_bids")
-      .update({
-        status:
-          "rejected",
-
-        updated_at:
-          now,
-      })
-      .eq(
-        "project_id",
-        project.id
-      )
-      .neq(
-        "id",
-        bid.id
-      )
-      .in(
-        "status",
+          RETURNING
+            id
+        `,
         [
-          "submitted",
-          "viewed",
-          "shortlisted",
+          decision,
+          bid.id,
+          project.id,
         ]
       );
 
     if (
-      rejectOthersError
+      !updateResult.rows[0]
     ) {
-      console.error(
-        "Ошибка отклонения остальных предложений:",
-        {
-          message:
-            rejectOthersError.message,
-
-          details:
-            rejectOthersError.details,
-
-          hint:
-            rejectOthersError.hint,
-
-          code:
-            rejectOthersError.code,
-        }
+      throw new Error(
+        "Предложение не было обновлено"
       );
     }
 
-    /*
-     * 11. История проекта.
-     */
-    const {
-      error: eventError,
-    } = await supabase
-      .from("project_events")
-      .insert({
-        project_id:
+    if (
+      decision ===
+      "rejected"
+    ) {
+      await client.query(
+        `
+          INSERT INTO
+            public.project_events (
+              project_id,
+              author_id,
+              event_type,
+              title,
+              description,
+              metadata
+            )
+          VALUES (
+            $1,
+            $2,
+            $3,
+            $4,
+            $5,
+            $6::jsonb
+          )
+        `,
+        [
           project.id,
 
-        author_id:
           user.id,
 
-        event_type:
-          "contractor_selected",
+          "bid_rejected",
 
-        title:
-          "Подрядчик выбран",
+          "Предложение отклонено",
 
-        description:
-          "Заказчик принял предложение подрядчика",
+          "Заказчик отклонил предложение подрядчика",
 
-        metadata: {
-          bid_id:
-            bid.id,
+          JSON.stringify({
+            bid_id:
+              bid.id,
 
-          contractor_id:
-            bid.contractor_id,
+            contractor_id:
+              bid.contractor_id,
 
-          selected_at:
-            now,
-
-          price:
-            bid.price,
-
-          duration_days:
-            bid.duration_days,
-        },
-      });
-
-    if (eventError) {
-      console.error(
-        "Ошибка создания события выбора подрядчика:",
-        {
-          message:
-            eventError.message,
-
-          details:
-            eventError.details,
-
-          hint:
-            eventError.hint,
-
-          code:
-            eventError.code,
-        }
+            rejected_at:
+              new Date()
+                .toISOString(),
+          }),
+        ]
       );
     }
 
-    /*
-     * 12. Уведомляем выбранного
-     * подрядчика.
-     */
-    try {
-      const notificationResult =
-        await notifyContractorBidAccepted({
-          projectId:
-            project.id,
+    await client.query(
+      "COMMIT"
+    );
 
-          bidId:
-            bid.id,
+    if (
+      decision ===
+      "rejected"
+    ) {
+      try {
+        const notificationResult =
+          await notifyContractorBidRejected({
+            projectId:
+              project.id,
 
-          customerId:
-            user.id,
-        });
+            bidId:
+              bid.id,
 
-      if (
-        !notificationResult.success
-      ) {
+            customerId:
+              user.id,
+          });
+
+        if (
+          !notificationResult.success
+        ) {
+          console.error(
+            "Не удалось уведомить подрядчика об отклонении:",
+            notificationResult.message
+          );
+        }
+      } catch (error) {
         console.error(
-          "Не удалось уведомить выбранного подрядчика:",
-          notificationResult.message
+          "Непредвиденная ошибка уведомления об отклонении предложения:",
+          error
         );
       }
-    } catch (
-      notificationError
-    ) {
-      console.error(
-        "Непредвиденная ошибка уведомления выбранного подрядчика:",
-        notificationError
-      );
     }
 
     revalidateBidPaths(
@@ -607,211 +737,34 @@ export async function updateBidStatus(
 
     return {
       success: true,
-
       message:
-        "Предложение принято. Подрядчик назначен на проект.",
+        getDecisionMessage(
+          decision
+        ),
     };
-  }
-
-  /*
-   * ===================================
-   * VIEWED / SHORTLISTED / REJECTED
-   * ===================================
-   */
-
-  /*
-   * Повторно проверяем административную
-   * блокировку непосредственно перед
-   * изменением предложения.
-   *
-   * Это уменьшает окно гонки между
-   * первой проверкой и UPDATE.
-   */
-  const latestProjectCheck =
-    await requireActiveProject(
-      project.id
+  } catch (error) {
+    await client.query(
+      "ROLLBACK"
     );
 
-  if (
-    !latestProjectCheck.success
-  ) {
-    return {
-      success: false,
-      message:
-        latestProjectCheck.message,
-    };
-  }
-
-  const {
-    error: updateError,
-  } = await supabase
-    .from("project_bids")
-    .update({
-      status:
-        decision,
-
-      updated_at:
-        now,
-    })
-    .eq(
-      "id",
-      bid.id
-    )
-    .eq(
-      "project_id",
-      project.id
-    );
-
-  if (updateError) {
     console.error(
       "Ошибка изменения статуса предложения:",
-      {
-        message:
-          updateError.message,
-
-        details:
-          updateError.details,
-
-        hint:
-          updateError.hint,
-
-        code:
-          updateError.code,
-      }
+      error
     );
 
     return {
       success: false,
-
       message:
         "Не удалось изменить статус предложения",
     };
+  } finally {
+    client.release();
   }
-
-  /*
-   * Если заказчик отклонил
-   * конкретное предложение —
-   * уведомляем подрядчика.
-   */
-  if (
-    decision ===
-    "rejected"
-  ) {
-    try {
-      const notificationResult =
-        await notifyContractorBidRejected({
-          projectId:
-            project.id,
-
-          bidId:
-            bid.id,
-
-          customerId:
-            user.id,
-        });
-
-      if (
-        !notificationResult.success
-      ) {
-        console.error(
-          "Не удалось уведомить подрядчика об отклонении:",
-          notificationResult.message
-        );
-      }
-    } catch (
-      notificationError
-    ) {
-      console.error(
-        "Непредвиденная ошибка уведомления об отклонении предложения:",
-        notificationError
-      );
-    }
-
-    /*
-     * Добавляем событие
-     * в историю проекта.
-     */
-    const {
-      error: rejectEventError,
-    } = await supabase
-      .from("project_events")
-      .insert({
-        project_id:
-          project.id,
-
-        author_id:
-          user.id,
-
-        event_type:
-          "bid_rejected",
-
-        title:
-          "Предложение отклонено",
-
-        description:
-          "Заказчик отклонил предложение подрядчика",
-
-        metadata: {
-          bid_id:
-            bid.id,
-
-          contractor_id:
-            bid.contractor_id,
-
-          rejected_at:
-            now,
-        },
-      });
-
-    if (
-      rejectEventError
-    ) {
-      console.error(
-        "Ошибка создания события отклонения предложения:",
-        {
-          message:
-            rejectEventError.message,
-
-          details:
-            rejectEventError.details,
-
-          hint:
-            rejectEventError.hint,
-
-          code:
-            rejectEventError.code,
-        }
-      );
-    }
-  }
-
-  /*
-   * Для viewed и shortlisted
-   * отдельные уведомления
-   * подрядчику не создаём,
-   * чтобы не создавать лишний шум.
-   */
-
-  revalidateBidPaths(
-    project.id
-  );
-
-  return {
-    success: true,
-
-    message:
-      getDecisionMessage(
-        decision
-      ),
-  };
 }
 
 function revalidateBidPaths(
   projectId: string
 ) {
-  /*
-   * Заказчик.
-   */
   revalidatePath(
     "/customer/dashboard"
   );
@@ -832,9 +785,6 @@ function revalidateBidPaths(
     "/customer/projects"
   );
 
-  /*
-   * Подрядчик.
-   */
   revalidatePath(
     "/contractor/dashboard"
   );
@@ -855,9 +805,6 @@ function revalidateBidPaths(
     `/contractor/work/${projectId}`
   );
 
-  /*
-   * Header + колокольчик.
-   */
   revalidatePath(
     "/customer",
     "layout"
@@ -876,9 +823,7 @@ function getDecisionMessage(
     | "accepted"
     | "rejected"
 ) {
-  switch (
-    decision
-  ) {
+  switch (decision) {
     case "viewed":
       return (
         "Предложение отмечено как просмотренное"

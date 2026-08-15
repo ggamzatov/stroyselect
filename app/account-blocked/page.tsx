@@ -7,57 +7,65 @@ import {
   ShieldAlert,
 } from "lucide-react";
 
-import { createClient } from
-  "@/lib/supabase/server";
+import { db } from "@/lib/db/pool";
+import {
+  getCurrentSessionUserId,
+} from "@/lib/auth/session";
 
 import { LogoutButton } from
   "@/features/auth/components/logout-button";
 
+type BlockedProfileRow = {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  role: string;
+  is_blocked: boolean;
+  is_active: boolean;
+};
+
 export default async function AccountBlockedPage() {
-  const supabase =
-    await createClient();
+  const userId =
+    await getCurrentSessionUserId();
 
-  const {
-    data: { user },
-  } =
-    await supabase.auth.getUser();
-
-  if (!user) {
+  if (!userId) {
     redirect("/login");
   }
 
-  const {
-    data: profile,
-    error,
-  } = await supabase
-    .from("profiles")
-    .select(`
-      id,
-      first_name,
-      last_name,
-      role,
-      is_blocked
-    `)
-    .eq(
-      "id",
-      user.id
-    )
-    .maybeSingle();
+  const result =
+    await db.query<BlockedProfileRow>(
+      `
+        SELECT
+          p.id,
+          p.first_name,
+          p.last_name,
+          p.role,
+          p.is_blocked,
+          u.is_active
+        FROM public.profiles p
+        JOIN public.users u
+          ON u.id = p.id
+        WHERE p.id = $1
+        LIMIT 1
+      `,
+      [userId]
+    );
 
-  if (
-    error ||
-    !profile
-  ) {
+  const profile =
+    result.rows[0];
+
+  if (!profile) {
     redirect("/login");
   }
 
   /*
-   * Если аккаунт уже восстановлен,
-   * возвращаем пользователя
+   * Если администрация восстановила
+   * аккаунт, возвращаем пользователя
    * в обычную маршрутизацию.
    */
   if (
-    !profile.is_blocked
+    !profile.is_blocked &&
+    profile.is_active
   ) {
     redirect("/dashboard");
   }

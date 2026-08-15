@@ -1,12 +1,14 @@
 "use server";
 
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { redirect } from
+  "next/navigation";
+
+import {
+  destroyCurrentSession,
+} from "@/lib/auth/session";
 
 export async function logoutUser() {
-  const supabase = await createClient();
+  await destroyCurrentSession();
 
-  await supabase.auth.signOut();
-
-  redirect("/");
+  redirect("/login");
 }

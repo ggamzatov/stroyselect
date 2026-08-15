@@ -1,7 +1,7 @@
 import "server-only";
 
-import { createAdminClient } from
-  "@/lib/supabase/admin";
+import { db } from
+  "@/lib/db/pool";
 
 import { createNotification } from
   "@/features/notifications/server/create-notification";
@@ -20,6 +20,44 @@ type NotifyContractorBidAcceptedResult = {
   duplicated?: boolean;
 };
 
+type AcceptedBidRow = {
+  id: string;
+  project_id: string;
+  contractor_id: string;
+
+  price:
+    string | number;
+
+  duration_days:
+    number;
+
+  proposed_start_date:
+    Date | string | null;
+
+  status: string;
+
+  company_id:
+    string;
+
+  company_owner_id:
+    string;
+
+  company_public_name:
+    string | null;
+
+  project_customer_id:
+    string;
+
+  project_title:
+    string;
+
+  project_city:
+    string | null;
+
+  project_status:
+    string;
+};
+
 export async function notifyContractorBidAccepted({
   projectId,
   bidId,
@@ -27,94 +65,94 @@ export async function notifyContractorBidAccepted({
 }: NotifyContractorBidAcceptedInput): Promise<
   NotifyContractorBidAcceptedResult
 > {
-  const supabase =
-    createAdminClient();
+  let bid:
+    AcceptedBidRow |
+    undefined;
 
-  /*
-   * Загружаем проект и принятое предложение.
-   */
-  const {
-    data: bid,
-    error: bidError,
-  } = await supabase
-    .from("project_bids")
-    .select(`
-      id,
-      project_id,
-      contractor_id,
-      price,
-      duration_days,
-      proposed_start_date,
-      status,
+  try {
+    const result =
+      await db.query<AcceptedBidRow>(
+        `
+          SELECT
+            pb.id,
+            pb.project_id,
+            pb.contractor_id,
+            pb.price,
+            pb.duration_days,
+            pb.proposed_start_date,
+            pb.status,
 
-      company:contractor_companies!project_bids_contractor_id_fkey (
-        id,
-        owner_id,
-        public_name
-      ),
+            cc.id
+              AS company_id,
 
-      project:projects!project_bids_project_id_fkey (
-        id,
-        customer_id,
-        title,
-        city,
-        status
-      )
-    `)
-    .eq("id", bidId)
-    .eq("project_id", projectId)
-    .maybeSingle();
+            cc.owner_id
+              AS company_owner_id,
 
-  if (
-    bidError ||
-    !bid
-  ) {
+            cc.public_name
+              AS company_public_name,
+
+            p.customer_id
+              AS project_customer_id,
+
+            p.title
+              AS project_title,
+
+            p.city
+              AS project_city,
+
+            p.status
+              AS project_status
+
+          FROM
+            public.project_bids pb
+
+          JOIN
+            public.contractor_companies cc
+            ON cc.id =
+              pb.contractor_id
+
+          JOIN
+            public.projects p
+            ON p.id =
+              pb.project_id
+
+          WHERE
+            pb.id = $1
+            AND pb.project_id = $2
+
+          LIMIT 1
+        `,
+        [
+          bidId,
+          projectId,
+        ]
+      );
+
+    bid =
+      result.rows[0];
+  } catch (error) {
     console.error(
       "Ошибка загрузки принятого предложения для уведомления:",
-      bidError
+      error
     );
 
     return {
       success: false,
       message:
-        bidError?.message ??
+        "Не удалось загрузить принятое предложение",
+    };
+  }
+
+  if (!bid) {
+    return {
+      success: false,
+      message:
         "Принятое предложение не найдено",
     };
   }
 
-  const company =
-    normalizeRelation(
-      bid.company
-    );
-
-  const project =
-    normalizeRelation(
-      bid.project
-    );
-
-  if (!company) {
-    return {
-      success: false,
-      message:
-        "Компания подрядчика не найдена",
-    };
-  }
-
-  if (!project) {
-    return {
-      success: false,
-      message:
-        "Проект не найден",
-    };
-  }
-
-  /*
-   * Дополнительная защита:
-   * уведомление может отправить только
-   * заказчик этого проекта.
-   */
   if (
-    project.customer_id !==
+    bid.project_customer_id !==
     customerId
   ) {
     return {
@@ -124,7 +162,9 @@ export async function notifyContractorBidAccepted({
     };
   }
 
-  if (!company.owner_id) {
+  if (
+    !bid.company_owner_id
+  ) {
     return {
       success: false,
       message:
@@ -135,7 +175,7 @@ export async function notifyContractorBidAccepted({
   const result =
     await createNotification({
       userId:
-        company.owner_id,
+        bid.company_owner_id,
 
       actorId:
         customerId,
@@ -147,29 +187,29 @@ export async function notifyContractorBidAccepted({
         "Ваше предложение принято",
 
       body:
-        `Заказчик выбрал вас подрядчиком по проекту «${project.title}»`,
+        `Заказчик выбрал вас подрядчиком по проекту «${bid.project_title}»`,
 
       projectId:
-        project.id,
+        bid.project_id,
 
       url:
-        `/contractor/work/${project.id}`,
+        `/contractor/work/${bid.project_id}`,
 
       deduplicationKey:
-        `bid-accepted:${bid.id}:user:${company.owner_id}`,
+        `bid-accepted:${bid.id}:user:${bid.company_owner_id}`,
 
       metadata: {
         bid_id:
           bid.id,
 
         project_title:
-          project.title,
+          bid.project_title,
 
         contractor_company_id:
-          company.id,
+          bid.company_id,
 
         contractor_company_name:
-          company.public_name,
+          bid.company_public_name,
 
         price:
           bid.price,
@@ -193,7 +233,7 @@ export async function notifyContractorBidAccepted({
       message:
         result.message,
       contractorUserId:
-        company.owner_id,
+        bid.company_owner_id,
     };
   }
 
@@ -206,7 +246,7 @@ export async function notifyContractorBidAccepted({
         : "Подрядчик уведомлён о принятии предложения",
 
     contractorUserId:
-      company.owner_id,
+      bid.company_owner_id,
 
     notificationId:
       result.notificationId,
@@ -214,31 +254,4 @@ export async function notifyContractorBidAccepted({
     duplicated:
       result.duplicated,
   };
-}
-
-type CompanyRelation = {
-  id: string;
-  owner_id: string;
-  public_name: string | null;
-};
-
-type ProjectRelation = {
-  id: string;
-  customer_id: string;
-  title: string;
-  city: string | null;
-  status: string;
-};
-
-function normalizeRelation<T>(
-  value:
-    | T
-    | T[]
-    | null
-): T | null {
-  if (Array.isArray(value)) {
-    return value[0] ?? null;
-  }
-
-  return value;
 }

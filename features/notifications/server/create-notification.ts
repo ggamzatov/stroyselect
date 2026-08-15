@@ -2,105 +2,104 @@ import "server-only";
 
 import { z } from "zod";
 
-import { createAdminClient } from
-  "@/lib/supabase/admin";
+import { db } from
+  "@/lib/db/pool";
 
 const notificationSchema =
   z.object({
-    userId: z
-      .string()
-      .uuid(
+    userId:
+      z.string().uuid(
         "Некорректный идентификатор получателя"
       ),
 
-    actorId: z
-      .string()
-      .uuid(
-        "Некорректный идентификатор инициатора"
-      )
-      .nullable()
-      .optional(),
+    actorId:
+      z.string()
+        .uuid(
+          "Некорректный идентификатор инициатора"
+        )
+        .nullable()
+        .optional(),
 
-    notificationType: z
-      .string()
-      .trim()
-      .min(
-        1,
-        "Тип уведомления обязателен"
-      )
-      .max(
-        100,
-        "Тип уведомления слишком длинный"
-      ),
+    notificationType:
+      z.string()
+        .trim()
+        .min(
+          1,
+          "Тип уведомления обязателен"
+        )
+        .max(
+          100,
+          "Тип уведомления слишком длинный"
+        ),
 
-    title: z
-      .string()
-      .trim()
-      .min(
-        1,
-        "Заголовок уведомления обязателен"
-      )
-      .max(
-        200,
-        "Заголовок уведомления слишком длинный"
-      ),
+    title:
+      z.string()
+        .trim()
+        .min(
+          1,
+          "Заголовок уведомления обязателен"
+        )
+        .max(
+          200,
+          "Заголовок уведомления слишком длинный"
+        ),
 
-    body: z
-      .string()
-      .trim()
-      .max(
-        2000,
-        "Текст уведомления слишком длинный"
-      )
-      .nullable()
-      .optional(),
+    body:
+      z.string()
+        .trim()
+        .max(
+          2000,
+          "Текст уведомления слишком длинный"
+        )
+        .nullable()
+        .optional(),
 
-    projectId: z
-      .string()
-      .uuid(
-        "Некорректный идентификатор проекта"
-      )
-      .nullable()
-      .optional(),
+    projectId:
+      z.string()
+        .uuid(
+          "Некорректный идентификатор проекта"
+        )
+        .nullable()
+        .optional(),
 
-    messageId: z
-      .string()
-      .uuid(
-        "Некорректный идентификатор сообщения"
-      )
-      .nullable()
-      .optional(),
+    messageId:
+      z.string()
+        .uuid(
+          "Некорректный идентификатор сообщения"
+        )
+        .nullable()
+        .optional(),
 
-    url: z
-      .string()
-      .trim()
-      .max(
-        1000,
-        "Ссылка уведомления слишком длинная"
-      )
-      .nullable()
-      .optional(),
+    url:
+      z.string()
+        .trim()
+        .max(
+          1000,
+          "Ссылка уведомления слишком длинная"
+        )
+        .nullable()
+        .optional(),
 
-    metadata: z
-      .record(
+    metadata:
+      z.record(
         z.string(),
         z.unknown()
       )
-      .optional(),
+        .optional(),
 
-    deduplicationKey: z
-      .string()
-      .trim()
-      .min(
-        1,
-        "Ключ дедупликации не может быть пустым"
-      )
-      .max(
-        300,
-        "Ключ дедупликации слишком длинный"
-      )
-      .nullable()
-      .optional(),
+    deduplicationKey:
+      z.string()
+        .trim()
+        .min(
+          1,
+          "Ключ дедупликации не может быть пустым"
+        )
+        .max(
+          300,
+          "Ключ дедупликации слишком длинный"
+        )
+        .nullable()
+        .optional(),
   });
 
 export type CreateNotificationInput =
@@ -113,6 +112,14 @@ export type CreateNotificationResult = {
   message: string;
   notificationId?: string;
   duplicated?: boolean;
+};
+
+type NotificationRow = {
+  id: string;
+};
+
+type PostgresError = Error & {
+  code?: string;
 };
 
 export async function createNotification(
@@ -141,11 +148,6 @@ export async function createNotification(
   const values =
     parsed.data;
 
-  /*
-   * Не создаём уведомление,
-   * если пользователь является
-   * одновременно инициатором и получателем.
-   */
   if (
     values.actorId &&
     values.actorId ===
@@ -158,84 +160,110 @@ export async function createNotification(
     };
   }
 
-  const supabase =
-    createAdminClient();
+  try {
+    const result =
+      await db.query<NotificationRow>(
+        `
+          INSERT INTO
+            public.notifications (
+              user_id,
+              actor_id,
+              notification_type,
+              title,
+              body,
+              project_id,
+              message_id,
+              url,
+              metadata,
+              deduplication_key
+            )
+          VALUES (
+            $1,
+            $2,
+            $3,
+            $4,
+            $5,
+            $6,
+            $7,
+            $8,
+            $9::jsonb,
+            $10
+          )
+          RETURNING
+            id
+        `,
+        [
+          values.userId,
 
-  const {
-    data: notification,
-    error,
-  } = await supabase
-    .from("notifications")
-    .insert({
-      user_id:
-        values.userId,
+          values.actorId ??
+            null,
 
-      actor_id:
-        values.actorId ??
-        null,
+          values.notificationType,
 
-      notification_type:
-        values.notificationType,
+          values.title,
 
-      title:
-        values.title,
+          normalizeNullableText(
+            values.body
+          ),
 
-      body:
-        normalizeNullableText(
-          values.body
-        ),
+          values.projectId ??
+            null,
 
-      project_id:
-        values.projectId ??
-        null,
+          values.messageId ??
+            null,
 
-      message_id:
-        values.messageId ??
-        null,
+          normalizeNullableText(
+            values.url
+          ),
 
-      url:
-        normalizeNullableText(
-          values.url
-        ),
+          JSON.stringify(
+            values.metadata ??
+              {}
+          ),
 
-      metadata:
-        values.metadata ??
-        {},
+          normalizeNullableText(
+            values.deduplicationKey
+          ),
+        ]
+      );
 
-      deduplication_key:
-        normalizeNullableText(
-          values.deduplicationKey
-        ),
-    })
-    .select(`
-      id,
-      deduplication_key
-    `)
-    .single();
+    const notification =
+      result.rows[0];
 
-  /*
-   * Ошибка 23505 означает, что запись
-   * с таким deduplication_key уже есть.
-   *
-   * Это не считается ошибкой бизнес-логики:
-   * уведомление уже было отправлено.
-   */
-  if (
-    error?.code === "23505"
-  ) {
+    if (!notification) {
+      return {
+        success: false,
+        message:
+          "Не удалось создать уведомление",
+      };
+    }
+
     return {
       success: true,
       message:
-        "Такое уведомление уже существует",
+        "Уведомление создано",
+      notificationId:
+        notification.id,
       duplicated:
-        true,
+        false,
     };
-  }
+  } catch (error) {
+    const postgresError =
+      error as PostgresError;
 
-  if (
-    error ||
-    !notification
-  ) {
+    if (
+      postgresError.code ===
+      "23505"
+    ) {
+      return {
+        success: true,
+        message:
+          "Такое уведомление уже существует",
+        duplicated:
+          true,
+      };
+    }
+
     console.error(
       "Ошибка создания уведомления:",
       {
@@ -244,22 +272,22 @@ export async function createNotification(
 
         actorId:
           values.actorId ??
-          null,
+            null,
 
         notificationType:
           values.notificationType,
 
         projectId:
           values.projectId ??
-          null,
+            null,
 
         messageId:
           values.messageId ??
-          null,
+            null,
 
         deduplicationKey:
           values.deduplicationKey ??
-          null,
+            null,
 
         error,
       }
@@ -268,20 +296,11 @@ export async function createNotification(
     return {
       success: false,
       message:
-        error?.message ??
-        "Не удалось создать уведомление",
+        error instanceof Error
+          ? error.message
+          : "Не удалось создать уведомление",
     };
   }
-
-  return {
-    success: true,
-    message:
-      "Уведомление создано",
-    notificationId:
-      notification.id,
-    duplicated:
-      false,
-  };
 }
 
 function normalizeNullableText(

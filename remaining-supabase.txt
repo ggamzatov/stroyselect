@@ -1,0 +1,494 @@
+app/account-blocked/page.tsx:11:  "@/lib/supabase/server";
+app/account-blocked/page.tsx:17:  const supabase =
+app/account-blocked/page.tsx:18:    await createClient();
+app/account-blocked/page.tsx:23:    await supabase.auth.getUser();
+app/account-blocked/page.tsx:32:  } = await supabase
+app/auth/callback/route.ts:3:import { createClient } from "@/lib/supabase/server";
+app/auth/callback/route.ts:11:    const supabase = await createClient();
+app/auth/callback/route.ts:12:    await supabase.auth.exchangeCodeForSession(code);
+app/admin/projects/[id]/page.tsx:21:  "@/lib/supabase/server";
+app/admin/projects/[id]/page.tsx:35:  const supabase =
+app/admin/projects/[id]/page.tsx:36:    await createClient();
+app/admin/projects/[id]/page.tsx:41:  } = await supabase
+app/admin/projects/[id]/page.tsx:96:  } = await supabase
+app/admin/projects/[id]/page.tsx:119:      ? await supabase
+app/admin/projects/[id]/page.tsx:147:  } = await supabase
+app/admin/projects/[id]/page.tsx:178:  } = await supabase
+app/admin/projects/page.tsx:17:  "@/lib/supabase/server";
+app/admin/projects/page.tsx:60:  const supabase =
+app/admin/projects/page.tsx:61:    await createClient();
+app/admin/projects/page.tsx:67:    supabase
+app/admin/projects/page.tsx:173:      ? await supabase
+app/admin/projects/page.tsx:224:      ? await supabase
+app/admin/projects/page.tsx:285:      supabase
+app/admin/dashboard/page.tsx:14:  "@/lib/supabase/server";
+app/admin/dashboard/page.tsx:20:  const supabase =
+app/admin/dashboard/page.tsx:21:    await createClient();
+app/admin/dashboard/page.tsx:30:      supabase
+app/admin/dashboard/page.tsx:43:      supabase
+app/admin/dashboard/page.tsx:56:      supabase
+app/admin/dashboard/page.tsx:69:      supabase
+app/admin/users/[id]/page.tsx:19:  "@/lib/supabase/server";
+app/admin/users/[id]/page.tsx:33:  const supabase =
+app/admin/users/[id]/page.tsx:34:    await createClient();
+app/admin/users/[id]/page.tsx:39:} = await supabase
+app/admin/users/[id]/page.tsx:82:      ? await supabase
+app/admin/users/[id]/page.tsx:121:      ? await supabase
+app/admin/users/[id]/page.tsx:155:      ? await supabase
+app/admin/users/page.tsx:13:  "@/lib/supabase/server";
+app/admin/users/page.tsx:53:  const supabase =
+app/admin/users/page.tsx:54:    await createClient();
+app/admin/users/page.tsx:60:    supabase
+app/admin/users/page.tsx:162:      supabase
+features/chat/queries/get-project-messages.ts:2:  "@/lib/supabase/server";
+features/chat/queries/get-project-messages.ts:7:  const supabase =
+features/chat/queries/get-project-messages.ts:8:    await createClient();
+features/chat/queries/get-project-messages.ts:13:  } = await supabase.auth.getUser();
+features/chat/queries/get-project-messages.ts:29:    supabase
+features/chat/queries/get-project-messages.ts:69:    supabase
+features/chat/queries/get-project-messages.ts:159:    } = await supabase
+features/chat/queries/get-project-messages.ts:231:    } = await supabase.storage
+features/chat/schemas/queries/get-project-messages.ts:2:  "@/lib/supabase/server";
+features/chat/schemas/queries/get-project-messages.ts:7:  const supabase =
+features/chat/schemas/queries/get-project-messages.ts:8:    await createClient();
+features/chat/schemas/queries/get-project-messages.ts:14:    await supabase.auth.getUser();
+features/chat/schemas/queries/get-project-messages.ts:26:    supabase
+features/chat/schemas/queries/get-project-messages.ts:49:    supabase
+features/chat/schemas/actions/send-project-message.ts:6:  "@/lib/supabase/server";
+features/chat/schemas/actions/send-project-message.ts:38:  const supabase =
+features/chat/schemas/actions/send-project-message.ts:39:    await createClient();
+features/chat/schemas/actions/send-project-message.ts:45:    await supabase.auth.getUser();
+features/chat/schemas/actions/send-project-message.ts:63:  } = await supabase
+features/chat/schemas/actions/send-project-message.ts:90:    } = await supabase
+features/chat/schemas/actions/send-project-message.ts:117:    } = await supabase
+features/chat/schemas/actions/send-project-message.ts:139:  } = await supabase
+features/chat/hooks/use-project-chat.ts:15:  "@/lib/supabase/client";
+features/chat/hooks/use-project-chat.ts:49:  const supabase = useMemo(
+features/chat/hooks/use-project-chat.ts:50:    () => createClient(),
+features/chat/hooks/use-project-chat.ts:82:        typeof supabase.channel
+features/chat/hooks/use-project-chat.ts:323:      supabase
+features/chat/hooks/use-project-chat.ts:382:      supabase
+features/chat/hooks/use-project-chat.ts:438:      supabase
+features/chat/hooks/use-project-chat.ts:529:      void supabase.removeChannel(
+features/chat/hooks/use-project-chat.ts:533:      void supabase.removeChannel(
+features/chat/hooks/use-project-chat.ts:537:      void supabase.removeChannel(
+features/chat/hooks/use-project-chat.ts:545:    supabase,
+features/chat/actions/mark-project-messages-read.ts:7:  "@/lib/supabase/server";
+features/chat/actions/mark-project-messages-read.ts:43:  const supabase = await createClient();
+features/chat/actions/mark-project-messages-read.ts:48:  } = await supabase.auth.getUser();
+features/chat/actions/mark-project-messages-read.ts:70:  } = await supabase
+features/chat/actions/mark-project-messages-read.ts:100:  } = await supabase
+features/chat/actions/edit-project-message.ts:7:  "@/lib/supabase/server";
+features/chat/actions/edit-project-message.ts:64:  const supabase =
+features/chat/actions/edit-project-message.ts:65:    await createClient();
+features/chat/actions/edit-project-message.ts:71:    await supabase.auth.getUser();
+features/chat/actions/edit-project-message.ts:89:  } = await supabase
+features/chat/actions/edit-project-message.ts:138:  } = await supabase
+features/chat/actions/send-project-message.ts:7:  "@/lib/supabase/server";
+features/chat/actions/send-project-message.ts:150:  const supabase =
+features/chat/actions/send-project-message.ts:151:    await createClient();
+features/chat/actions/send-project-message.ts:168:    } = await supabase
+features/chat/actions/send-project-message.ts:231:    } = await supabase
+features/chat/actions/send-project-message.ts:278:  } = await supabase
+features/chat/actions/delete-project-message.ts:7:  "@/lib/supabase/server";
+features/chat/actions/delete-project-message.ts:52:  const supabase =
+features/chat/actions/delete-project-message.ts:53:    await createClient();
+features/chat/actions/delete-project-message.ts:59:    await supabase.auth.getUser();
+features/chat/actions/delete-project-message.ts:76:  } = await supabase
+features/chat/actions/delete-project-message.ts:115:  } = await supabase
+features/chat/actions/delete-project-message.ts:181:    } = await supabase.storage
+features/chat/actions/delete-project-message.ts:207:    } = await supabase
+features/chat/actions/delete-project-message.ts:234:  } = await supabase
+features/chat/actions/send-chat-attachment.ts:7:  "@/lib/supabase/server";
+features/chat/actions/send-chat-attachment.ts:174:  const supabase =
+features/chat/actions/send-chat-attachment.ts:175:    await createClient();
+features/chat/actions/send-chat-attachment.ts:188:    } = await supabase
+features/chat/actions/send-chat-attachment.ts:252:  } = await supabase
+features/chat/actions/send-chat-attachment.ts:317:  } = await supabase.storage
+features/chat/actions/send-chat-attachment.ts:335:    await supabase
+features/chat/actions/send-chat-attachment.ts:365:  } = await supabase
+features/chat/actions/send-chat-attachment.ts:408:    await supabase.storage
+features/chat/actions/send-chat-attachment.ts:416:    await supabase
+features/auth/actions/sign-out.ts:6:  "@/lib/supabase/server";
+features/auth/actions/sign-out.ts:9:  const supabase =
+features/auth/actions/sign-out.ts:10:    await createClient();
+features/auth/actions/sign-out.ts:12:  await supabase.auth.signOut();
+features/auth/actions/register.ts:4:import { createClient } from "@/lib/supabase/server";
+features/auth/actions/register.ts:29:  const supabase = await createClient();
+features/auth/actions/register.ts:39:  const { error } = await supabase.auth.signUp({
+features/auth/actions/register.ts:53:  console.error("SUPABASE SIGNUP ERROR:", {
+features/auth/actions/logout.ts:4:import { createClient } from "@/lib/supabase/server";
+features/auth/actions/logout.ts:7:  const supabase = await createClient();
+features/auth/actions/logout.ts:9:  await supabase.auth.signOut();
+features/bids/queries/get-my-bids.ts:3:import { createClient } from "@/lib/supabase/server";
+features/bids/queries/get-my-bids.ts:6:  const supabase = await createClient();
+features/bids/queries/get-my-bids.ts:11:  } = await supabase.auth.getUser();
+features/bids/queries/get-my-bids.ts:18:    await supabase
+features/bids/queries/get-my-bids.ts:39:  const { data: bids, error } = await supabase
+features/bids/queries/get-customer-new-bids-count.ts:1:import { createClient } from "@/lib/supabase/server";
+features/bids/queries/get-customer-new-bids-count.ts:9:  const supabase = await createClient();
+features/bids/queries/get-customer-new-bids-count.ts:14:  } = await supabase.auth.getUser();
+features/bids/queries/get-customer-new-bids-count.ts:34:    supabase
+features/bids/queries/get-customer-new-bids-count.ts:43:    supabase
+features/bids/queries/get-customer-bids.ts:3:import { createClient } from "@/lib/supabase/server";
+features/bids/queries/get-customer-bids.ts:6:  const supabase = await createClient();
+features/bids/queries/get-customer-bids.ts:11:  } = await supabase.auth.getUser();
+features/bids/queries/get-customer-bids.ts:17:  const { data: bids, error } = await supabase
+features/bids/actions/save-bid.ts:7:  "@/lib/supabase/server";
+features/bids/actions/save-bid.ts:99:  const supabase =
+features/bids/actions/save-bid.ts:100:    await createClient();
+features/bids/actions/save-bid.ts:105:  } = await supabase
+features/bids/actions/save-bid.ts:189:  } = await supabase
+features/bids/actions/save-bid.ts:267:    } = await supabase
+features/bids/actions/save-bid.ts:305:    } = await supabase
+features/bids/actions/save-bid.ts:352:    } = await supabase
+features/bids/actions/update-bid-status.ts:6:  "@/lib/supabase/server";
+features/bids/actions/update-bid-status.ts:98:   * 3. Supabase.
+features/bids/actions/update-bid-status.ts:100:  const supabase =
+features/bids/actions/update-bid-status.ts:101:    await createClient();
+features/bids/actions/update-bid-status.ts:109:  } = await supabase
+features/bids/actions/update-bid-status.ts:183:  } = await supabase
+features/bids/actions/update-bid-status.ts:328:    } = await supabase
+features/bids/actions/update-bid-status.ts:410:    } = await supabase
+features/bids/actions/update-bid-status.ts:463:    } = await supabase
+features/bids/actions/update-bid-status.ts:515:    } = await supabase
+features/bids/actions/update-bid-status.ts:647:  } = await supabase
+features/bids/actions/update-bid-status.ts:736:    } = await supabase
+features/projects/queries/get-available-projects-count.ts:1:import { createClient } from "@/lib/supabase/server";
+features/projects/queries/get-available-projects-count.ts:4:  const supabase = await createClient();
+features/projects/queries/get-available-projects-count.ts:8:  } = await supabase.auth.getUser();
+features/projects/queries/get-available-projects-count.ts:14:  const { data: company } = await supabase
+features/projects/queries/get-available-projects-count.ts:32:  const { count, error } = await supabase
+features/projects/queries/get-available-projects.ts:3:import { createClient } from "@/lib/supabase/server";
+features/projects/queries/get-available-projects.ts:6:  const supabase = await createClient();
+features/projects/queries/get-available-projects.ts:11:  } = await supabase.auth.getUser();
+features/projects/queries/get-available-projects.ts:18:    await supabase
+features/projects/queries/get-available-projects.ts:64:  await supabase
+features/projects/queries/get-assigned-projects.ts:3:import { createClient } from "@/lib/supabase/server";
+features/projects/queries/get-assigned-projects.ts:6:  const supabase = await createClient();
+features/projects/queries/get-assigned-projects.ts:11:  } = await supabase.auth.getUser();
+features/projects/queries/get-assigned-projects.ts:18:    await supabase
+features/projects/queries/get-assigned-projects.ts:40:    await supabase
+features/projects/queries/get-my-projects.ts:1:import { createClient } from "@/lib/supabase/server";
+features/projects/queries/get-my-projects.ts:4:  const supabase = await createClient();
+features/projects/queries/get-my-projects.ts:9:  } = await supabase.auth.getUser();
+features/projects/queries/get-my-projects.ts:15:  const { data, error } = await supabase
+features/projects/queries/get-available-project.ts:7:  "@/lib/supabase/server";
+features/projects/queries/get-available-project.ts:12:  const supabase = await createClient();
+features/projects/queries/get-available-project.ts:16:  } = await supabase.auth.getUser();
+features/projects/queries/get-available-project.ts:22:  const { data: company } = await supabase
+features/projects/queries/get-available-project.ts:40:    await supabase
+features/projects/queries/get-available-project.ts:85:    await supabase
+features/projects/queries/get-my-project.ts:2:import { createClient } from "@/lib/supabase/server";
+features/projects/queries/get-my-project.ts:7:  const supabase = await createClient();
+features/projects/queries/get-my-project.ts:11:  } = await supabase.auth.getUser();
+features/projects/queries/get-my-project.ts:18:    await supabase
+features/projects/actions/delete-project.ts:5:import { createClient } from "@/lib/supabase/server";
+features/projects/actions/delete-project.ts:15:  const supabase = await createClient();
+features/projects/actions/delete-project.ts:20:  } = await supabase.auth.getUser();
+features/projects/actions/delete-project.ts:30:    await supabase
+features/projects/actions/delete-project.ts:52:  const { error: deleteError } = await supabase
+features/projects/actions/start-project-work.ts:5:import { createClient } from "@/lib/supabase/server";
+features/projects/actions/start-project-work.ts:15:  const supabase = await createClient();
+features/projects/actions/start-project-work.ts:20:  } = await supabase.auth.getUser();
+features/projects/actions/start-project-work.ts:30:    await supabase
+features/projects/actions/start-project-work.ts:47:    await supabase
+features/projects/actions/save-project.ts:6:import { createClient } from "@/lib/supabase/server";
+features/projects/actions/save-project.ts:34:  const supabase = await createClient();
+features/projects/actions/save-project.ts:39:  } = await supabase.auth.getUser();
+features/projects/actions/save-project.ts:46:    await supabase
+features/projects/actions/save-project.ts:87:      await supabase
+features/projects/actions/save-project.ts:109:    const { error } = await supabase
+features/projects/actions/save-project.ts:140:  const { data, error } = await supabase
+features/projects/actions/publish-project.ts:7:  "@/lib/supabase/server";
+features/projects/actions/publish-project.ts:52:  const supabase =
+features/projects/actions/publish-project.ts:53:    await createClient();
+features/projects/actions/publish-project.ts:62:    await supabase.auth.getUser();
+features/projects/actions/publish-project.ts:81:  } = await supabase
+features/projects/actions/publish-project.ts:131:  } = await supabase
+features/projects/actions/publish-project.ts:228:  } = await supabase
+features/projects/actions/publish-project.ts:283:  } = await supabase
+features/workspace/queries/get-project-workspace.ts:4:  "@/lib/supabase/server";
+features/workspace/queries/get-project-workspace.ts:9:  const supabase =
+features/workspace/queries/get-project-workspace.ts:10:    await createClient();
+features/workspace/queries/get-project-workspace.ts:16:    await supabase.auth.getUser();
+features/workspace/queries/get-project-workspace.ts:28:  } = await supabase
+features/workspace/queries/get-project-workspace.ts:59:    } = await supabase
+features/workspace/queries/get-project-workspace.ts:128:    } = await supabase
+features/workspace/queries/get-project-workspace.ts:191:    supabase
+features/workspace/queries/get-project-workspace.ts:210:      ? supabase
+features/workspace/queries/get-project-workspace.ts:240:      ? supabase
+features/workspace/queries/get-project-workspace.ts:276:    supabase
+features/workspace/queries/get-project-workspace.ts:310:    supabase
+features/workspace/queries/get-project-workspace.ts:333:    supabase
+features/workspace/queries/get-project-workspace.ts:453:    } = await supabase.storage
+features/workspace/actions/delete-project-stage.ts:7:  "@/lib/supabase/server";
+features/workspace/actions/delete-project-stage.ts:75:  const supabase =
+features/workspace/actions/delete-project-stage.ts:76:    await createClient();
+features/workspace/actions/delete-project-stage.ts:85:  } = await supabase
+features/workspace/actions/delete-project-stage.ts:156:  } = await supabase
+features/workspace/actions/delete-project-stage.ts:211:  } = await supabase
+features/workspace/actions/delete-project-stage.ts:251:  } = await supabase
+features/workspace/actions/upload-stage-file.ts:7:  "@/lib/supabase/server";
+features/workspace/actions/upload-stage-file.ts:178:  const supabase =
+features/workspace/actions/upload-stage-file.ts:179:    await createClient();
+features/workspace/actions/upload-stage-file.ts:184:  } = await supabase
+features/workspace/actions/upload-stage-file.ts:223:  } = await supabase
+features/workspace/actions/upload-stage-file.ts:278:  } = await supabase.storage
+features/workspace/actions/upload-stage-file.ts:309:  } = await supabase
+features/workspace/actions/upload-stage-file.ts:352:    await supabase.storage
+features/workspace/actions/upload-stage-file.ts:374:  } = await supabase
+features/workspace/actions/delete-stage-file.ts:6:  "@/lib/supabase/server";
+features/workspace/actions/delete-stage-file.ts:17:  const supabase =
+features/workspace/actions/delete-stage-file.ts:18:    await createClient();
+features/workspace/actions/delete-stage-file.ts:23:    await supabase.auth.getUser();
+features/workspace/actions/delete-stage-file.ts:35:  } = await supabase
+features/workspace/actions/delete-stage-file.ts:83:  } = await supabase.storage
+features/workspace/actions/delete-stage-file.ts:104:  } = await supabase
+features/workspace/actions/update-project-stage-status.ts:7:  "@/lib/supabase/server";
+features/workspace/actions/update-project-stage-status.ts:76:  const supabase =
+features/workspace/actions/update-project-stage-status.ts:77:    await createClient();
+features/workspace/actions/update-project-stage-status.ts:82:  } = await supabase
+features/workspace/actions/update-project-stage-status.ts:109:  } = await supabase
+features/workspace/actions/update-project-stage-status.ts:155:  } = await supabase
+features/workspace/actions/update-project-stage-status.ts:202:    } = await supabase
+features/workspace/actions/update-project-stage-status.ts:256:      await supabase
+features/workspace/actions/update-project-stage-status.ts:283:      supabase,
+features/workspace/actions/update-project-stage-status.ts:334:    } = await supabase
+features/workspace/actions/update-project-stage-status.ts:379:      supabase,
+features/workspace/actions/update-project-stage-status.ts:429:  } = await supabase
+features/workspace/actions/update-project-stage-status.ts:471:    supabase,
+features/workspace/actions/update-project-stage-status.ts:569:  supabase,
+features/workspace/actions/update-project-stage-status.ts:577:  supabase:
+features/workspace/actions/update-project-stage-status.ts:592:  } = await supabase
+features/workspace/actions/review-project-stage.ts:9:  "@/lib/supabase/server";
+features/workspace/actions/review-project-stage.ts:137:  const supabase =
+features/workspace/actions/review-project-stage.ts:138:    await createClient();
+features/workspace/actions/review-project-stage.ts:143:  } = await supabase.rpc(
+features/workspace/actions/save-project-stage.ts:7:  "@/lib/supabase/server";
+features/workspace/actions/save-project-stage.ts:88:  const supabase =
+features/workspace/actions/save-project-stage.ts:89:    await createClient();
+features/workspace/actions/save-project-stage.ts:94:  } = await supabase
+features/workspace/actions/save-project-stage.ts:121:  } = await supabase
+features/workspace/actions/save-project-stage.ts:196:    } = await supabase
+features/workspace/actions/save-project-stage.ts:242:  } = await supabase
+features/workspace/actions/save-project-stage.ts:272:  } = await supabase
+features/workspace/actions/save-project-stage.ts:309:  } = await supabase
+features/workspace/actions/complete-project.ts:7:  "@/lib/supabase/server";
+features/workspace/actions/complete-project.ts:102:  const supabase =
+features/workspace/actions/complete-project.ts:103:    await createClient();
+features/workspace/actions/complete-project.ts:108:  } = await supabase
+features/workspace/actions/complete-project.ts:188:  } = await supabase
+features/workspace/actions/complete-project.ts:223:  } = await supabase
+features/workspace/actions/complete-project.ts:262:      } = await supabase
+features/admin/projects/actions/update-project-admin-status.ts:10:  "@/lib/supabase/server";
+features/admin/projects/actions/update-project-admin-status.ts:90:  const supabase =
+features/admin/projects/actions/update-project-admin-status.ts:91:    await createClient();
+features/admin/projects/actions/update-project-admin-status.ts:99:    await supabase.auth.getUser();
+features/admin/projects/actions/update-project-admin-status.ts:114:  } = await supabase
+features/admin/projects/actions/update-project-admin-status.ts:144:  } = await supabase
+features/admin/projects/actions/update-project-admin-status.ts:194:  } = await supabase
+features/admin/projects/actions/update-project-admin-status.ts:347:      } = await supabase
+features/admin/audit/server/create-admin-audit-log.ts:2:  "@/lib/supabase/server";
+features/admin/audit/server/create-admin-audit-log.ts:29:  const supabase =
+features/admin/audit/server/create-admin-audit-log.ts:30:    await createClient();
+features/admin/audit/server/create-admin-audit-log.ts:34:  } = await supabase
+features/admin/users/actions/update-user-block-status.ts:8:  "@/lib/supabase/server";
+features/admin/users/actions/update-user-block-status.ts:92:  const supabase =
+features/admin/users/actions/update-user-block-status.ts:93:    await createClient();
+features/admin/users/actions/update-user-block-status.ts:102:    await supabase.auth.getUser();
+features/admin/users/actions/update-user-block-status.ts:134:  } = await supabase
+features/admin/users/actions/update-user-block-status.ts:169:  } = await supabase
+features/admin/users/actions/update-user-block-status.ts:243:} = await supabase
+features/admin/contractors/queries/get-contractor-review.ts:3:import { createClient } from "@/lib/supabase/server";
+features/admin/contractors/queries/get-contractor-review.ts:8:  const supabase = await createClient();
+features/admin/contractors/queries/get-contractor-review.ts:10:  const { data: company, error } = await supabase
+features/admin/contractors/queries/get-contractor-review.ts:50:  const { data: owner } = await supabase
+features/admin/contractors/queries/get-contractor-review.ts:64:    await supabase
+features/admin/contractors/queries/get-contractors-for-review.ts:1:import { createClient } from "@/lib/supabase/server";
+features/admin/contractors/queries/get-contractors-for-review.ts:13:  const supabase = await createClient();
+features/admin/contractors/queries/get-contractors-for-review.ts:15:  let query = supabase
+features/admin/contractors/actions/review-contractor.ts:6:  "@/lib/supabase/server";
+features/admin/contractors/actions/review-contractor.ts:91:  const supabase =
+features/admin/contractors/actions/review-contractor.ts:92:    await createClient();
+features/admin/contractors/actions/review-contractor.ts:103:    await supabase.auth.getUser();
+features/admin/contractors/actions/review-contractor.ts:123:  } = await supabase
+features/admin/contractors/actions/review-contractor.ts:172:  } = await supabase
+features/admin/contractors/actions/review-contractor.ts:312:  } = await supabase
+features/admin/contractors/actions/review-contractor.ts:376:  } = await supabase
+features/contractors/queries/get-public-contractor-company.ts:10:  "@/lib/supabase/server";
+features/contractors/queries/get-public-contractor-company.ts:131:   * Пока оставляем Supabase Auth.
+features/contractors/queries/get-public-contractor-company.ts:135:  const supabase =
+features/contractors/queries/get-public-contractor-company.ts:136:    await createClient();
+features/contractors/queries/get-public-contractor-company.ts:145:    await supabase
+features/contractors/actions/save-contractor-company.ts:5:import { createClient } from "@/lib/supabase/server";
+features/contractors/actions/save-contractor-company.ts:35:  const supabase = await createClient();
+features/contractors/actions/save-contractor-company.ts:40:  } = await supabase.auth.getUser();
+features/contractors/actions/save-contractor-company.ts:50:    await supabase
+features/contractors/actions/save-contractor-company.ts:80:  const { data: existingCompany } = await supabase
+features/contractors/actions/save-contractor-company.ts:134:    const { data, error } = await supabase
+features/contractors/actions/save-contractor-company.ts:157:    const { data, error } = await supabase
+features/contractors/actions/save-contractor-company.ts:180:    await supabase
+features/contractors/actions/save-contractor-company.ts:207:    await supabase
+features/contractors/actions/save-contractor-company.ts:225:    await supabase
+features/contractors/actions/save-contractor-company.ts:253:    await supabase
+features/contractors/actions/submit-contractor-verification.ts:4:import { createClient } from "@/lib/supabase/server";
+features/contractors/actions/submit-contractor-verification.ts:13:  const supabase = await createClient();
+features/contractors/actions/submit-contractor-verification.ts:17:  } = await supabase.auth.getUser();
+features/contractors/actions/submit-contractor-verification.ts:26:  const { data: company, error } = await supabase
+features/contractors/actions/submit-contractor-verification.ts:115:  const { error: updateError } = await supabase
+features/contractors/portfolio/queries/get-my-contractor-portfolio.ts:2:  "@/lib/supabase/server";
+features/contractors/portfolio/queries/get-my-contractor-portfolio.ts:8:  const supabase =
+features/contractors/portfolio/queries/get-my-contractor-portfolio.ts:9:    await createClient();
+features/contractors/portfolio/queries/get-my-contractor-portfolio.ts:15:    await supabase.auth.getUser();
+features/contractors/portfolio/queries/get-my-contractor-portfolio.ts:28:  } = await supabase
+features/contractors/portfolio/queries/get-my-contractor-portfolio.ts:51:  } = await supabase
+features/contractors/portfolio/queries/get-my-contractor-portfolio.ts:143:                    await supabase.storage
+features/contractors/portfolio/schemas/queries/get-my-contractor-portfolio.ts:2:  "@/lib/supabase/server";
+features/contractors/portfolio/schemas/queries/get-my-contractor-portfolio.ts:8:  const supabase =
+features/contractors/portfolio/schemas/queries/get-my-contractor-portfolio.ts:9:    await createClient();
+features/contractors/portfolio/schemas/queries/get-my-contractor-portfolio.ts:15:    await supabase.auth.getUser();
+features/contractors/portfolio/schemas/queries/get-my-contractor-portfolio.ts:28:  } = await supabase
+features/contractors/portfolio/schemas/queries/get-my-contractor-portfolio.ts:51:  } = await supabase
+features/contractors/portfolio/schemas/queries/get-my-contractor-portfolio.ts:143:                    await supabase.storage
+features/contractors/portfolio/schemas/actions/save-portfolio-project.ts:8:  "@/lib/supabase/server";
+features/contractors/portfolio/schemas/actions/save-portfolio-project.ts:40:  const supabase =
+features/contractors/portfolio/schemas/actions/save-portfolio-project.ts:41:    await createClient();
+features/contractors/portfolio/schemas/actions/save-portfolio-project.ts:47:    await supabase.auth.getUser();
+features/contractors/portfolio/schemas/actions/save-portfolio-project.ts:67:  } = await supabase
+features/contractors/portfolio/schemas/actions/save-portfolio-project.ts:120:    } = await supabase
+features/contractors/portfolio/schemas/actions/save-portfolio-project.ts:171:  } = await supabase
+features/contractors/portfolio/actions/upload-portfolio-files.ts:6:  "@/lib/supabase/server";
+features/contractors/portfolio/actions/upload-portfolio-files.ts:101:  const supabase =
+features/contractors/portfolio/actions/upload-portfolio-files.ts:102:    await createClient();
+features/contractors/portfolio/actions/upload-portfolio-files.ts:108:    await supabase.auth.getUser();
+features/contractors/portfolio/actions/upload-portfolio-files.ts:126:    await supabase
+features/contractors/portfolio/actions/upload-portfolio-files.ts:154:    await supabase
+features/contractors/portfolio/actions/upload-portfolio-files.ts:187:    await supabase
+features/contractors/portfolio/actions/upload-portfolio-files.ts:248:      await supabase.storage
+features/contractors/portfolio/actions/upload-portfolio-files.ts:279:      await supabase
+features/contractors/portfolio/actions/upload-portfolio-files.ts:317:      await supabase.storage
+features/contractors/portfolio/actions/delete-portfolio-file.ts:6:  "@/lib/supabase/server";
+features/contractors/portfolio/actions/delete-portfolio-file.ts:16:  const supabase =
+features/contractors/portfolio/actions/delete-portfolio-file.ts:17:    await createClient();
+features/contractors/portfolio/actions/delete-portfolio-file.ts:23:    await supabase.auth.getUser();
+features/contractors/portfolio/actions/delete-portfolio-file.ts:38:  } = await supabase
+features/contractors/portfolio/actions/delete-portfolio-file.ts:62:  } = await supabase
+features/contractors/portfolio/actions/delete-portfolio-file.ts:117:  } = await supabase.storage
+features/contractors/portfolio/actions/delete-portfolio-file.ts:144:  } = await supabase
+features/contractors/portfolio/actions/set-portfolio-cover.ts:6:  "@/lib/supabase/server";
+features/contractors/portfolio/actions/set-portfolio-cover.ts:16:  const supabase =
+features/contractors/portfolio/actions/set-portfolio-cover.ts:17:    await createClient();
+features/contractors/portfolio/actions/set-portfolio-cover.ts:23:    await supabase.auth.getUser();
+features/contractors/portfolio/actions/set-portfolio-cover.ts:39:  } = await supabase
+features/contractors/portfolio/actions/set-portfolio-cover.ts:64:  } = await supabase
+features/contractors/portfolio/actions/set-portfolio-cover.ts:110:  } = await supabase
+features/contractors/portfolio/actions/set-portfolio-cover.ts:174:    } = await supabase
+features/contractors/portfolio/actions/save-portfolio-project.ts:8:  "@/lib/supabase/server";
+features/contractors/portfolio/actions/save-portfolio-project.ts:40:  const supabase =
+features/contractors/portfolio/actions/save-portfolio-project.ts:41:    await createClient();
+features/contractors/portfolio/actions/save-portfolio-project.ts:47:    await supabase.auth.getUser();
+features/contractors/portfolio/actions/save-portfolio-project.ts:67:  } = await supabase
+features/contractors/portfolio/actions/save-portfolio-project.ts:120:    } = await supabase
+features/contractors/portfolio/actions/save-portfolio-project.ts:171:  } = await supabase
+features/notifications/queries/get-my-notifications.ts:3:import { createClient } from "@/lib/supabase/server";
+features/notifications/queries/get-my-notifications.ts:10:  const supabase = await createClient();
+features/notifications/queries/get-my-notifications.ts:14:  } = await supabase.auth.getUser();
+features/notifications/queries/get-my-notifications.ts:24:    await supabase
+features/notifications/server/notify-contractor-bid-accepted.ts:4:  "@/lib/supabase/admin";
+features/notifications/server/notify-contractor-bid-accepted.ts:30:  const supabase =
+features/notifications/server/notify-contractor-bid-accepted.ts:39:  } = await supabase
+features/notifications/server/create-notification.ts:6:  "@/lib/supabase/admin";
+features/notifications/server/create-notification.ts:161:  const supabase =
+features/notifications/server/create-notification.ts:167:  } = await supabase
+features/notifications/server/notify-contractor-bid-rejected.ts:2:  "@/lib/supabase/server";
+features/notifications/server/notify-contractor-bid-rejected.ts:18:  const supabase =
+features/notifications/server/notify-contractor-bid-rejected.ts:19:    await createClient();
+features/notifications/server/notify-contractor-bid-rejected.ts:28:  } = await supabase
+features/notifications/server/notify-contractors-about-project.ts:4:  "@/lib/supabase/admin";
+features/notifications/server/notify-contractors-about-project.ts:29:  const supabase =
+features/notifications/server/notify-contractors-about-project.ts:38:  } = await supabase
+features/notifications/server/notify-contractors-about-project.ts:118:  } = await supabase
+features/notifications/server/notify-project-participant.ts:2:  "@/lib/supabase/server";
+features/notifications/server/notify-project-participant.ts:51:  const supabase =
+features/notifications/server/notify-project-participant.ts:52:    await createClient();
+features/notifications/server/notify-project-participant.ts:61:  } = await supabase
+features/notifications/server/notify-project-participant.ts:117:    } = await supabase
+features/notifications/server/notify-project-participant.ts:227:  } = await supabase
+features/notifications/server/get-project-notification-recipient.ts:4:  "@/lib/supabase/server";
+features/notifications/server/get-project-notification-recipient.ts:17:  const supabase =
+features/notifications/server/get-project-notification-recipient.ts:18:    await createClient();
+features/notifications/server/get-project-notification-recipient.ts:23:  } = await supabase
+features/notifications/server/get-project-notification-recipient.ts:76:  } = await supabase
+features/notifications/hooks/use-notifications.ts:12:  "@/lib/supabase/client";
+features/notifications/hooks/use-notifications.ts:32:    const supabase =
+features/notifications/hooks/use-notifications.ts:33:      createClient();
+features/notifications/hooks/use-notifications.ts:38:    const channel = supabase
+features/notifications/hooks/use-notifications.ts:89:      void supabase.removeChannel(
+features/notifications/actions/read-all-notifications.ts:3:import { createClient } from "@/lib/supabase/server";
+features/notifications/actions/read-all-notifications.ts:6:  const supabase =
+features/notifications/actions/read-all-notifications.ts:7:    await createClient();
+features/notifications/actions/read-all-notifications.ts:10:    await supabase.rpc(
+features/notifications/actions/read-notification.ts:3:import { createClient } from "@/lib/supabase/server";
+features/notifications/actions/read-notification.ts:8:  const supabase =
+features/notifications/actions/read-notification.ts:9:    await createClient();
+features/notifications/actions/read-notification.ts:12:    await supabase.rpc(
+features/reviews/queries/get-project-contractor-review.ts:2:  "@/lib/supabase/server";
+features/reviews/queries/get-project-contractor-review.ts:7:  const supabase =
+features/reviews/queries/get-project-contractor-review.ts:8:    await createClient();
+features/reviews/queries/get-project-contractor-review.ts:14:    await supabase.auth.getUser();
+features/reviews/queries/get-project-contractor-review.ts:26:  } = await supabase
+features/reviews/actions/save-contractor-review.ts:7:  "@/lib/supabase/server";
+features/reviews/actions/save-contractor-review.ts:134:  const supabase =
+features/reviews/actions/save-contractor-review.ts:135:    await createClient();
+features/reviews/actions/save-contractor-review.ts:174:  } = await supabase
+features/reviews/actions/save-contractor-review.ts:206:    } = await supabase
+features/reviews/actions/save-contractor-review.ts:241:  } = await supabase
+lib/auth/require-staff-user.ts:3:import { createClient } from "@/lib/supabase/server";
+lib/auth/require-staff-user.ts:12:  const supabase = await createClient();
+lib/auth/require-staff-user.ts:17:  } = await supabase.auth.getUser();
+lib/auth/require-staff-user.ts:24:    await supabase
+lib/auth/require-active-user.ts:2:  "@/lib/supabase/server";
+lib/auth/require-active-user.ts:33:  const supabase =
+lib/auth/require-active-user.ts:34:    await createClient();
+lib/auth/require-active-user.ts:43:    await supabase.auth.getUser();
+lib/auth/require-active-user.ts:68:  } = await supabase
+lib/projects/require-active-project.ts:2:  "@/lib/supabase/server";
+lib/projects/require-active-project.ts:36:  const supabase =
+lib/projects/require-active-project.ts:37:    await createClient();
+lib/projects/require-active-project.ts:42:  } = await supabase
+lib/supabase/admin.ts:4:  "@supabase/supabase-js";
+lib/supabase/admin.ts:6:function getSupabaseUrl() {
+lib/supabase/admin.ts:9:      .NEXT_PUBLIC_SUPABASE_URL;
+lib/supabase/admin.ts:13:      "Не задан NEXT_PUBLIC_SUPABASE_URL"
+lib/supabase/admin.ts:20:function getSupabaseServiceRoleKey() {
+lib/supabase/admin.ts:23:      .SUPABASE_SERVICE_ROLE_KEY;
+lib/supabase/admin.ts:27:      "Не задан SUPABASE_SERVICE_ROLE_KEY"
+lib/supabase/admin.ts:35:  return createClient(
+lib/supabase/admin.ts:36:    getSupabaseUrl(),
+lib/supabase/admin.ts:37:    getSupabaseServiceRoleKey(),
+lib/supabase/client.ts:1:import { createBrowserClient } from "@supabase/ssr";
+lib/supabase/client.ts:3:export function createClient() {
+lib/supabase/client.ts:4:  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+lib/supabase/client.ts:5:  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+lib/supabase/client.ts:8:    throw new Error("Supabase environment variables are missing");
+lib/supabase/proxy.ts:1:import { createServerClient } from "@supabase/ssr";
+lib/supabase/proxy.ts:9:  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+lib/supabase/proxy.ts:10:  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+lib/supabase/proxy.ts:13:    throw new Error("Supabase environment variables are missing");
+lib/supabase/proxy.ts:16:  const supabase = createServerClient(url, anonKey, {
+lib/supabase/proxy.ts:38:  await supabase.auth.getUser();
+lib/supabase/server.ts:1:import { createServerClient } from "@supabase/ssr";
+lib/supabase/server.ts:4:export async function createClient() {
+lib/supabase/server.ts:7:  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+lib/supabase/server.ts:8:  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+lib/supabase/server.ts:11:    throw new Error("Supabase environment variables are missing");
+lib/env.ts:4:  NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
+lib/env.ts:5:  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
+lib/env.ts:6:  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
+lib/env.ts:10:  NEXT_PUBLIC_SUPABASE_URL:
+lib/env.ts:11:    process.env.NEXT_PUBLIC_SUPABASE_URL,
+lib/env.ts:12:  NEXT_PUBLIC_SUPABASE_ANON_KEY:
+lib/env.ts:13:    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+lib/env.ts:14:  SUPABASE_SERVICE_ROLE_KEY:
+lib/env.ts:15:    process.env.SUPABASE_SERVICE_ROLE_KEY,

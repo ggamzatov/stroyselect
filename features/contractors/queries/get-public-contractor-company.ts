@@ -1,28 +1,30 @@
 import "server-only";
 
-import { notFound } from
-  "next/navigation";
+import { notFound } from "next/navigation";
 
 import { db } from
   "@/lib/db/pool";
 
-import { createClient } from
-  "@/lib/supabase/server";
+import {
+  getCurrentSessionUserId,
+} from "@/lib/auth/session";
 
-import { getSignedFileUrl } from
-  "@/lib/storage/get-signed-file-url";
+import {
+  getSignedFileUrl,
+} from "@/lib/storage/get-signed-file-url";
 
-const PORTFOLIO_BUCKET =
-  "contractor-portfolio";
-
-type CompanyRow = {
+type ContractorCompanyRow = {
   id: string;
+  owner_id: string;
+
   public_name: string;
   legal_name: string | null;
-  company_type: string | null;
+
   inn: string | null;
   ogrn: string | null;
+
   description: string | null;
+
   founded_year: number | null;
   employee_count: number | null;
 
@@ -32,16 +34,23 @@ type CompanyRow = {
   maximum_project_budget:
     string | number | null;
 
-  contact_phone: string | null;
-  contact_email: string | null;
-  website: string | null;
-  telegram: string | null;
+  verification_status: string;
+  verification_comment: string | null;
 
   rating:
     string | number;
 
-  rating_count:
-    number;
+  rating_count: number;
+
+  company_type: string | null;
+
+  contact_phone: string | null;
+  contact_email: string | null;
+
+  website: string | null;
+  telegram: string | null;
+
+  accepts_new_projects: boolean;
 
   quality_rating:
     string | number | null;
@@ -52,29 +61,30 @@ type CompanyRow = {
   communication_rating:
     string | number | null;
 
-  completed_projects_count:
-    number;
+  completed_projects_count: number;
 
-  verification_status:
-    string;
+  recommendation_score:
+    string | number;
 
   created_at:
+    Date | string;
+
+  updated_at:
     Date | string;
 };
 
 type ServiceRow = {
-  category_id:
-    string | number;
-
-  category_name:
-    string;
+  category_id: number;
+  category_name: string;
 };
 
 type AreaRow = {
   city: string;
   region: string;
+
   travel_radius_km:
     number | null;
+
   is_primary:
     boolean;
 };
@@ -82,17 +92,28 @@ type AreaRow = {
 type PortfolioRow = {
   project_id: string;
   contractor_id: string;
+
   title: string;
+
   description:
     string | null;
+
   city:
     string | null;
+
   completed_year:
     number | null;
+
   project_created_at:
     Date | string;
 
+  project_updated_at:
+    Date | string;
+
   file_id:
+    string | null;
+
+  portfolio_project_id:
     string | null;
 
   uploaded_by:
@@ -120,36 +141,80 @@ type PortfolioRow = {
     Date | string | null;
 };
 
+type PublicPortfolioFile = {
+  id: string;
+
+  portfolio_project_id:
+    string;
+
+  uploaded_by:
+    string;
+
+  storage_bucket:
+    string;
+
+  storage_path:
+    string;
+
+  file_name:
+    string;
+
+  file_size:
+    number;
+
+  mime_type:
+    string;
+
+  sort_order:
+    number;
+
+  created_at:
+    string;
+
+  signed_url:
+    string | null;
+};
+
+type PublicPortfolioProject = {
+  id: string;
+
+  contractor_id:
+    string;
+
+  title: string;
+
+  description:
+    string | null;
+
+  city:
+    string | null;
+
+  completed_year:
+    number | null;
+
+  created_at:
+    string;
+
+  updated_at:
+    string;
+
+  contractor_portfolio_files:
+    PublicPortfolioFile[];
+};
+
 export async function getPublicContractorCompany(
-  companyId: string
+  contractorId: string
 ) {
   /*
    * ========================================
-   * 1. Авторизация
+   * 1. Проверяем локальную сессию
    * ========================================
-   *
-   * Пока оставляем Supabase Auth.
-   * Database и Storage уже наши.
    */
 
-  const supabase =
-    await createClient();
+  const userId =
+    await getCurrentSessionUserId();
 
-  const {
-    data: {
-      user,
-    },
-    error:
-      userError,
-  } =
-    await supabase
-      .auth
-      .getUser();
-
-  if (
-    userError ||
-    !user
-  ) {
+  if (!userId) {
     throw new Error(
       "Необходимо войти"
     );
@@ -162,13 +227,13 @@ export async function getPublicContractorCompany(
    */
 
   const companyResult =
-    await db.query<CompanyRow>(
+    await db.query<ContractorCompanyRow>(
       `
         SELECT
           id,
+          owner_id,
           public_name,
           legal_name,
-          company_type,
           inn,
           ogrn,
           description,
@@ -176,35 +241,39 @@ export async function getPublicContractorCompany(
           employee_count,
           minimum_project_budget,
           maximum_project_budget,
+          verification_status,
+          verification_comment,
+          rating,
+          rating_count,
+          company_type,
           contact_phone,
           contact_email,
           website,
           telegram,
-          rating,
-          rating_count,
+          accepts_new_projects,
           quality_rating,
           deadline_rating,
           communication_rating,
           completed_projects_count,
-          verification_status,
-          created_at
+          recommendation_score,
+          created_at,
+          updated_at
+
         FROM
           public.contractor_companies
+
         WHERE
           id = $1
-          AND
-          verification_status =
-            'verified'
+
         LIMIT 1
       `,
       [
-        companyId,
+        contractorId,
       ]
     );
 
   const company =
-    companyResult
-      .rows[0];
+    companyResult.rows[0];
 
   if (!company) {
     notFound();
@@ -212,181 +281,142 @@ export async function getPublicContractorCompany(
 
   /*
    * ========================================
-   * 3. Связанные данные
+   * 3. Специализации
    * ========================================
    */
 
-  const [
-    servicesResult,
-    areasResult,
-    portfolioResult,
-  ] =
-    await Promise.all([
-      /*
-       * Специализации.
-       */
-      db.query<ServiceRow>(
-        `
-          SELECT
-            cs.category_id,
-            sc.name
-              AS category_name
-          FROM
-            public.contractor_services
-              cs
-          JOIN
-            public.service_categories
-              sc
-            ON sc.id =
-              cs.category_id
-          WHERE
-            cs.contractor_id =
-              $1
-          ORDER BY
-            cs.is_primary DESC,
-            sc.name ASC
-        `,
-        [
-          companyId,
-        ]
-      ),
+  const servicesResult =
+    await db.query<ServiceRow>(
+      `
+        SELECT
+          cs.category_id,
+          sc.name
+            AS category_name
 
-      /*
-       * География.
-       */
-      db.query<AreaRow>(
-        `
-          SELECT
-            city,
-            region,
-            travel_radius_km,
-            is_primary
-          FROM
-            public.contractor_service_areas
-          WHERE
-            contractor_id =
-              $1
-          ORDER BY
-            is_primary DESC,
-            city ASC
-        `,
-        [
-          companyId,
-        ]
-      ),
+        FROM
+          public.contractor_services
+            cs
 
-      /*
-       * Портфолио + файлы.
-       *
-       * LEFT JOIN нужен, чтобы
-       * проект без файлов тоже
-       * попал в результат.
-       */
-      db.query<PortfolioRow>(
-        `
-          SELECT
-            cpp.id
-              AS project_id,
+        JOIN
+          public.service_categories
+            sc
+          ON sc.id =
+            cs.category_id
 
-            cpp.contractor_id,
+        WHERE
+          cs.contractor_id =
+            $1
 
-            cpp.title,
-            cpp.description,
-            cpp.city,
-            cpp.completed_year,
-
-            cpp.created_at
-              AS project_created_at,
-
-            cpf.id
-              AS file_id,
-
-            cpf.uploaded_by,
-            cpf.storage_bucket,
-            cpf.storage_path,
-            cpf.file_name,
-            cpf.file_size,
-            cpf.mime_type,
-            cpf.sort_order,
-
-            cpf.created_at
-              AS file_created_at
-
-          FROM
-            public.contractor_portfolio_projects
-              cpp
-
-          LEFT JOIN
-            public.contractor_portfolio_files
-              cpf
-            ON cpf.portfolio_project_id =
-              cpp.id
-
-          WHERE
-            cpp.contractor_id =
-              $1
-
-          ORDER BY
-            cpp.created_at DESC,
-            cpf.sort_order ASC,
-            cpf.created_at ASC
-        `,
-        [
-          companyId,
-        ]
-      ),
-    ]);
-
-  /*
-   * ========================================
-   * 4. Нормализуем services
-   * ========================================
-   *
-   * Сохраняем прежний контракт,
-   * который уже использует page.tsx.
-   */
-
-  const contractorServices =
-    servicesResult.rows.map(
-      (service) => ({
-        category_id:
-          String(
-            service.category_id
-          ),
-
-        service_categories: {
-          id:
-            String(
-              service.category_id
-            ),
-
-          name:
-            service.category_name,
-        },
-      })
+        ORDER BY
+          cs.is_primary DESC,
+          sc.name ASC
+      `,
+      [
+        company.id,
+      ]
     );
 
   /*
    * ========================================
-   * 5. Нормализуем areas
+   * 4. География
    * ========================================
    */
 
-  const contractorServiceAreas =
-    areasResult.rows.map(
-      (area) => ({
-        city:
-          area.city,
+  const areasResult =
+    await db.query<AreaRow>(
+      `
+        SELECT
+          city,
+          region,
+          travel_radius_km,
+          is_primary
 
-        region:
-          area.region,
+        FROM
+          public.contractor_service_areas
 
-        travel_radius_km:
-          area.travel_radius_km,
+        WHERE
+          contractor_id =
+            $1
 
-        is_primary:
-          area.is_primary,
-      })
+        ORDER BY
+          is_primary DESC,
+          city ASC
+      `,
+      [
+        company.id,
+      ]
+    );
+
+  /*
+   * ========================================
+   * 5. Портфолио + файлы
+   * ========================================
+   */
+
+  const portfolioResult =
+    await db.query<PortfolioRow>(
+      `
+        SELECT
+          cpp.id
+            AS project_id,
+
+          cpp.contractor_id,
+
+          cpp.title,
+          cpp.description,
+          cpp.city,
+          cpp.completed_year,
+
+          cpp.created_at
+            AS project_created_at,
+
+          cpp.updated_at
+            AS project_updated_at,
+
+          cpf.id
+            AS file_id,
+
+          cpf.portfolio_project_id,
+
+          cpf.uploaded_by,
+
+          cpf.storage_bucket,
+
+          cpf.storage_path,
+
+          cpf.file_name,
+
+          cpf.file_size,
+
+          cpf.mime_type,
+
+          cpf.sort_order,
+
+          cpf.created_at
+            AS file_created_at
+
+        FROM
+          public.contractor_portfolio_projects
+            cpp
+
+        LEFT JOIN
+          public.contractor_portfolio_files
+            cpf
+          ON cpf.portfolio_project_id =
+            cpp.id
+
+        WHERE
+          cpp.contractor_id =
+            $1
+
+        ORDER BY
+          cpp.created_at DESC,
+          cpf.sort_order ASC,
+          cpf.created_at ASC
+      `,
+      [
+        company.id,
+      ]
     );
 
   /*
@@ -395,49 +425,10 @@ export async function getPublicContractorCompany(
    * ========================================
    */
 
-  type PortfolioProject = {
-    id: string;
-    contractor_id: string;
-    title: string;
-    description:
-      string | null;
-    city:
-      string | null;
-    completed_year:
-      number | null;
-    created_at: string;
-
-    contractor_portfolio_files:
-      PortfolioFile[];
-  };
-
-  type PortfolioFile = {
-    id: string;
-    portfolio_project_id:
-      string;
-    uploaded_by: string;
-    storage_bucket:
-      string;
-    storage_path:
-      string;
-    file_name:
-      string;
-    file_size:
-      number;
-    mime_type:
-      string;
-    sort_order:
-      number;
-    created_at:
-      string;
-    signed_url:
-      string | null;
-  };
-
   const portfolioMap =
     new Map<
       string,
-      PortfolioProject
+      PublicPortfolioProject
     >();
 
   for (
@@ -474,6 +465,11 @@ export async function getPublicContractorCompany(
             row.project_created_at
           ),
 
+        updated_at:
+          toIsoString(
+            row.project_updated_at
+          ),
+
         contractor_portfolio_files:
           [],
       };
@@ -486,21 +482,19 @@ export async function getPublicContractorCompany(
 
     /*
      * LEFT JOIN может вернуть
-     * проект без файла.
+     * проект без файлов.
      */
     if (
       !row.file_id ||
+      !row.portfolio_project_id ||
+      !row.uploaded_by ||
+      !row.storage_bucket ||
       !row.storage_path ||
       !row.file_name ||
-      !row.mime_type ||
-      !row.uploaded_by
+      !row.mime_type
     ) {
       continue;
     }
-
-    const bucket =
-      row.storage_bucket ||
-      PORTFOLIO_BUCKET;
 
     let signedUrl:
       string | null =
@@ -509,7 +503,8 @@ export async function getPublicContractorCompany(
     try {
       signedUrl =
         await getSignedFileUrl({
-          bucket,
+          bucket:
+            row.storage_bucket,
 
           key:
             row.storage_path,
@@ -518,18 +513,14 @@ export async function getPublicContractorCompany(
             60 * 60,
         });
     } catch (error) {
-      /*
-       * Один повреждённый объект
-       * не должен ронять весь
-       * профиль подрядчика.
-       */
       console.error(
-        "Ошибка создания signed URL файла портфолио:",
+        "Ошибка создания signed URL публичного портфолио:",
         {
           fileId:
             row.file_id,
 
-          bucket,
+          bucket:
+            row.storage_bucket,
 
           storagePath:
             row.storage_path,
@@ -546,13 +537,13 @@ export async function getPublicContractorCompany(
           row.file_id,
 
         portfolio_project_id:
-          row.project_id,
+          row.portfolio_project_id,
 
         uploaded_by:
           row.uploaded_by,
 
         storage_bucket:
-          bucket,
+          row.storage_bucket,
 
         storage_path:
           row.storage_path,
@@ -584,11 +575,6 @@ export async function getPublicContractorCompany(
       });
   }
 
-  const contractorPortfolioProjects =
-    Array.from(
-      portfolioMap.values()
-    );
-
   /*
    * ========================================
    * 7. Возвращаем прежний контракт
@@ -599,14 +585,14 @@ export async function getPublicContractorCompany(
     id:
       company.id,
 
+    owner_id:
+      company.owner_id,
+
     public_name:
       company.public_name,
 
     legal_name:
       company.legal_name,
-
-    company_type:
-      company.company_type,
 
     inn:
       company.inn,
@@ -635,6 +621,27 @@ export async function getPublicContractorCompany(
           .maximum_project_budget
       ),
 
+    verification_status:
+      company
+        .verification_status,
+
+    verification_comment:
+      company
+        .verification_comment,
+
+    rating:
+      safeNumber(
+        company.rating
+      ),
+
+    rating_count:
+      safeInteger(
+        company.rating_count
+      ),
+
+    company_type:
+      company.company_type,
+
     contact_phone:
       company.contact_phone,
 
@@ -647,15 +654,9 @@ export async function getPublicContractorCompany(
     telegram:
       company.telegram,
 
-    rating:
-      safeNumber(
-        company.rating
-      ),
-
-    rating_count:
-      safeInteger(
-        company.rating_count
-      ),
+    accepts_new_projects:
+      company
+        .accepts_new_projects,
 
     quality_rating:
       toNullableNumber(
@@ -681,23 +682,60 @@ export async function getPublicContractorCompany(
           .completed_projects_count
       ),
 
-    verification_status:
-      company
-        .verification_status,
+    recommendation_score:
+      safeNumber(
+        company
+          .recommendation_score
+      ),
 
     created_at:
       toIsoString(
         company.created_at
       ),
 
+    updated_at:
+      toIsoString(
+        company.updated_at
+      ),
+
     contractor_services:
-      contractorServices,
+      servicesResult.rows.map(
+        (service) => ({
+          category_id:
+            service.category_id,
+
+          service_categories: {
+            id:
+              service.category_id,
+
+            name:
+              service.category_name,
+          },
+        })
+      ),
 
     contractor_service_areas:
-      contractorServiceAreas,
+      areasResult.rows.map(
+        (area) => ({
+          city:
+            area.city,
+
+          region:
+            area.region,
+
+          travel_radius_km:
+            area
+              .travel_radius_km,
+
+          is_primary:
+            area.is_primary,
+        })
+      ),
 
     contractor_portfolio_projects:
-      contractorPortfolioProjects,
+      Array.from(
+        portfolioMap.values()
+      ),
   };
 }
 

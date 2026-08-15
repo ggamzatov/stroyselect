@@ -2,167 +2,227 @@
 
 import { revalidatePath } from "next/cache";
 
-import { createClient } from
-  "@/lib/supabase/server";
+import {
+  DeleteObjectCommand,
+} from "@aws-sdk/client-s3";
+
+import { db } from
+  "@/lib/db/pool";
+
+import {
+  requireActiveUser,
+} from "@/lib/auth/require-active-user";
+
+import {
+  s3,
+} from "@/lib/storage/s3";
 
 export type DeletePortfolioFileResult = {
   success: boolean;
   message: string;
 };
 
+type PortfolioFileRow = {
+  id: string;
+  portfolio_project_id: string;
+  storage_bucket: string;
+  storage_path: string;
+};
+
 export async function deletePortfolioFile(
   fileId: string
 ): Promise<DeletePortfolioFileResult> {
-  const supabase =
-    await createClient();
+  /*
+   * ========================================
+   * 1. Проверяем пользователя
+   * ========================================
+   */
 
-  const {
-    data: { user },
-    error: userError,
-  } =
-    await supabase.auth.getUser();
+  const auth =
+    await requireActiveUser();
 
-  if (
-    userError ||
-    !user
-  ) {
+  if (!auth.success) {
     return {
       success: false,
-      message: "Необходимо войти",
+      message: auth.message,
     };
   }
 
-  const {
-    data: company,
-    error: companyError,
-  } = await supabase
-    .from("contractor_companies")
-    .select("id")
-    .eq("owner_id", user.id)
-    .maybeSingle();
-
   if (
-    companyError ||
-    !company
+    auth.profile.role !==
+    "contractor"
   ) {
     return {
       success: false,
       message:
-        "Компания подрядчика не найдена",
+        "Доступно только подрядчику",
+    };
+  }
+
+  if (!fileId) {
+    return {
+      success: false,
+      message:
+        "Фотография не указана",
     };
   }
 
   /*
-   * Загружаем файл вместе
-   * с объектом портфолио.
+   * ========================================
+   * 2. Проверяем принадлежность файла
+   * ========================================
    */
-  const {
-    data: file,
-    error: fileError,
-  } = await supabase
-    .from(
-      "contractor_portfolio_files"
-    )
-    .select(`
-      id,
-      portfolio_project_id,
-      storage_bucket,
-      storage_path,
-      contractor_portfolio_projects!inner (
-        contractor_id
-      )
-    `)
-    .eq("id", fileId)
-    .maybeSingle();
 
-  if (
-    fileError ||
-    !file
-  ) {
+  let file:
+    PortfolioFileRow |
+    undefined;
+
+  try {
+    const result =
+      await db.query<PortfolioFileRow>(
+        `
+          SELECT
+            cpf.id,
+            cpf.portfolio_project_id,
+            cpf.storage_bucket,
+            cpf.storage_path
+
+          FROM
+            public.contractor_portfolio_files
+              cpf
+
+          JOIN
+            public.contractor_portfolio_projects
+              cpp
+            ON cpp.id =
+              cpf.portfolio_project_id
+
+          JOIN
+            public.contractor_companies
+              cc
+            ON cc.id =
+              cpp.contractor_id
+
+          WHERE
+            cpf.id = $1
+            AND cc.owner_id = $2
+
+          LIMIT 1
+        `,
+        [
+          fileId,
+          auth.user.id,
+        ]
+      );
+
+    file =
+      result.rows[0];
+  } catch (error) {
     console.error(
-      "Ошибка загрузки фотографии:",
-      fileError
+      "Ошибка поиска фотографии портфолио:",
+      error
     );
 
     return {
       success: false,
       message:
-        "Фотография не найдена",
+        "Не удалось получить фотографию",
     };
   }
 
-  const portfolioProject =
-    getSingleRelation(
-      file.contractor_portfolio_projects
-    );
-
-  if (
-    !portfolioProject ||
-    portfolioProject.contractor_id !==
-      company.id
-  ) {
+  if (!file) {
     return {
       success: false,
       message:
-        "Нет доступа к этой фотографии",
+        "Фотография не найдена или у вас нет доступа",
     };
   }
 
   /*
-   * Сначала удаляем файл
-   * из Storage.
+   * ========================================
+   * 3. Удаляем объект из MinIO
+   * ========================================
    */
-  const {
-    error: storageError,
-  } = await supabase.storage
-    .from(
-      file.storage_bucket
-    )
-    .remove([
-      file.storage_path,
-    ]);
 
-  if (storageError) {
+  try {
+    await s3.send(
+      new DeleteObjectCommand({
+        Bucket:
+          file.storage_bucket,
+
+        Key:
+          file.storage_path,
+      })
+    );
+  } catch (error) {
     console.error(
-      "Ошибка удаления фотографии из Storage:",
-      storageError
+      "Ошибка удаления фотографии из MinIO:",
+      {
+        fileId:
+          file.id,
+
+        bucket:
+          file.storage_bucket,
+
+        storagePath:
+          file.storage_path,
+
+        error,
+      }
     );
 
     return {
       success: false,
       message:
-        "Не удалось удалить файл",
+        "Не удалось удалить файл из хранилища",
     };
   }
 
   /*
-   * Затем удаляем запись
-   * из таблицы.
+   * ========================================
+   * 4. Удаляем запись PostgreSQL
+   * ========================================
    */
-  const {
-    error: deleteError,
-  } = await supabase
-    .from(
-      "contractor_portfolio_files"
-    )
-    .delete()
-    .eq("id", file.id);
 
-  if (deleteError) {
+  try {
+    await db.query(
+      `
+        DELETE FROM
+          public.contractor_portfolio_files
+
+        WHERE
+          id = $1
+      `,
+      [
+        file.id,
+      ]
+    );
+  } catch (error) {
     console.error(
       "Ошибка удаления записи фотографии:",
-      deleteError
+      error
     );
 
     return {
       success: false,
+
       message:
-        "Файл удалён из хранилища, но не удалось удалить запись",
+        "Файл удалён из хранилища, но не удалось удалить запись из базы",
     };
   }
+
+  /*
+   * ========================================
+   * 5. Обновляем страницы
+   * ========================================
+   */
 
   revalidatePath(
     "/contractor/company"
+  );
+
+  revalidatePath(
+    "/contractor/dashboard"
   );
 
   return {
@@ -170,17 +230,4 @@ export async function deletePortfolioFile(
     message:
       "Фотография удалена",
   };
-}
-
-function getSingleRelation<T>(
-  value:
-    | T
-    | T[]
-    | null
-): T | null {
-  if (Array.isArray(value)) {
-    return value[0] ?? null;
-  }
-
-  return value;
 }

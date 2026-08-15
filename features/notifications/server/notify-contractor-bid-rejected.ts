@@ -1,5 +1,7 @@
-import { createClient } from
-  "@/lib/supabase/server";
+import "server-only";
+
+import { db } from
+  "@/lib/db/pool";
 
 import { createNotification } from
   "@/features/notifications/server/create-notification";
@@ -10,69 +12,97 @@ type Input = {
   customerId: string;
 };
 
+type RejectedBidRow = {
+  id: string;
+  project_id: string;
+  contractor_id: string;
+
+  company_id:
+    string;
+
+  company_owner_id:
+    string;
+
+  company_public_name:
+    string | null;
+
+  project_id_joined:
+    string;
+
+  project_title:
+    string;
+
+  project_customer_id:
+    string;
+};
+
 export async function notifyContractorBidRejected({
   projectId,
   bidId,
   customerId,
 }: Input) {
-  const supabase =
-    await createClient();
+  let bid:
+    RejectedBidRow |
+    undefined;
 
-  /*
-   * Получаем предложение,
-   * подрядчика и проект.
-   */
-  const {
-    data: bid,
-    error: bidError,
-  } = await supabase
-    .from("project_bids")
-    .select(`
-      id,
-      project_id,
-      contractor_id,
+  try {
+    const result =
+      await db.query<RejectedBidRow>(
+        `
+          SELECT
+            pb.id,
+            pb.project_id,
+            pb.contractor_id,
 
-      contractor_companies!project_bids_contractor_id_fkey (
-        id,
-        owner_id,
-        public_name
-      ),
+            cc.id
+              AS company_id,
 
-      projects!project_bids_project_id_fkey (
-        id,
-        title,
-        customer_id
-      )
-    `)
-    .eq(
-      "id",
-      bidId
-    )
-    .eq(
-      "project_id",
-      projectId
-    )
-    .maybeSingle();
+            cc.owner_id
+              AS company_owner_id,
 
-  if (
-    bidError ||
-    !bid
-  ) {
+            cc.public_name
+              AS company_public_name,
+
+            p.id
+              AS project_id_joined,
+
+            p.title
+              AS project_title,
+
+            p.customer_id
+              AS project_customer_id
+
+          FROM
+            public.project_bids pb
+
+          JOIN
+            public.contractor_companies cc
+            ON cc.id =
+              pb.contractor_id
+
+          JOIN
+            public.projects p
+            ON p.id =
+              pb.project_id
+
+          WHERE
+            pb.id = $1
+            AND pb.project_id = $2
+
+          LIMIT 1
+        `,
+        [
+          bidId,
+          projectId,
+        ]
+      );
+
+    bid =
+      result.rows[0];
+  } catch (error) {
     console.error(
       "Ошибка загрузки предложения для уведомления об отклонении:",
-      {
-        message:
-          bidError?.message,
-
-        details:
-          bidError?.details,
-
-        hint:
-          bidError?.hint,
-
-        code:
-          bidError?.code,
-      }
+      error
     );
 
     return {
@@ -82,26 +112,16 @@ export async function notifyContractorBidRejected({
     };
   }
 
-  const project =
-    getSingleRelation(
-      bid.projects
-    );
-
-  if (!project) {
+  if (!bid) {
     return {
       success: false,
       message:
-        "Проект не найден",
+        "Не удалось определить подрядчика",
     };
   }
 
-  /*
-   * Дополнительная защита:
-   * уведомление может отправлять
-   * только заказчик проекта.
-   */
   if (
-    project.customer_id !==
+    bid.project_customer_id !==
     customerId
   ) {
     return {
@@ -111,14 +131,8 @@ export async function notifyContractorBidRejected({
     };
   }
 
-  const company =
-    getSingleRelation(
-      bid.contractor_companies
-    );
-
   if (
-    !company ||
-    !company.owner_id
+    !bid.company_owner_id
   ) {
     return {
       success: false,
@@ -127,12 +141,8 @@ export async function notifyContractorBidRejected({
     };
   }
 
-  /*
-   * Защита от уведомления
-   * самому себе.
-   */
   if (
-    company.owner_id ===
+    bid.company_owner_id ===
     customerId
   ) {
     return {
@@ -145,7 +155,7 @@ export async function notifyContractorBidRejected({
   const notificationResult =
     await createNotification({
       userId:
-        company.owner_id,
+        bid.company_owner_id,
 
       actorId:
         customerId,
@@ -157,12 +167,16 @@ export async function notifyContractorBidRejected({
         "Предложение отклонено",
 
       body:
-        `Заказчик отклонил ваше предложение по проекту «${project.title}».`,
+        `Заказчик отклонил ваше предложение по проекту «${bid.project_title}».`,
 
-      projectId,
+      projectId:
+        projectId,
 
       url:
         `/contractor/projects/${projectId}`,
+
+      deduplicationKey:
+        `bid-rejected:${bid.id}:user:${bid.company_owner_id}`,
 
       metadata: {
         bid_id:
@@ -172,7 +186,7 @@ export async function notifyContractorBidRejected({
           bid.contractor_id,
 
         project_title:
-          project.title,
+          bid.project_title,
       },
     });
 
@@ -188,27 +202,10 @@ export async function notifyContractorBidRejected({
 
   return {
     success: true,
+
     message:
-      "Подрядчик уведомлён",
+      notificationResult.duplicated
+        ? "Уведомление уже было отправлено"
+        : "Подрядчик уведомлён",
   };
-}
-
-function getSingleRelation<T>(
-  value:
-    | T
-    | T[]
-    | null
-): T | null {
-  if (
-    Array.isArray(
-      value
-    )
-  ) {
-    return (
-      value[0] ??
-      null
-    );
-  }
-
-  return value;
 }

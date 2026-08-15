@@ -2,203 +2,258 @@
 
 import { revalidatePath } from "next/cache";
 
-import { createClient } from
-  "@/lib/supabase/server";
+import { db } from
+  "@/lib/db/pool";
+
+import {
+  requireActiveUser,
+} from "@/lib/auth/require-active-user";
 
 export type SetPortfolioCoverResult = {
   success: boolean;
   message: string;
 };
 
+type TargetFileRow = {
+  id: string;
+  portfolio_project_id: string;
+};
+
+type PortfolioFileIdRow = {
+  id: string;
+};
+
 export async function setPortfolioCover(
   fileId: string
 ): Promise<SetPortfolioCoverResult> {
-  const supabase =
-    await createClient();
+  /*
+   * ========================================
+   * 1. Проверяем пользователя
+   * ========================================
+   */
 
-  const {
-    data: { user },
-    error: userError,
-  } =
-    await supabase.auth.getUser();
+  const auth =
+    await requireActiveUser();
+
+  if (!auth.success) {
+    return {
+      success: false,
+      message: auth.message,
+    };
+  }
 
   if (
-    userError ||
-    !user
+    auth.profile.role !==
+    "contractor"
   ) {
     return {
       success: false,
       message:
-        "Необходимо войти",
+        "Доступно только подрядчику",
     };
   }
 
-  const {
-    data: company,
-    error: companyError,
-  } = await supabase
-    .from(
-      "contractor_companies"
-    )
-    .select("id")
-    .eq(
-      "owner_id",
-      user.id
-    )
-    .maybeSingle();
-
-  if (
-    companyError ||
-    !company
-  ) {
+  if (!fileId) {
     return {
       success: false,
       message:
-        "Компания подрядчика не найдена",
+        "Фотография не указана",
     };
   }
-
-  const {
-    data: file,
-    error: fileError,
-  } = await supabase
-    .from(
-      "contractor_portfolio_files"
-    )
-    .select(`
-      id,
-      portfolio_project_id,
-
-      contractor_portfolio_projects!inner (
-        contractor_id
-      )
-    `)
-    .eq("id", fileId)
-    .maybeSingle();
-
-  if (
-    fileError ||
-    !file
-  ) {
-    return {
-      success: false,
-      message:
-        "Фотография не найдена",
-    };
-  }
-
-  const portfolioProject =
-    getSingleRelation(
-      file.contractor_portfolio_projects
-    );
-
-  if (
-    !portfolioProject ||
-    portfolioProject.contractor_id !==
-      company.id
-  ) {
-    return {
-      success: false,
-      message:
-        "Нет доступа к объекту портфолио",
-    };
-  }
-
-  const {
-    data: projectFiles,
-    error: projectFilesError,
-  } = await supabase
-    .from(
-      "contractor_portfolio_files"
-    )
-    .select(`
-      id,
-      sort_order
-    `)
-    .eq(
-      "portfolio_project_id",
-      file.portfolio_project_id
-    )
-    .order(
-      "sort_order",
-      {
-        ascending: true,
-      }
-    );
-
-  if (projectFilesError) {
-    console.error(
-      "Ошибка загрузки фотографий портфолио:",
-      projectFilesError
-    );
-
-    return {
-      success: false,
-      message:
-        "Не удалось изменить обложку",
-    };
-  }
-
-  const files =
-    projectFiles ?? [];
 
   /*
-   * Выбранному изображению
-   * назначаем sort_order = 0.
-   *
-   * Остальные располагаем
-   * начиная с 1.
+   * ========================================
+   * 2. Проверяем принадлежность фотографии
+   * ========================================
    */
-  const orderedFiles = [
-    file.id,
-    ...files
-      .filter(
-        (item) =>
-          item.id !==
-          file.id
-      )
-      .map(
-        (item) =>
-          item.id
-      ),
-  ];
 
-  for (
-    let index = 0;
-    index <
-    orderedFiles.length;
-    index += 1
-  ) {
-    const {
-      error,
-    } = await supabase
-      .from(
-        "contractor_portfolio_files"
-      )
-      .update({
-        sort_order: index,
-      })
-      .eq(
-        "id",
-        orderedFiles[index]
+  let target:
+    TargetFileRow |
+    undefined;
+
+  try {
+    const result =
+      await db.query<TargetFileRow>(
+        `
+          SELECT
+            cpf.id,
+            cpf.portfolio_project_id
+
+          FROM
+            public.contractor_portfolio_files
+              cpf
+
+          JOIN
+            public.contractor_portfolio_projects
+              cpp
+            ON cpp.id =
+              cpf.portfolio_project_id
+
+          JOIN
+            public.contractor_companies
+              cc
+            ON cc.id =
+              cpp.contractor_id
+
+          WHERE
+            cpf.id = $1
+            AND cc.owner_id = $2
+
+          LIMIT 1
+        `,
+        [
+          fileId,
+          auth.user.id,
+        ]
       );
 
-    if (error) {
-      console.error(
-        "Ошибка изменения порядка фотографий:",
-        error
-      );
+    target =
+      result.rows[0];
+  } catch (error) {
+    console.error(
+      "Ошибка поиска фотографии для обложки:",
+      error
+    );
 
-      return {
-        success: false,
-        message:
-          "Не удалось установить обложку",
-      };
-    }
+    return {
+      success: false,
+      message:
+        "Не удалось получить фотографию",
+    };
   }
+
+  if (!target) {
+    return {
+      success: false,
+      message:
+        "Фотография не найдена или у вас нет доступа",
+    };
+  }
+
+  /*
+   * ========================================
+   * 3. Переставляем sort_order
+   * ========================================
+   *
+   * Обложкой является первый файл.
+   * Поэтому выбранный файл получает
+   * sort_order = 0.
+   */
+
+  const client =
+    await db.connect();
+
+  try {
+    await client.query(
+      "BEGIN"
+    );
+
+    const filesResult =
+      await client.query<PortfolioFileIdRow>(
+        `
+          SELECT
+            id
+
+          FROM
+            public.contractor_portfolio_files
+
+          WHERE
+            portfolio_project_id = $1
+
+          ORDER BY
+            sort_order ASC,
+            created_at ASC,
+            id ASC
+
+          FOR UPDATE
+        `,
+        [
+          target
+            .portfolio_project_id,
+        ]
+      );
+
+    /*
+     * Выбранный файл ставим первым,
+     * остальные сохраняем в прежнем
+     * относительном порядке.
+     */
+    const orderedIds = [
+      target.id,
+
+      ...filesResult.rows
+        .map(
+          (file) =>
+            file.id
+        )
+        .filter(
+          (id) =>
+            id !==
+            target.id
+        ),
+    ];
+
+    for (
+      let index = 0;
+      index <
+      orderedIds.length;
+      index += 1
+    ) {
+      await client.query(
+        `
+          UPDATE
+            public.contractor_portfolio_files
+
+          SET
+            sort_order = $1
+
+          WHERE
+            id = $2
+            AND portfolio_project_id = $3
+        `,
+        [
+          index,
+          orderedIds[index],
+          target
+            .portfolio_project_id,
+        ]
+      );
+    }
+
+    await client.query(
+      "COMMIT"
+    );
+  } catch (error) {
+    await client.query(
+      "ROLLBACK"
+    );
+
+    console.error(
+      "Ошибка изменения обложки портфолио:",
+      error
+    );
+
+    return {
+      success: false,
+      message:
+        "Не удалось установить обложку",
+    };
+  } finally {
+    client.release();
+  }
+
+  /*
+   * ========================================
+   * 4. Обновляем страницы
+   * ========================================
+   */
 
   revalidatePath(
     "/contractor/company"
+  );
+
+  revalidatePath(
+    "/contractor/dashboard"
   );
 
   return {
@@ -206,17 +261,4 @@ export async function setPortfolioCover(
     message:
       "Обложка изменена",
   };
-}
-
-function getSingleRelation<T>(
-  value:
-    | T
-    | T[]
-    | null
-): T | null {
-  if (Array.isArray(value)) {
-    return value[0] ?? null;
-  }
-
-  return value;
 }

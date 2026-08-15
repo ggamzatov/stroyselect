@@ -1,11 +1,13 @@
 "use server";
 
-import {
-  revalidatePath,
-} from "next/cache";
+import { revalidatePath } from "next/cache";
 
-import { createClient } from
-  "@/lib/supabase/server";
+import { db } from
+  "@/lib/db/pool";
+
+import {
+  requireActiveUser,
+} from "@/lib/auth/require-active-user";
 
 import {
   portfolioProjectSchema,
@@ -37,50 +39,47 @@ export async function savePortfolioProject(
     };
   }
 
-  const supabase =
-    await createClient();
+  const auth =
+    await requireActiveUser();
 
-  const {
-    data: { user },
-    error: userError,
-  } =
-    await supabase.auth.getUser();
+  if (!auth.success) {
+    return {
+      success: false,
+      message: auth.message,
+    };
+  }
 
   if (
-    userError ||
-    !user
+    auth.profile.role !==
+    "contractor"
   ) {
     return {
       success: false,
       message:
-        "Необходимо войти",
+        "Доступно только подрядчику",
     };
   }
 
   const values =
     parsed.data;
 
-  const {
-    data: company,
-    error:
-      companyError,
-  } = await supabase
-    .from(
-      "contractor_companies"
-    )
-    .select(
-      "id"
-    )
-    .eq(
-      "owner_id",
-      user.id
-    )
-    .maybeSingle();
+  const companyResult =
+    await db.query<{
+      id: string;
+    }>(
+      `
+        SELECT id
+        FROM public.contractor_companies
+        WHERE owner_id = $1
+        LIMIT 1
+      `,
+      [auth.user.id]
+    );
 
-  if (
-    companyError ||
-    !company
-  ) {
+  const company =
+    companyResult.rows[0];
+
+  if (!company) {
     return {
       success: false,
       message:
@@ -88,69 +87,108 @@ export async function savePortfolioProject(
     };
   }
 
-  const payload = {
-    title:
-      values.title,
-
-    description:
-      values.description
-        ?.trim() ||
-      null,
-
-    city:
-      values.city
-        ?.trim() ||
-      null,
-
-    completed_year:
-      values.completedYear ??
-      null,
-
-    updated_at:
-      new Date().toISOString(),
-  };
-
-  if (
-    values.portfolioProjectId
-  ) {
-    const {
-      data:
-        updatedProject,
-      error,
-    } = await supabase
-      .from(
-        "contractor_portfolio_projects"
-      )
-      .update(
-        payload
-      )
-      .eq(
-        "id",
-        values.portfolioProjectId
-      )
-      .eq(
-        "contractor_id",
-        company.id
-      )
-      .select(
-        "id"
-      )
-      .maybeSingle();
-
+  try {
     if (
-      error ||
-      !updatedProject
+      values.portfolioProjectId
     ) {
-      console.error(
-        "Ошибка обновления объекта портфолио:",
-        error
-      );
+      const result =
+        await db.query<{
+          id: string;
+        }>(
+          `
+            UPDATE
+              public.contractor_portfolio_projects
+            SET
+              title = $1,
+              description = $2,
+              city = $3,
+              completed_year = $4,
+              updated_at = now()
+            WHERE
+              id = $5
+              AND contractor_id = $6
+            RETURNING id
+          `,
+          [
+            values.title,
+            values.description
+              ?.trim() ||
+              null,
+            values.city
+              ?.trim() ||
+              null,
+            values.completedYear ??
+              null,
+            values.portfolioProjectId,
+            company.id,
+          ]
+        );
+
+      const updated =
+        result.rows[0];
+
+      if (!updated) {
+        return {
+          success: false,
+          message:
+            "Не удалось обновить объект портфолио",
+        };
+      }
+
+      revalidatePortfolio();
 
       return {
-        success: false,
+        success: true,
         message:
-          "Не удалось обновить объект портфолио",
+          "Объект портфолио обновлён",
+        portfolioProjectId:
+          updated.id,
       };
+    }
+
+    const result =
+      await db.query<{
+        id: string;
+      }>(
+        `
+          INSERT INTO
+            public.contractor_portfolio_projects (
+              contractor_id,
+              title,
+              description,
+              city,
+              completed_year
+            )
+          VALUES (
+            $1,
+            $2,
+            $3,
+            $4,
+            $5
+          )
+          RETURNING id
+        `,
+        [
+          company.id,
+          values.title,
+          values.description
+            ?.trim() ||
+            null,
+          values.city
+            ?.trim() ||
+            null,
+          values.completedYear ??
+            null,
+        ]
+      );
+
+    const created =
+      result.rows[0];
+
+    if (!created) {
+      throw new Error(
+        "Проект портфолио не создан"
+      );
     }
 
     revalidatePortfolio();
@@ -158,56 +196,22 @@ export async function savePortfolioProject(
     return {
       success: true,
       message:
-        "Объект портфолио обновлён",
+        "Объект портфолио добавлен",
       portfolioProjectId:
-        updatedProject.id,
+        created.id,
     };
-  }
-
-  const {
-    data:
-      createdProject,
-    error,
-  } = await supabase
-    .from(
-      "contractor_portfolio_projects"
-    )
-    .insert({
-      contractor_id:
-        company.id,
-
-      ...payload,
-    })
-    .select(
-      "id"
-    )
-    .single();
-
-  if (
-    error ||
-    !createdProject
-  ) {
+  } catch (error) {
     console.error(
-      "Ошибка создания объекта портфолио:",
+      "Ошибка сохранения объекта портфолио:",
       error
     );
 
     return {
       success: false,
       message:
-        "Не удалось создать объект портфолио",
+        "Не удалось сохранить объект портфолио",
     };
   }
-
-  revalidatePortfolio();
-
-  return {
-    success: true,
-    message:
-      "Объект портфолио добавлен",
-    portfolioProjectId:
-      createdProject.id,
-  };
 }
 
 function revalidatePortfolio() {

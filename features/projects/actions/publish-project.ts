@@ -1,19 +1,23 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+
 import { z } from "zod";
 
-import { createClient } from
-  "@/lib/supabase/server";
+import { db } from
+  "@/lib/db/pool";
+
+import {
+  requireActiveUser,
+} from "@/lib/auth/require-active-user";
 
 import { notifyContractorsAboutProject } from
   "@/features/notifications/server/notify-contractors-about-project";
 
 const publishProjectSchema =
   z.object({
-    projectId: z
-      .string()
-      .uuid(
+    projectId:
+      z.string().uuid(
         "Некорректный идентификатор проекта"
       ),
   });
@@ -29,6 +33,46 @@ export type PublishProjectResult = {
     duplicatedNotifications: number;
     failedNotifications: number;
   };
+};
+
+type ProjectRow = {
+  id: string;
+  customer_id: string;
+
+  category_id:
+    number | null;
+
+  title:
+    string | null;
+
+  description:
+    string | null;
+
+  property_type:
+    string | null;
+
+  region:
+    string | null;
+
+  city:
+    string | null;
+
+  address:
+    string | null;
+
+  budget_min:
+    number | string | null;
+
+  budget_max:
+    number | string | null;
+
+  desired_start_date:
+    Date | string | null;
+
+  desired_end_date:
+    Date | string | null;
+
+  status: string;
 };
 
 export async function publishProject(
@@ -49,63 +93,20 @@ export async function publishProject(
     };
   }
 
-  const supabase =
-    await createClient();
+  const auth =
+    await requireActiveUser();
 
-  /*
-   * Проверяем авторизацию.
-   */
-  const {
-    data: { user },
-    error: userError,
-  } =
-    await supabase.auth.getUser();
-
-  if (
-    userError ||
-    !user
-  ) {
+  if (!auth.success) {
     return {
       success: false,
       message:
-        "Необходимо войти",
-    };
-  }
-
-  /*
-   * Проверяем профиль заказчика.
-   */
-  const {
-    data: profile,
-    error: profileError,
-  } = await supabase
-    .from("profiles")
-    .select(`
-      id,
-      role,
-      is_blocked
-    `)
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (
-    profileError ||
-    !profile
-  ) {
-    console.error(
-      "Ошибка проверки профиля при публикации проекта:",
-      profileError
-    );
-
-    return {
-      success: false,
-      message:
-        "Профиль пользователя не найден",
+        auth.message,
     };
   }
 
   if (
-    profile.role !== "customer"
+    auth.profile.role !==
+    "customer"
   ) {
     return {
       success: false,
@@ -114,218 +115,238 @@ export async function publishProject(
     };
   }
 
-  if (profile.is_blocked) {
-    return {
-      success: false,
-      message:
-        "Ваш аккаунт заблокирован",
-    };
-  }
+  const client =
+    await db.connect();
 
-  /*
-   * Загружаем проект и проверяем владельца.
-   */
-  const {
-    data: project,
-    error: projectError,
-  } = await supabase
-    .from("projects")
-    .select(`
-      id,
-      customer_id,
-      category_id,
-      title,
-      description,
-      property_type,
-      region,
-      city,
-      address,
-      budget_min,
-      budget_max,
-      desired_start_date,
-      desired_end_date,
-      status
-    `)
-    .eq(
-      "id",
-      parsed.data.projectId
-    )
-    .eq(
-      "customer_id",
-      user.id
-    )
-    .maybeSingle();
+  let project:
+    ProjectRow;
 
-  if (
-    projectError ||
-    !project
-  ) {
-    console.error(
-      "Ошибка загрузки проекта перед публикацией:",
-      projectError
+  try {
+    await client.query(
+      "BEGIN"
     );
 
-    return {
-      success: false,
-      message:
-        "Проект не найден или недоступен",
-    };
-  }
+    const projectResult =
+      await client.query<ProjectRow>(
+        `
+          SELECT
+            id,
+            customer_id,
+            category_id,
+            title,
+            description,
+            property_type,
+            region,
+            city,
+            address,
+            budget_min,
+            budget_max,
+            desired_start_date,
+            desired_end_date,
+            status
 
-  /*
-   * Повторно опубликованный проект
-   * не публикуем ещё раз.
-   */
-  if (
-    project.status ===
-    "published"
-  ) {
-    return {
-      success: true,
-      message:
-        "Проект уже опубликован",
-      projectId:
-        project.id,
-    };
-  }
+          FROM
+            public.projects
 
-  if (
-    project.status !== "draft"
-  ) {
-    return {
-      success: false,
-      message:
-        "Опубликовать можно только черновик",
-    };
-  }
+          WHERE
+            id = $1
+            AND customer_id = $2
 
-  /*
-   * Дополнительная проверка обязательных
-   * данных перед публикацией.
-   */
-  const validationMessage =
-    validateProjectForPublication(
-      project
-    );
+          LIMIT 1
 
-  if (validationMessage) {
-    return {
-      success: false,
-      message:
-        validationMessage,
-    };
-  }
+          FOR UPDATE
+        `,
+        [
+          parsed.data.projectId,
+          auth.user.id,
+        ]
+      );
 
-  const publishedAt =
-    new Date().toISOString();
+    const foundProject =
+      projectResult.rows[0];
 
-  /*
-   * Переводим проект в published.
-   */
-  const {
-    data: publishedProject,
-    error: updateError,
-  } = await supabase
-    .from("projects")
-    .update({
-      status:
-        "published",
+    if (!foundProject) {
+      await client.query(
+        "ROLLBACK"
+      );
 
-      published_at:
-        publishedAt,
+      return {
+        success: false,
+        message:
+          "Проект не найден или недоступен",
+      };
+    }
 
-      updated_at:
-        publishedAt,
-    })
-    .eq(
-      "id",
-      project.id
-    )
-    .eq(
-      "customer_id",
-      user.id
-    )
-    .eq(
-      "status",
+    project =
+      foundProject;
+
+    if (
+      project.status ===
+      "published"
+    ) {
+      await client.query(
+        "ROLLBACK"
+      );
+
+      return {
+        success: true,
+        message:
+          "Проект уже опубликован",
+        projectId:
+          project.id,
+      };
+    }
+
+    if (
+      project.status !==
       "draft"
-    )
-    .select(`
-      id,
-      status
-    `)
-    .maybeSingle();
+    ) {
+      await client.query(
+        "ROLLBACK"
+      );
 
-  if (
-    updateError ||
-    !publishedProject
-  ) {
+      return {
+        success: false,
+        message:
+          "Опубликовать можно только черновик",
+      };
+    }
+
+    const validationMessage =
+      validateProjectForPublication(
+        project
+      );
+
+    if (validationMessage) {
+      await client.query(
+        "ROLLBACK"
+      );
+
+      return {
+        success: false,
+        message:
+          validationMessage,
+      };
+    }
+
+    const updateResult =
+      await client.query<{
+        id: string;
+      }>(
+        `
+          UPDATE
+            public.projects
+
+          SET
+            status =
+              'published',
+
+            published_at =
+              now(),
+
+            updated_at =
+              now()
+
+          WHERE
+            id = $1
+
+            AND customer_id =
+              $2
+
+            AND status =
+              'draft'
+
+          RETURNING
+            id
+        `,
+        [
+          project.id,
+          auth.user.id,
+        ]
+      );
+
+    if (
+      !updateResult.rows[0]
+    ) {
+      throw new Error(
+        "Проект не был опубликован"
+      );
+    }
+
+    /*
+     * История проекта входит
+     * в ту же транзакцию.
+     */
+    await client.query(
+      `
+        INSERT INTO
+          public.project_events (
+            project_id,
+            author_id,
+            event_type,
+            title,
+            description,
+            metadata
+          )
+        VALUES (
+          $1,
+          $2,
+          $3,
+          $4,
+          $5,
+          $6::jsonb
+        )
+      `,
+      [
+        project.id,
+        auth.user.id,
+        "project_published",
+        "Проект опубликован",
+        project.title,
+        JSON.stringify({
+          category_id:
+            project.category_id,
+
+          city:
+            project.city,
+
+          published_at:
+            new Date()
+              .toISOString(),
+        }),
+      ]
+    );
+
+    await client.query(
+      "COMMIT"
+    );
+  } catch (error) {
+    await client.query(
+      "ROLLBACK"
+    );
+
     console.error(
       "Ошибка публикации проекта:",
-      updateError
+      error
     );
 
     return {
       success: false,
       message:
-        updateError?.message ??
         "Не удалось опубликовать проект",
     };
+  } finally {
+    client.release();
   }
 
   /*
-   * Записываем событие в историю проекта.
-   *
-   * Ошибка события не должна отменять
-   * уже выполненную публикацию.
-   */
-  const {
-    error: eventError,
-  } = await supabase
-    .from("project_events")
-    .insert({
-      project_id:
-        project.id,
-
-      author_id:
-        user.id,
-
-      event_type:
-        "project_published",
-
-      title:
-        "Проект опубликован",
-
-      description:
-        project.title,
-
-      metadata: {
-        category_id:
-          project.category_id,
-
-        city:
-          project.city,
-
-        published_at:
-          publishedAt,
-      },
-    });
-
-  if (eventError) {
-    console.error(
-      "Ошибка создания события публикации проекта:",
-      eventError
-    );
-  }
-
-  /*
-   * После успешной публикации ищем
-   * подходящих подрядчиков и создаём
-   * уведомления.
-   *
-   * Ошибка рассылки не отменяет публикацию.
+   * Уведомления выполняем после COMMIT.
+   * Их ошибка не откатывает публикацию.
    */
   let notificationResult:
-    PublishProjectResult["notificationResult"];
+    PublishProjectResult[
+      "notificationResult"
+    ];
 
   try {
     const result =
@@ -346,17 +367,10 @@ export async function publishProject(
       failedNotifications:
         result.failedNotifications,
     };
-
-    console.log(
-      "Результат уведомления подрядчиков о новом проекте:",
-      result
-    );
-  } catch (
-    notificationError
-  ) {
+  } catch (error) {
     console.error(
       "Непредвиденная ошибка рассылки нового проекта:",
-      notificationError
+      error
     );
   }
 
@@ -366,6 +380,7 @@ export async function publishProject(
 
   return {
     success: true,
+
     message:
       createPublishResultMessage(
         notificationResult
@@ -381,38 +396,28 @@ export async function publishProject(
 function validateProjectForPublication(
   project: {
     category_id:
-      | number
-      | null;
+      number | null;
 
     title:
-      | string
-      | null;
+      string | null;
 
     description:
-      | string
-      | null;
+      string | null;
 
     property_type:
-      | string
-      | null;
+      string | null;
 
     region:
-      | string
-      | null;
+      string | null;
 
     city:
-      | string
-      | null;
+      string | null;
 
     budget_min:
-      | number
-      | string
-      | null;
+      number | string | null;
 
     budget_max:
-      | number
-      | string
-      | null;
+      number | string | null;
   }
 ): string | null {
   if (!project.category_id) {
@@ -503,7 +508,9 @@ function toFiniteNumber(
 
 function createPublishResultMessage(
   result:
-    | PublishProjectResult["notificationResult"]
+    | PublishProjectResult[
+        "notificationResult"
+      ]
     | undefined
 ) {
   if (!result) {
@@ -513,7 +520,8 @@ function createPublishResultMessage(
   }
 
   if (
-    result.matchedContractors === 0
+    result.matchedContractors ===
+    0
   ) {
     return (
       "Проект опубликован. Подходящие подрядчики пока не найдены"

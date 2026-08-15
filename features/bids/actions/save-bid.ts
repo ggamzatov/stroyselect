@@ -3,8 +3,8 @@
 import { revalidatePath } from
   "next/cache";
 
-import { createClient } from
-  "@/lib/supabase/server";
+import { db } from
+  "@/lib/db/pool";
 
 import { requireActiveUser } from
   "@/lib/auth/require-active-user";
@@ -25,6 +25,48 @@ export type SaveBidResult = {
   success: boolean;
   message: string;
   bidId?: string;
+};
+
+type CompanyRow = {
+  id: string;
+  owner_id: string;
+
+  public_name:
+    string | null;
+
+  verification_status:
+    string;
+
+  accepts_new_projects:
+    boolean;
+};
+
+type ProjectRow = {
+  id: string;
+  customer_id: string;
+  title: string;
+  status: string;
+
+  selected_contractor_id:
+    string | null;
+
+  is_admin_blocked:
+    boolean;
+
+  admin_block_reason:
+    string | null;
+};
+
+type ExistingBidRow = {
+  id: string;
+  status: string;
+
+  created_at:
+    Date | string;
+};
+
+type PostgresError = Error & {
+  code?: string;
 };
 
 export async function saveBid(
@@ -67,7 +109,8 @@ export async function saveBid(
   const {
     user,
     profile,
-  } = activeUser;
+  } =
+    activeUser;
 
   if (
     profile.role !==
@@ -93,311 +136,476 @@ export async function saveBid(
     };
   }
 
-  const project =
-    activeProject.project;
+  const client =
+    await db.connect();
 
-  const supabase =
-    await createClient();
+  let savedBidId:
+    string | undefined;
 
-  const {
-    data: company,
-    error: companyError,
-  } = await supabase
-    .from(
-      "contractor_companies"
-    )
-    .select(`
-      id,
-      owner_id,
-      public_name,
-      verification_status,
-      accepts_new_projects
-    `)
-    .eq(
-      "owner_id",
-      user.id
-    )
-    .maybeSingle();
-
-  if (
-    companyError ||
-    !company
-  ) {
-    return {
-      success: false,
-      message:
-        "Компания подрядчика не найдена",
-    };
-  }
-
-  if (
-    company.verification_status !==
-    "verified"
-  ) {
-    return {
-      success: false,
-      message:
-        "Компания должна пройти проверку администратора",
-    };
-  }
-
-  if (
-    !company.accepts_new_projects
-  ) {
-    return {
-      success: false,
-      message:
-        "В профиле компании отключён приём новых проектов",
-    };
-  }
-
-  if (
-    project.customer_id ===
-    user.id
-  ) {
-    return {
-      success: false,
-      message:
-        "Нельзя оставить предложение на собственный проект",
-    };
-  }
-
-  if (
-    project.status !==
-    "published"
-  ) {
-    return {
-      success: false,
-      message:
-        "На этот проект больше нельзя оставить предложение",
-    };
-  }
-
-  if (
-    project.selected_contractor_id
-  ) {
-    return {
-      success: false,
-      message:
-        "Для проекта уже выбран подрядчик",
-    };
-  }
-
-  const {
-    data: existingBid,
-    error: existingBidError,
-  } = await supabase
-    .from(
-      "project_bids"
-    )
-    .select(`
-      id,
-      status,
-      created_at
-    `)
-    .eq(
-      "project_id",
-      values.projectId
-    )
-    .eq(
-      "contractor_id",
-      company.id
-    )
-    .maybeSingle();
-
-  if (existingBidError) {
-    return {
-      success: false,
-      message:
-        "Не удалось проверить существующее предложение",
-    };
-  }
-
-  if (
-    existingBid &&
-    [
-      "accepted",
-      "rejected",
-      "withdrawn",
-    ].includes(
-      existingBid.status
-    )
-  ) {
-    return {
-      success: false,
-      message:
-        "Это предложение уже нельзя изменить",
-    };
-  }
-
-  const bidPayload = {
-    project_id:
-      values.projectId,
-
-    contractor_id:
-      company.id,
-
-    price:
-      values.price,
-
-    duration_days:
-      values.durationDays,
-
-    proposed_start_date:
-      values.proposedStartDate ||
-      null,
-
-    message:
-      values.message
-        ?.trim() ||
-      null,
-
-    updated_at:
-      new Date().toISOString(),
-  };
-
-  let savedBidId: string;
   let isNewBid =
     false;
 
-  if (existingBid) {
-    const {
-      data: updatedBid,
-      error,
-    } = await supabase
-      .from(
-        "project_bids"
-      )
-      .update(
-        bidPayload
-      )
-      .eq(
-        "id",
-        existingBid.id
-      )
-      .eq(
-        "contractor_id",
-        company.id
-      )
-      .select(
-        "id"
-      )
-      .maybeSingle();
+  let projectForNotification:
+    {
+      customer_id: string;
+      title: string;
+    } | null =
+    null;
 
-    if (
-      error ||
-      !updatedBid
-    ) {
+  let companyForNotification:
+    CompanyRow | null =
+    null;
+
+  try {
+    await client.query(
+      "BEGIN"
+    );
+
+    const companyResult =
+      await client.query<CompanyRow>(
+        `
+          SELECT
+            id,
+            owner_id,
+            public_name,
+            verification_status,
+            accepts_new_projects
+
+          FROM
+            public.contractor_companies
+
+          WHERE
+            owner_id = $1
+
+          LIMIT 1
+        `,
+        [
+          user.id,
+        ]
+      );
+
+    const company =
+      companyResult.rows[0];
+
+    if (!company) {
+      await client.query(
+        "ROLLBACK"
+      );
+
       return {
         success: false,
         message:
-          error?.message ??
-          "Не удалось обновить предложение",
+          "Компания подрядчика не найдена",
       };
     }
 
-    savedBidId =
-      updatedBid.id;
-  } else {
-    const {
-      data: createdBid,
-      error,
-    } = await supabase
-      .from(
-        "project_bids"
-      )
-      .insert({
-        ...bidPayload,
-        status:
-          "submitted",
-      })
-      .select(
-        "id"
-      )
-      .single();
+    if (
+      company.verification_status !==
+      "verified"
+    ) {
+      await client.query(
+        "ROLLBACK"
+      );
+
+      return {
+        success: false,
+        message:
+          "Компания должна пройти проверку администратора",
+      };
+    }
 
     if (
-      error ||
-      !createdBid
+      !company.accepts_new_projects
     ) {
-      if (
-        error?.code ===
-        "23505"
-      ) {
-        return {
-          success: false,
-          message:
-            "Вы уже оставили предложение на этот проект",
-        };
+      await client.query(
+        "ROLLBACK"
+      );
+
+      return {
+        success: false,
+        message:
+          "В профиле компании отключён приём новых проектов",
+      };
+    }
+
+    const projectResult =
+      await client.query<ProjectRow>(
+        `
+          SELECT
+            id,
+            customer_id,
+            title,
+            status,
+            selected_contractor_id,
+            is_admin_blocked,
+            admin_block_reason
+
+          FROM
+            public.projects
+
+          WHERE
+            id = $1
+
+          LIMIT 1
+
+          FOR UPDATE
+        `,
+        [
+          values.projectId,
+        ]
+      );
+
+    const project =
+      projectResult.rows[0];
+
+    if (!project) {
+      await client.query(
+        "ROLLBACK"
+      );
+
+      return {
+        success: false,
+        message:
+          "Проект не найден",
+      };
+    }
+
+    if (
+      project.is_admin_blocked
+    ) {
+      await client.query(
+        "ROLLBACK"
+      );
+
+      return {
+        success: false,
+
+        message:
+          project.admin_block_reason
+            ? `Проект ограничен администрацией. Причина: ${project.admin_block_reason}`
+            : "Проект ограничен администрацией",
+      };
+    }
+
+    if (
+      project.customer_id ===
+      user.id
+    ) {
+      await client.query(
+        "ROLLBACK"
+      );
+
+      return {
+        success: false,
+        message:
+          "Нельзя оставить предложение на собственный проект",
+      };
+    }
+
+    if (
+      project.status !==
+      "published"
+    ) {
+      await client.query(
+        "ROLLBACK"
+      );
+
+      return {
+        success: false,
+        message:
+          "На этот проект больше нельзя оставить предложение",
+      };
+    }
+
+    if (
+      project.selected_contractor_id
+    ) {
+      await client.query(
+        "ROLLBACK"
+      );
+
+      return {
+        success: false,
+        message:
+          "Для проекта уже выбран подрядчик",
+      };
+    }
+
+    const existingResult =
+      await client.query<ExistingBidRow>(
+        `
+          SELECT
+            id,
+            status,
+            created_at
+
+          FROM
+            public.project_bids
+
+          WHERE
+            project_id = $1
+            AND contractor_id = $2
+
+          LIMIT 1
+
+          FOR UPDATE
+        `,
+        [
+          values.projectId,
+          company.id,
+        ]
+      );
+
+    const existingBid =
+      existingResult.rows[0];
+
+    if (
+      existingBid &&
+      [
+        "accepted",
+        "rejected",
+        "withdrawn",
+      ].includes(
+        existingBid.status
+      )
+    ) {
+      await client.query(
+        "ROLLBACK"
+      );
+
+      return {
+        success: false,
+        message:
+          "Это предложение уже нельзя изменить",
+      };
+    }
+
+    if (existingBid) {
+      const result =
+        await client.query<{
+          id: string;
+        }>(
+          `
+            UPDATE
+              public.project_bids
+
+            SET
+              price = $1,
+              duration_days = $2,
+              proposed_start_date = $3,
+              message = $4,
+              updated_at = now()
+
+            WHERE
+              id = $5
+              AND contractor_id = $6
+
+            RETURNING
+              id
+          `,
+          [
+            values.price,
+            values.durationDays,
+
+            values.proposedStartDate ||
+              null,
+
+            values.message
+              ?.trim() ||
+              null,
+
+            existingBid.id,
+            company.id,
+          ]
+        );
+
+      savedBidId =
+        result.rows[0]
+          ?.id;
+
+      if (!savedBidId) {
+        throw new Error(
+          "Предложение не было обновлено"
+        );
       }
+    } else {
+      try {
+        const result =
+          await client.query<{
+            id: string;
+          }>(
+            `
+              INSERT INTO
+                public.project_bids (
+                  project_id,
+                  contractor_id,
+                  price,
+                  duration_days,
+                  proposed_start_date,
+                  message,
+                  status
+                )
+              VALUES (
+                $1,
+                $2,
+                $3,
+                $4,
+                $5,
+                $6,
+                'submitted'
+              )
+              RETURNING
+                id
+            `,
+            [
+              values.projectId,
+              company.id,
+              values.price,
+              values.durationDays,
 
-      return {
-        success: false,
-        message:
-          error?.message ??
-          "Не удалось отправить предложение",
-      };
+              values.proposedStartDate ||
+                null,
+
+              values.message
+                ?.trim() ||
+                null,
+            ]
+          );
+
+        savedBidId =
+          result.rows[0]
+            ?.id;
+
+        if (!savedBidId) {
+          throw new Error(
+            "Предложение не было создано"
+          );
+        }
+
+        isNewBid =
+          true;
+      } catch (error) {
+        const postgresError =
+          error as PostgresError;
+
+        if (
+          postgresError.code ===
+          "23505"
+        ) {
+          await client.query(
+            "ROLLBACK"
+          );
+
+          return {
+            success: false,
+            message:
+              "Вы уже оставили предложение на этот проект",
+          };
+        }
+
+        throw error;
+      }
     }
 
-    savedBidId =
-      createdBid.id;
-
-    isNewBid =
-      true;
-  }
-
-  if (isNewBid) {
-    const {
-      error: eventError,
-    } = await supabase
-      .from(
-        "project_events"
-      )
-      .insert({
-        project_id:
+    if (
+      isNewBid &&
+      savedBidId
+    ) {
+      await client.query(
+        `
+          INSERT INTO
+            public.project_events (
+              project_id,
+              author_id,
+              event_type,
+              title,
+              description,
+              metadata
+            )
+          VALUES (
+            $1,
+            $2,
+            $3,
+            $4,
+            $5,
+            $6::jsonb
+          )
+        `,
+        [
           values.projectId,
 
-        author_id:
           user.id,
 
-        event_type:
           "bid_created",
 
-        title:
           "Получено новое предложение",
 
-        description:
           company.public_name
             ? `${company.public_name} оставил предложение`
             : "Подрядчик оставил предложение",
 
-        metadata: {
-          bid_id:
-            savedBidId,
+          JSON.stringify({
+            bid_id:
+              savedBidId,
 
-          contractor_id:
-            company.id,
+            contractor_id:
+              company.id,
 
-          price:
-            values.price,
+            price:
+              values.price,
 
-          duration_days:
-            values.durationDays,
-        },
-      });
-
-    if (eventError) {
-      console.error(
-        "Ошибка создания события нового предложения:",
-        eventError
+            duration_days:
+              values.durationDays,
+          }),
+        ]
       );
     }
 
+    projectForNotification = {
+      customer_id:
+        project.customer_id,
+
+      title:
+        project.title,
+    };
+
+    companyForNotification =
+      company;
+
+    await client.query(
+      "COMMIT"
+    );
+  } catch (error) {
+    await client.query(
+      "ROLLBACK"
+    );
+
+    console.error(
+      "Ошибка сохранения предложения:",
+      error
+    );
+
+    return {
+      success: false,
+      message:
+        "Не удалось сохранить предложение",
+    };
+  } finally {
+    client.release();
+  }
+
+  if (
+    isNewBid &&
+    savedBidId &&
+    projectForNotification &&
+    companyForNotification
+  ) {
     try {
       const contractorName =
         getContractorDisplayName({
           publicName:
-            company.public_name,
+            companyForNotification
+              .public_name,
 
           firstName:
             profile.first_name,
@@ -406,52 +614,66 @@ export async function saveBid(
             profile.last_name,
         });
 
-      await createNotification({
-        userId:
-          project.customer_id,
+      const notificationResult =
+        await createNotification({
+          userId:
+            projectForNotification
+              .customer_id,
 
-        actorId:
-          user.id,
+          actorId:
+            user.id,
 
-        notificationType:
-          "new_bid",
+          notificationType:
+            "new_bid",
 
-        title:
-          "Новое предложение",
+          title:
+            "Новое предложение",
 
-        body:
-          `${contractorName} оставил предложение по проекту «${project.title}»`,
+          body:
+            `${contractorName} оставил предложение по проекту «${projectForNotification.title}»`,
 
-        projectId:
-          values.projectId,
+          projectId:
+            values.projectId,
 
-        url:
-          `/customer/projects/${values.projectId}`,
+          url:
+            `/customer/projects/${values.projectId}`,
 
-        metadata: {
-          bid_id:
-            savedBidId,
+          deduplicationKey:
+            `new-bid:${savedBidId}:user:${projectForNotification.customer_id}`,
 
-          contractor_id:
-            company.id,
+          metadata: {
+            bid_id:
+              savedBidId,
 
-          contractor_name:
-            contractorName,
+            contractor_id:
+              companyForNotification.id,
 
-          project_title:
-            project.title,
+            contractor_name:
+              contractorName,
 
-          price:
-            values.price,
+            project_title:
+              projectForNotification.title,
 
-          duration_days:
-            values.durationDays,
+            price:
+              values.price,
 
-          proposed_start_date:
-            values.proposedStartDate ||
-            null,
-        },
-      });
+            duration_days:
+              values.durationDays,
+
+            proposed_start_date:
+              values.proposedStartDate ||
+              null,
+          },
+        });
+
+      if (
+        !notificationResult.success
+      ) {
+        console.error(
+          "Ошибка уведомления о новом предложении:",
+          notificationResult.message
+        );
+      }
     } catch (error) {
       console.error(
         "Ошибка уведомления о новом предложении:",
@@ -468,9 +690,9 @@ export async function saveBid(
     success: true,
 
     message:
-      existingBid
-        ? "Предложение обновлено"
-        : "Предложение отправлено",
+      isNewBid
+        ? "Предложение отправлено"
+        : "Предложение обновлено",
 
     bidId:
       savedBidId,
@@ -524,16 +746,13 @@ function getContractorDisplayName({
   lastName,
 }: {
   publicName:
-    | string
-    | null;
+    string | null;
 
   firstName:
-    | string
-    | null;
+    string | null;
 
   lastName:
-    | string
-    | null;
+    string | null;
 }) {
   const normalizedPublicName =
     publicName?.trim();

@@ -1,7 +1,7 @@
 import "server-only";
 
-import { createAdminClient } from
-  "@/lib/supabase/admin";
+import { db } from
+  "@/lib/db/pool";
 
 import { createNotification } from
   "@/features/notifications/server/create-notification";
@@ -15,77 +15,100 @@ type NotifyContractorsResult = {
   failedNotifications: number;
 };
 
-type RelatedCompany = {
+type ProjectRow = {
   id: string;
+  customer_id: string;
+
+  category_id:
+    number | string | null;
+
+  title: string;
+
+  description:
+    string | null;
+
+  region:
+    string | null;
+
+  city:
+    string | null;
+
+  budget_min:
+    string | number | null;
+
+  budget_max:
+    string | number | null;
+
+  status: string;
+};
+
+type RecipientRow = {
+  company_id: string;
   owner_id: string;
-  public_name: string | null;
-  verification_status: string;
-  accepts_new_projects: boolean;
+
+  public_name:
+    string | null;
 };
 
 export async function notifyContractorsAboutProject(
   projectId: string
 ): Promise<NotifyContractorsResult> {
-  const supabase =
-    createAdminClient();
+  let project:
+    ProjectRow |
+    undefined;
 
-  /*
-   * Загружаем проект.
-   */
-  const {
-    data: project,
-    error: projectError,
-  } = await supabase
-    .from("projects")
-    .select(`
-      id,
-      customer_id,
-      category_id,
-      title,
-      description,
-      region,
-      city,
-      budget_min,
-      budget_max,
-      status
-    `)
-    .eq("id", projectId)
-    .maybeSingle();
+  try {
+    const projectResult =
+      await db.query<ProjectRow>(
+        `
+          SELECT
+            id,
+            customer_id,
+            category_id,
+            title,
+            description,
+            region,
+            city,
+            budget_min,
+            budget_max,
+            status
+          FROM
+            public.projects
+          WHERE
+            id = $1
+          LIMIT 1
+        `,
+        [
+          projectId,
+        ]
+      );
 
-  if (
-    projectError ||
-    !project
-  ) {
+    project =
+      projectResult.rows[0];
+  } catch (error) {
     console.error(
       "Ошибка загрузки проекта для уведомлений:",
-      projectError
+      error
     );
 
-    return {
-      success: false,
-      message:
-        projectError?.message ??
-        "Проект не найден",
-      matchedContractors: 0,
-      createdNotifications: 0,
-      duplicatedNotifications: 0,
-      failedNotifications: 0,
-    };
+    return emptyResult(
+      "Не удалось загрузить проект"
+    );
+  }
+
+  if (!project) {
+    return emptyResult(
+      "Проект не найден"
+    );
   }
 
   if (
     project.status !==
     "published"
   ) {
-    return {
-      success: false,
-      message:
-        `Проект имеет статус «${project.status}», а не «published»`,
-      matchedContractors: 0,
-      createdNotifications: 0,
-      duplicatedNotifications: 0,
-      failedNotifications: 0,
-    };
+    return emptyResult(
+      `Проект имеет статус «${project.status}», а не «published»`
+    );
   }
 
   if (
@@ -94,150 +117,85 @@ export async function notifyContractorsAboutProject(
     project.category_id ===
       undefined
   ) {
-    return {
-      success: false,
-      message:
-        "У проекта не указана категория",
-      matchedContractors: 0,
-      createdNotifications: 0,
-      duplicatedNotifications: 0,
-      failedNotifications: 0,
-    };
+    return emptyResult(
+      "У проекта не указана категория"
+    );
   }
 
-  /*
-   * В твоей таблице contractor_services
-   * используются поля:
-   *
-   * contractor_id
-   * category_id
-   */
-  const {
-    data: serviceMatches,
-    error: servicesError,
-  } = await supabase
-    .from("contractor_services")
-    .select(`
-      contractor_id,
-      category_id,
-      years_experience,
-      is_primary,
+  let recipients:
+    RecipientRow[];
 
-      company:contractor_companies!contractor_services_contractor_id_fkey (
-        id,
-        owner_id,
-        public_name,
-        verification_status,
-        accepts_new_projects
-      )
-    `)
-    .eq(
-      "category_id",
-      project.category_id
-    );
+  try {
+    const result =
+      await db.query<RecipientRow>(
+        `
+          SELECT DISTINCT
+            cc.id
+              AS company_id,
 
-  if (servicesError) {
-    console.error(
-      "Ошибка поиска подрядчиков для нового проекта:",
-      servicesError
-    );
+            cc.owner_id,
 
-    return {
-      success: false,
-      message:
-        servicesError.message,
-      matchedContractors: 0,
-      createdNotifications: 0,
-      duplicatedNotifications: 0,
-      failedNotifications: 0,
-    };
-  }
+            cc.public_name
 
-  /*
-   * Убираем повторы.
-   *
-   * Один владелец может иметь несколько
-   * совпадающих записей услуг.
-   */
-  const recipientsMap =
-    new Map<
-      string,
-      {
-        userId: string;
-        companyId: string;
-        companyName: string | null;
-      }
-    >();
+          FROM
+            public.contractor_services
+              cs
 
-  for (
-    const serviceMatch of
-    serviceMatches ?? []
-  ) {
-    const company =
-      normalizeCompany(
-        serviceMatch.company
+          JOIN
+            public.contractor_companies
+              cc
+            ON cc.id =
+              cs.contractor_id
+
+          WHERE
+            cs.category_id =
+              $1
+
+            AND cc.verification_status =
+              'verified'
+
+            AND cc.accepts_new_projects =
+              true
+
+            AND cc.owner_id <>
+              $2
+        `,
+        [
+          project.category_id,
+          project.customer_id,
+        ]
       );
 
-    if (!company) {
-      continue;
-    }
+    recipients =
+      result.rows;
+  } catch (error) {
+    console.error(
+      "Ошибка поиска подрядчиков для нового проекта:",
+      error
+    );
 
-    if (
-      company.verification_status !==
-      "verified"
-    ) {
-      continue;
-    }
-
-    if (
-      company.accepts_new_projects !==
-      true
-    ) {
-      continue;
-    }
-
-    /*
-     * Не отправляем уведомление
-     * автору собственного проекта.
-     */
-    if (
-      company.owner_id ===
-      project.customer_id
-    ) {
-      continue;
-    }
-
-    recipientsMap.set(
-      company.owner_id,
-      {
-        userId:
-          company.owner_id,
-
-        companyId:
-          company.id,
-
-        companyName:
-          company.public_name,
-      }
+    return emptyResult(
+      "Не удалось найти подходящих подрядчиков"
     );
   }
 
-  const recipients = [
-    ...recipientsMap.values(),
-  ];
+  let createdNotifications =
+    0;
 
-  let createdNotifications = 0;
-  let duplicatedNotifications = 0;
-  let failedNotifications = 0;
+  let duplicatedNotifications =
+    0;
+
+  let failedNotifications =
+    0;
 
   for (
     const recipient of
-    recipients
+      recipients
   ) {
     const result =
       await createNotification({
         userId:
-          recipient.userId,
+          recipient.owner_id,
 
         actorId:
           project.customer_id,
@@ -260,7 +218,7 @@ export async function notifyContractorsAboutProject(
           `/contractor/projects/${project.id}`,
 
         deduplicationKey:
-          `new-project:${project.id}:user:${recipient.userId}`,
+          `new-project:${project.id}:user:${recipient.owner_id}`,
 
         metadata: {
           project_title:
@@ -282,10 +240,10 @@ export async function notifyContractorsAboutProject(
             project.budget_max,
 
           company_id:
-            recipient.companyId,
+            recipient.company_id,
 
           company_name:
-            recipient.companyName,
+            recipient.public_name,
         },
       });
 
@@ -293,16 +251,21 @@ export async function notifyContractorsAboutProject(
       result.success &&
       result.duplicated
     ) {
-      duplicatedNotifications += 1;
+      duplicatedNotifications +=
+        1;
+
       continue;
     }
 
     if (result.success) {
-      createdNotifications += 1;
+      createdNotifications +=
+        1;
+
       continue;
     }
 
-    failedNotifications += 1;
+    failedNotifications +=
+      1;
 
     console.error(
       "Не удалось уведомить подрядчика о новом проекте:",
@@ -311,10 +274,10 @@ export async function notifyContractorsAboutProject(
           project.id,
 
         contractorUserId:
-          recipient.userId,
+          recipient.owner_id,
 
         companyId:
-          recipient.companyId,
+          recipient.company_id,
 
         message:
           result.message,
@@ -324,7 +287,8 @@ export async function notifyContractorsAboutProject(
 
   return {
     success:
-      failedNotifications === 0,
+      failedNotifications ===
+      0,
 
     message:
       recipients.length === 0
@@ -342,27 +306,29 @@ export async function notifyContractorsAboutProject(
   };
 }
 
-function normalizeCompany(
-  value:
-    | RelatedCompany
-    | RelatedCompany[]
-    | null
-): RelatedCompany | null {
-  if (Array.isArray(value)) {
-    return value[0] ?? null;
-  }
-
-  return value;
+function emptyResult(
+  message: string
+): NotifyContractorsResult {
+  return {
+    success: false,
+    message,
+    matchedContractors: 0,
+    createdNotifications: 0,
+    duplicatedNotifications: 0,
+    failedNotifications: 0,
+  };
 }
 
 function getProjectNotificationBody(
   project: {
     title: string;
     city: string | null;
+
     budget_min:
       | number
       | string
       | null;
+
     budget_max:
       | number
       | string
@@ -374,7 +340,9 @@ function getProjectNotificationBody(
   ];
 
   if (project.city) {
-    parts.push(project.city);
+    parts.push(
+      project.city
+    );
   }
 
   const budget =
@@ -384,10 +352,14 @@ function getProjectNotificationBody(
     );
 
   if (budget) {
-    parts.push(budget);
+    parts.push(
+      budget
+    );
   }
 
-  return parts.join(" · ");
+  return parts.join(
+    " · "
+  );
 }
 
 function formatBudget(
@@ -401,10 +373,14 @@ function formatBudget(
     | null
 ) {
   const min =
-    toFiniteNumber(minimum);
+    toFiniteNumber(
+      minimum
+    );
 
   const max =
-    toFiniteNumber(maximum);
+    toFiniteNumber(
+      maximum
+    );
 
   if (
     min !== null &&
@@ -450,9 +426,14 @@ function formatMoney(
   return new Intl.NumberFormat(
     "ru-RU",
     {
-      style: "currency",
-      currency: "RUB",
-      maximumFractionDigits: 0,
+      style:
+        "currency",
+
+      currency:
+        "RUB",
+
+      maximumFractionDigits:
+        0,
     }
   ).format(value);
 }

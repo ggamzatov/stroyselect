@@ -63,8 +63,7 @@ type ContractorCompanyRow = {
 };
 
 type ContractorServiceRow = {
-  category_id:
-    string | number;
+  category_id: number;
 };
 
 type ContractorAreaRow = {
@@ -214,14 +213,14 @@ export async function getMyContractorCompany() {
         ),
 
       contractor_services:
-        servicesResult.rows.map(
-          (service) => ({
-            category_id:
-              String(
-                service.category_id
-              ),
-          })
+  servicesResult.rows.map(
+    (service) => ({
+      category_id:
+        Number(
+          service.category_id
         ),
+    })
+  ),
 
       contractor_service_areas:
         areasResult.rows.map(

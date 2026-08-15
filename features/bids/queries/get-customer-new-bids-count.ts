@@ -1,86 +1,118 @@
-import { createClient } from "@/lib/supabase/server";
+import "server-only";
+
+import { db } from
+  "@/lib/db/pool";
+
+import {
+  getCurrentSessionUserId,
+} from
+  "@/lib/auth/session";
 
 export type CustomerBidsCounts = {
   newBidsCount: number;
   acceptedBidsCount: number;
 };
 
+type CountsRow = {
+  new_bids_count:
+    string | number;
+
+  accepted_bids_count:
+    string | number;
+};
+
 export async function getCustomerBidsCounts(): Promise<CustomerBidsCounts> {
-  const supabase = await createClient();
+  const userId =
+    await getCurrentSessionUserId();
 
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-
-  if (userError || !user) {
+  if (!userId) {
     return {
       newBidsCount: 0,
       acceptedBidsCount: 0,
     };
   }
 
-  const baseSelect = `
-    id,
-    projects!project_bids_project_id_fkey!inner (
-      customer_id
+  try {
+    const result =
+      await db.query<CountsRow>(
+        `
+          SELECT
+            COUNT(*) FILTER (
+              WHERE pb.status =
+                'submitted'
+            )
+              AS new_bids_count,
+
+            COUNT(*) FILTER (
+              WHERE pb.status =
+                'accepted'
+            )
+              AS accepted_bids_count
+
+          FROM
+            public.project_bids pb
+
+          JOIN
+            public.projects p
+            ON p.id =
+              pb.project_id
+
+          WHERE
+            p.customer_id =
+              $1
+        `,
+        [
+          userId,
+        ]
+      );
+
+    const row =
+      result.rows[0];
+
+    return {
+      newBidsCount:
+        safeInteger(
+          row
+            ?.new_bids_count
+        ),
+
+      acceptedBidsCount:
+        safeInteger(
+          row
+            ?.accepted_bids_count
+        ),
+    };
+  } catch (error) {
+    console.error(
+      "Ошибка подсчёта предложений заказчика:",
+      error
+    );
+
+    return {
+      newBidsCount: 0,
+      acceptedBidsCount: 0,
+    };
+  }
+}
+
+function safeInteger(
+  value: unknown
+) {
+  const number =
+    Number(value);
+
+  if (
+    !Number.isFinite(
+      number
     )
-  `;
-
-  const [
-    { count: newBidsCount, error: newBidsError },
-    { count: acceptedBidsCount, error: acceptedBidsError },
-  ] = await Promise.all([
-    supabase
-      .from("project_bids")
-      .select(baseSelect, {
-        count: "exact",
-        head: true,
-      })
-      .eq("projects.customer_id", user.id)
-      .eq("status", "submitted"),
-
-    supabase
-      .from("project_bids")
-      .select(baseSelect, {
-        count: "exact",
-        head: true,
-      })
-      .eq("projects.customer_id", user.id)
-      .eq("status", "accepted"),
-  ]);
-
-  if (newBidsError) {
-    console.error(
-      "Ошибка подсчёта новых предложений:",
-      {
-        message: newBidsError.message,
-        code: newBidsError.code,
-        details: newBidsError.details,
-        hint: newBidsError.hint,
-      }
-    );
+  ) {
+    return 0;
   }
 
-  if (acceptedBidsError) {
-    console.error(
-      "Ошибка подсчёта принятых предложений:",
-      {
-        message: acceptedBidsError.message,
-        code: acceptedBidsError.code,
-        details: acceptedBidsError.details,
-        hint: acceptedBidsError.hint,
-      }
-    );
-  }
-
-  return {
-    newBidsCount:
-      newBidsError ? 0 : newBidsCount ?? 0,
-
-    acceptedBidsCount:
-      acceptedBidsError
-        ? 0
-        : acceptedBidsCount ?? 0,
-  };
+  return Math.max(
+    0,
+    Math.trunc(
+      number
+    )
+  );
 }
