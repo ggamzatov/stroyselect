@@ -16,6 +16,9 @@ import { getMyContractorCompany } from
 import { getServiceCategories } from
   "@/features/contractors/queries/get-service-categories";
 
+import { getContractorCities } from
+  "@/features/contractors/queries/get-contractor-cities";
+
 import { getMyContractorPortfolio } from
   "@/features/contractors/portfolio/queries/get-my-contractor-portfolio";
 
@@ -26,23 +29,16 @@ import { PortfolioManager } from
   "@/features/contractors/portfolio/components/portfolio-manager";
 
 export default async function ContractorCompanyPage() {
-  const { profile } =
-    await getCurrentProfile();
+  const { profile } = await getCurrentProfile();
 
-  if (
-    profile.role !==
-    "contractor"
-  ) {
+  if (profile.role !== "contractor") {
     redirect("/dashboard");
   }
 
-  const [
-    company,
-    categories,
-    portfolio,
-  ] = await Promise.all([
+  const [company, categories, cities, portfolio] = await Promise.all([
     getMyContractorCompany(),
     getServiceCategories(),
+    getContractorCities(),
     getMyContractorPortfolio(),
   ]);
 
@@ -54,7 +50,6 @@ export default async function ContractorCompanyPage() {
           className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground transition hover:text-primary"
         >
           <ArrowLeft className="h-4 w-4" />
-
           Вернуться в кабинет
         </Link>
 
@@ -77,57 +72,37 @@ export default async function ContractorCompanyPage() {
                 </h1>
 
                 <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground md:text-base">
-                  Заполните сведения о компании,
-                  специализациях и территории работы.
-                  Эти данные используются для проверки
-                  профиля, подбора подходящих проектов
-                  и отображения компании заказчикам.
+                  Заполните сведения о компании, специализациях и территории работы.
+                  Эти данные используются для проверки профиля, подбора подходящих
+                  проектов и отображения компании заказчикам.
                 </p>
               </div>
             </div>
 
             <VerificationStatus
-              status={
-                company
-                  ?.verification_status ??
-                "not_created"
-              }
+              status={company?.verification_status ?? "not_created"}
             />
           </div>
         </section>
 
         <section className="mt-6 rounded-[1.75rem] border border-border bg-card p-6 shadow-[var(--shadow-soft)] md:p-8">
           <ContractorCompanyForm
-            categories={
-              categories
-            }
-            company={
-              company
-            }
+            categories={categories}
+            cities={cities}
+            company={company}
           />
         </section>
 
         <section className="mt-6 rounded-[1.75rem] border border-border bg-card p-6 shadow-[var(--shadow-soft)] md:p-8">
-          <PortfolioManager
-            portfolio={
-              portfolio
-            }
-          />
+          <PortfolioManager portfolio={portfolio} />
         </section>
       </div>
     </main>
   );
 }
 
-function VerificationStatus({
-  status,
-}: {
-  status: string;
-}) {
-  const config =
-    getVerificationConfig(
-      status
-    );
+function VerificationStatus({ status }: { status: string }) {
+  const config = getVerificationConfig(status);
 
   return (
     <div
@@ -137,62 +112,46 @@ function VerificationStatus({
       ].join(" ")}
     >
       <ShieldCheck className="h-4 w-4" />
-
       {config.label}
     </div>
   );
 }
 
-function getVerificationConfig(
-  status: string
-) {
+function getVerificationConfig(status: string) {
   switch (status) {
     case "verified":
       return {
-        label:
-          "Профиль подтверждён",
+        label: "Профиль подтверждён",
         className:
           "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
       };
-
     case "pending":
       return {
-        label:
-          "На проверке",
+        label: "На проверке",
         className:
           "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300",
       };
-
     case "rejected":
       return {
-        label:
-          "Требует исправлений",
+        label: "Требует исправлений",
         className:
           "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300",
       };
-
     case "suspended":
       return {
-        label:
-          "Приостановлен",
+        label: "Приостановлен",
         className:
           "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300",
       };
-
     case "draft":
       return {
-        label:
-          "Черновик",
-        className:
-          "bg-secondary text-secondary-foreground",
+        label: "Черновик",
+        className: "bg-secondary text-secondary-foreground",
       };
-
     default:
       return {
-        label:
-          "Профиль не создан",
-        className:
-          "bg-muted text-muted-foreground",
+        label: "Профиль не создан",
+        className: "bg-muted text-muted-foreground",
       };
   }
 }
