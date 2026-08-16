@@ -40,7 +40,7 @@ export async function moderateProjectDispute(formData: FormData) {
     if(!result.rowCount) throw new Error("Спор не найден");
     await client.query(`
       INSERT INTO public.project_audit_log(project_id,actor_id,action,entity_type,entity_id,payload)
-      VALUES($1,$2,'admin_dispute_moderated','dispute',$3,$4::jsonb)
+      VALUES($1::uuid,$2::uuid,'admin_dispute_moderated','dispute',$3::text,$4::jsonb)
     `,[projectId,user.id,disputeId,JSON.stringify({priority,status,admin_note:adminNote,resolution})]);
     await client.query("COMMIT");
   }catch(error){await client.query("ROLLBACK");throw error}finally{client.release()}
@@ -67,18 +67,37 @@ export async function setProjectRiskHold(formData: FormData) {
     await client.query("BEGIN");
     const result=await client.query(`
       UPDATE public.projects
-      SET risk_hold=$1,
-          risk_hold_reason=CASE WHEN $1 THEN $2::text ELSE NULL END,
-          risk_hold_by=CASE WHEN $1 THEN $3::uuid ELSE NULL END,
-          risk_hold_at=CASE WHEN $1 THEN now() ELSE NULL END
+      SET risk_hold=$1::boolean,
+          risk_hold_reason=CASE WHEN $1::boolean THEN $2::text ELSE NULL END,
+          risk_hold_by=CASE WHEN $1::boolean THEN $3::uuid ELSE NULL END,
+          risk_hold_at=CASE WHEN $1::boolean THEN now() ELSE NULL END
       WHERE id=$4::uuid
       RETURNING id
     `,[hold,reason||null,user.id,projectId]);
     if(!result.rowCount) throw new Error("Проект не найден");
     await client.query(`
-      INSERT INTO public.project_audit_log(project_id,actor_id,action,entity_type,entity_id,payload)
-      VALUES($1,$2,$3,'project',$1,$4::jsonb)
-    `,[projectId,user.id,hold?"project_risk_hold_enabled":"project_risk_hold_disabled",JSON.stringify({reason:reason||null,dispute_id:disputeId||null})]);
+      INSERT INTO public.project_audit_log(
+        project_id,
+        actor_id,
+        action,
+        entity_type,
+        entity_id,
+        payload
+      ) VALUES(
+        $1::uuid,
+        $2::uuid,
+        $3::varchar(100),
+        'project',
+        $4::text,
+        $5::jsonb
+      )
+    `,[
+      projectId,
+      user.id,
+      hold?"project_risk_hold_enabled":"project_risk_hold_disabled",
+      projectId,
+      JSON.stringify({reason:reason||null,dispute_id:disputeId||null}),
+    ]);
     await client.query("COMMIT");
   }catch(error){await client.query("ROLLBACK");throw error}finally{client.release()}
 
