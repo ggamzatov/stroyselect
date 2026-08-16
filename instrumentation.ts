@@ -13,6 +13,23 @@ export const onRequestError: Instrumentation.onRequestError = async (
       resolveErrorUserIdFromCookieHeader,
     } = await import("./lib/observability/application-errors");
 
+    const normalizedError =
+      error instanceof Error
+        ? error
+        : new Error(
+            typeof error === "string"
+              ? error
+              : "Неизвестная ошибка запроса"
+          );
+
+    const digest =
+      typeof error === "object" &&
+      error !== null &&
+      "digest" in error &&
+      typeof (error as { digest?: unknown }).digest === "string"
+        ? (error as { digest: string }).digest
+        : null;
+
     const userId = await resolveErrorUserIdFromCookieHeader(
       request.headers.cookie
     );
@@ -24,11 +41,11 @@ export const onRequestError: Instrumentation.onRequestError = async (
       userId,
       source: "server",
       severity: "error",
-      message: error.message,
-      stack: error.stack ?? null,
+      message: normalizedError.message,
+      stack: normalizedError.stack ?? null,
       route: request.path,
       method: request.method,
-      digest: error.digest ?? null,
+      digest,
       userAgent,
       metadata: {
         routerKind: context.routerKind,
