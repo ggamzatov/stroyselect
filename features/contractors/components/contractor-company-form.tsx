@@ -21,14 +21,16 @@ import { CompanyExperienceSection } from "@/features/contractors/components/comp
 import { CompanyServicesSection } from "@/features/contractors/components/company-form/company-services-section";
 import { CompanyCitiesSection } from "@/features/contractors/components/company-form/company-cities-section";
 import { CompanyContactsSection } from "@/features/contractors/components/company-form/company-contacts-section";
+import type { ContractorCityOption } from "@/features/contractors/queries/get-contractor-cities";
 import type { ContractorCategory, ExistingContractorCompany } from "@/features/contractors/types/contractor-company-form";
 
 type Props = {
   categories: ContractorCategory[];
+  cities: ContractorCityOption[];
   company: ExistingContractorCompany | null;
 };
 
-export function ContractorCompanyForm({ categories, company }: Props) {
+export function ContractorCompanyForm({ categories, cities, company }: Props) {
   const router = useRouter();
   const [isSaving, startSaving] = useTransition();
   const [isSubmitting, startSubmitting] = useTransition();
@@ -229,6 +231,7 @@ export function ContractorCompanyForm({ categories, company }: Props) {
           onToggle={toggleCategory}
         />
         <CompanyCitiesSection
+          cities={cities}
           selectedCities={watchedCities}
           disabled={formLocked}
           error={errors.cities?.message}
