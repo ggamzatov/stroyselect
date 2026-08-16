@@ -32,6 +32,11 @@ type StageRow = {
   status: string;
 };
 
+type HoldRow = {
+  risk_hold: boolean;
+  risk_hold_reason: string | null;
+};
+
 export async function reviewProjectStage(
   input: ReviewInput
 ): Promise<ReviewProjectStageResult> {
@@ -74,6 +79,35 @@ export async function reviewProjectStage(
 
   try {
     await client.query("BEGIN");
+
+    const holdResult = await client.query<HoldRow>(
+      `
+        SELECT risk_hold, risk_hold_reason
+        FROM public.projects
+        WHERE id = $1::uuid
+          AND customer_id = $2::uuid
+        LIMIT 1
+        FOR UPDATE
+      `,
+      [parsed.data.projectId, activeUser.user.id]
+    );
+
+    const project = holdResult.rows[0];
+
+    if (!project) {
+      await client.query("ROLLBACK");
+      return { success: false, message: "Проект не найден" };
+    }
+
+    if (project.risk_hold) {
+      await client.query("ROLLBACK");
+      return {
+        success: false,
+        message: project.risk_hold_reason
+          ? `Проект приостановлен администрацией: ${project.risk_hold_reason}`
+          : "Проект приостановлен администрацией",
+      };
+    }
 
     const stageResult = await client.query<StageRow>(
       `
