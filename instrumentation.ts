@@ -8,11 +8,20 @@ export const onRequestError: Instrumentation.onRequestError = async (
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
   try {
-    const { logApplicationError } = await import(
-      "./lib/observability/application-errors"
+    const {
+      logApplicationError,
+      resolveErrorUserIdFromCookieHeader,
+    } = await import("./lib/observability/application-errors");
+
+    const userId = await resolveErrorUserIdFromCookieHeader(
+      request.headers.cookie
     );
+    const userAgent = Array.isArray(request.headers["user-agent"])
+      ? request.headers["user-agent"].join(" ")
+      : request.headers["user-agent"] ?? null;
 
     await logApplicationError({
+      userId,
       source: "server",
       severity: "error",
       message: error.message,
@@ -20,6 +29,7 @@ export const onRequestError: Instrumentation.onRequestError = async (
       route: request.path,
       method: request.method,
       digest: error.digest ?? null,
+      userAgent,
       metadata: {
         routerKind: context.routerKind,
         routeType: context.routeType,
