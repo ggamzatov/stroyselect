@@ -1,64 +1,27 @@
 "use client";
 
-import {
-  useState,
-  useTransition,
-} from "react";
-
-import { useRouter } from
-  "next/navigation";
-
-import { useForm } from
-  "react-hook-form";
-
-import { zodResolver } from
-  "@hookform/resolvers/zod";
-
-import {
-  CheckCircle2,
-  Loader2,
-  Save,
-  Send,
-  TriangleAlert,
-} from "lucide-react";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { CheckCircle2, Loader2, Save, Send, TriangleAlert } from "lucide-react";
 
 import {
   contractorCompanyDraftSchema,
   contractorCompanySchema,
   type ContractorCompanyFormInput,
   type ContractorCompanyInput,
-} from
-  "@/features/contractors/schemas/contractor-company-schema";
-
-import { saveContractorCompany } from
-  "@/features/contractors/actions/save-contractor-company";
-
-import { submitContractorVerification } from
-  "@/features/contractors/actions/submit-contractor-verification";
-
-import { CompanyStatusBlock } from
-  "@/features/contractors/components/company-form/company-status-block";
-
-import { CompanyMainSection } from
-  "@/features/contractors/components/company-form/company-main-section";
-
-import { CompanyExperienceSection } from
-  "@/features/contractors/components/company-form/company-experience-section";
-
-import { CompanyServicesSection } from
-  "@/features/contractors/components/company-form/company-services-section";
-
-import { CompanyCitiesSection } from
-  "@/features/contractors/components/company-form/company-cities-section";
-
-import { CompanyContactsSection } from
-  "@/features/contractors/components/company-form/company-contacts-section";
-
-import type {
-  ContractorCategory,
-  ExistingContractorCompany,
-} from
-  "@/features/contractors/types/contractor-company-form";
+} from "@/features/contractors/schemas/contractor-company-schema";
+import { saveContractorCompany } from "@/features/contractors/actions/save-contractor-company";
+import { submitContractorVerification } from "@/features/contractors/actions/submit-contractor-verification";
+import { setContractorAvailability } from "@/features/contractors/actions/set-contractor-availability";
+import { CompanyStatusBlock } from "@/features/contractors/components/company-form/company-status-block";
+import { CompanyMainSection } from "@/features/contractors/components/company-form/company-main-section";
+import { CompanyExperienceSection } from "@/features/contractors/components/company-form/company-experience-section";
+import { CompanyServicesSection } from "@/features/contractors/components/company-form/company-services-section";
+import { CompanyCitiesSection } from "@/features/contractors/components/company-form/company-cities-section";
+import { CompanyContactsSection } from "@/features/contractors/components/company-form/company-contacts-section";
+import type { ContractorCategory, ExistingContractorCompany } from "@/features/contractors/types/contractor-company-form";
 
 type Props = {
   categories: ContractorCategory[];
@@ -69,10 +32,11 @@ export function ContractorCompanyForm({ categories, company }: Props) {
   const router = useRouter();
   const [isSaving, startSaving] = useTransition();
   const [isSubmitting, startSubmitting] = useTransition();
+  const [isChangingAvailability, startAvailabilityChange] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const selectedCategoryIds = company?.contractor_services?.map((service) => service.category_id) ?? [];
+  const selectedCategoryIds = company?.contractor_services?.map((service) => Number(service.category_id)) ?? [];
   const selectedCities = company?.contractor_service_areas?.map((area) => area.city) ?? [];
 
   const {
@@ -110,6 +74,7 @@ export function ContractorCompanyForm({ categories, company }: Props) {
 
   const watchedCategories = watch("categoryIds") ?? [];
   const watchedCities = watch("cities") ?? [];
+  const acceptsNewProjects = watch("acceptsNewProjects") ?? true;
   const status = company?.verification_status ?? "draft";
   const formLocked = status === "pending" || status === "verified";
 
@@ -129,6 +94,35 @@ export function ContractorCompanyForm({ categories, company }: Props) {
       : [...watchedCities, city];
     setValue("cities", updated, { shouldValidate: true, shouldDirty: true });
     if (updated.length > 0) clearErrors("cities");
+  }
+
+  function handleAvailabilityChange(value: boolean) {
+    if (value === acceptsNewProjects || isChangingAvailability) return;
+
+    const previous = acceptsNewProjects;
+    setMessage(null);
+    setErrorMessage(null);
+    setValue("acceptsNewProjects", value, {
+      shouldValidate: true,
+      shouldDirty: !company,
+    });
+
+    if (!company) {
+      setMessage("Статус доступности будет сохранён вместе с черновиком профиля.");
+      return;
+    }
+
+    startAvailabilityChange(async () => {
+      const result = await setContractorAvailability(value);
+      if (!result.success) {
+        setValue("acceptsNewProjects", previous, { shouldDirty: false });
+        setErrorMessage(result.message);
+        return;
+      }
+
+      setMessage(result.message);
+      router.refresh();
+    });
   }
 
   function onSave(values: ContractorCompanyInput) {
@@ -183,16 +177,12 @@ export function ContractorCompanyForm({ categories, company }: Props) {
         });
       }
 
-      setErrorMessage(
-        "Заполните обязательные поля, отмеченные красным, и повторите отправку."
-      );
+      setErrorMessage("Заполните обязательные поля, отмеченные красным, и повторите отправку.");
 
       if (firstIssue) {
         const firstField = String(firstIssue.path[0] ?? "");
         window.requestAnimationFrame(() => {
-          const target = document.querySelector<HTMLElement>(
-            `[data-company-field="${firstField}"]`
-          );
+          const target = document.querySelector<HTMLElement>(`[data-company-field="${firstField}"]`);
           target?.scrollIntoView({ behavior: "smooth", block: "center" });
           target?.querySelector<HTMLElement>("input, textarea, select, button")?.focus();
         });
@@ -222,8 +212,17 @@ export function ContractorCompanyForm({ categories, company }: Props) {
       <CompanyStatusBlock status={status} comment={company?.verification_comment ?? null} />
 
       <form onSubmit={handleSubmit(onSave, onInvalid)} className="space-y-6">
+        <input type="hidden" {...register("acceptsNewProjects")} />
+
         <CompanyMainSection register={register} errors={errors} disabled={formLocked} />
-        <CompanyExperienceSection register={register} disabled={formLocked} />
+        <CompanyExperienceSection
+          register={register}
+          errors={errors}
+          disabled={formLocked}
+          acceptsNewProjects={acceptsNewProjects}
+          availabilityPending={isChangingAvailability}
+          onAvailabilityChange={handleAvailabilityChange}
+        />
         <CompanyServicesSection
           categories={categories}
           selectedIds={watchedCategories}
@@ -243,10 +242,7 @@ export function ContractorCompanyForm({ categories, company }: Props) {
           <div className="rounded-[1.25rem] border border-emerald-200 bg-emerald-50 p-4 text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-200">
             <div className="flex items-start gap-3">
               <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
-              <div>
-                <p className="text-sm font-semibold">Готово</p>
-                <p className="mt-1 text-sm leading-6 opacity-85">{message}</p>
-              </div>
+              <div><p className="text-sm font-semibold">Готово</p><p className="mt-1 text-sm leading-6 opacity-85">{message}</p></div>
             </div>
           </div>
         )}
@@ -255,10 +251,7 @@ export function ContractorCompanyForm({ categories, company }: Props) {
           <div className="rounded-[1.25rem] border border-red-200 bg-red-50 p-4 text-red-900 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-200">
             <div className="flex items-start gap-3">
               <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0" />
-              <div>
-                <p className="text-sm font-semibold">Проверьте профиль</p>
-                <p className="mt-1 text-sm leading-6 opacity-85">{errorMessage}</p>
-              </div>
+              <div><p className="text-sm font-semibold">Проверьте профиль</p><p className="mt-1 text-sm leading-6 opacity-85">{errorMessage}</p></div>
             </div>
           </div>
         )}
@@ -268,41 +261,20 @@ export function ContractorCompanyForm({ categories, company }: Props) {
             <div>
               <p className="text-sm font-semibold text-foreground">Профиль компании</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                {formLocked
-                  ? "Редактирование временно недоступно."
-                  : isDirty
-                    ? "Есть несохранённые изменения."
-                    : "Все изменения сохранены."}
+                {formLocked ? "Основные данные заблокированы на время проверки. Статус приёма проектов можно менять." : isDirty ? "Есть несохранённые изменения." : "Все изменения сохранены."}
               </p>
             </div>
 
             <div className="flex flex-wrap gap-3">
               {!formLocked && (
-                <button
-                  type="submit"
-                  disabled={isSaving || isSubmitting}
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-[0_8px_20px_rgba(107,70,50,0.16)] transition hover:-translate-y-0.5 hover:bg-[#5c3b2a] disabled:pointer-events-none disabled:translate-y-0 disabled:opacity-50"
-                >
-                  {isSaving ? (
-                    <><Loader2 className="h-4 w-4 animate-spin" />Сохраняем...</>
-                  ) : (
-                    <><Save className="h-4 w-4" />Сохранить черновик</>
-                  )}
+                <button type="submit" disabled={isSaving || isSubmitting} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-[0_8px_20px_rgba(107,70,50,0.16)] transition hover:-translate-y-0.5 hover:bg-[#5c3b2a] disabled:pointer-events-none disabled:translate-y-0 disabled:opacity-50">
+                  {isSaving ? <><Loader2 className="h-4 w-4 animate-spin" />Сохраняем...</> : <><Save className="h-4 w-4" />Сохранить черновик</>}
                 </button>
               )}
 
               {company && status === "draft" && (
-                <button
-                  type="button"
-                  disabled={isSaving || isSubmitting}
-                  onClick={handleSubmitForVerification}
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-primary/25 bg-secondary px-5 text-sm font-semibold text-primary transition hover:bg-primary hover:text-primary-foreground disabled:pointer-events-none disabled:opacity-50"
-                >
-                  {isSubmitting ? (
-                    <><Loader2 className="h-4 w-4 animate-spin" />Отправляем...</>
-                  ) : (
-                    <><Send className="h-4 w-4" />Отправить на проверку</>
-                  )}
+                <button type="button" disabled={isSaving || isSubmitting} onClick={handleSubmitForVerification} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-primary/25 bg-secondary px-5 text-sm font-semibold text-primary transition hover:bg-primary hover:text-primary-foreground disabled:pointer-events-none disabled:opacity-50">
+                  {isSubmitting ? <><Loader2 className="h-4 w-4 animate-spin" />Отправляем...</> : <><Send className="h-4 w-4" />Отправить на проверку</>}
                 </button>
               )}
             </div>
