@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import {
+  AlertTriangle,
+  BookOpenText,
   Building2,
   FolderKanban,
   LayoutDashboard,
@@ -36,6 +38,16 @@ const navigation = [
     href: "/admin/users",
     label: "Пользователи",
     icon: UsersRound,
+  },
+  {
+    href: "/admin/catalog",
+    label: "Справочники",
+    icon: BookOpenText,
+  },
+  {
+    href: "/admin/errors",
+    label: "Ошибки",
+    icon: AlertTriangle,
   },
 ];
 
