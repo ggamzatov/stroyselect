@@ -1,122 +1,55 @@
 "use client";
 
-import {
-  useEffect,
-  useRef,
-  useState,
-} from "react";
-
-import { NotificationBell } from
-  "@/features/notifications/components/notification-bell";
-
-import { NotificationDropdown } from
-  "@/features/notifications/components/notification-dropdown";
-
-import type { NotificationItem } from
-  "@/features/notifications/types";
+import { useEffect, useRef, useState } from "react";
+import { NotificationBell } from "@/features/notifications/components/notification-bell";
+import { NotificationDropdown } from "@/features/notifications/components/notification-dropdown";
+import { useNotifications } from "@/features/notifications/hooks/use-notifications";
+import type { NotificationItem } from "@/features/notifications/types";
 
 type Props = {
+  userId: string;
   notifications: NotificationItem[];
   unreadCount: number;
 };
 
-export function NotificationCenter({
-  notifications,
-  unreadCount,
-}: Props) {
-  const [
-    isOpen,
-    setIsOpen,
-  ] =
-    useState(false);
+export function NotificationCenter({ userId, notifications, unreadCount }: Props) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
-  const containerRef =
-    useRef<HTMLDivElement | null>(
-      null
-    );
+  useNotifications(userId);
 
   useEffect(() => {
-    function handlePointerDown(
-      event: MouseEvent
-    ) {
-      if (
-        !containerRef.current
-      ) {
-        return;
-      }
-
-      if (
-        !containerRef.current.contains(
-          event.target as Node
-        )
-      ) {
-        setIsOpen(false);
-      }
+    function handlePointerDown(event: MouseEvent) {
+      if (!containerRef.current) return;
+      if (!containerRef.current.contains(event.target as Node)) setIsOpen(false);
     }
 
-    function handleKeyDown(
-      event: KeyboardEvent
-    ) {
-      if (
-        event.key ===
-        "Escape"
-      ) {
-        setIsOpen(false);
-      }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setIsOpen(false);
     }
 
-    document.addEventListener(
-      "mousedown",
-      handlePointerDown
-    );
-
-    document.addEventListener(
-      "keydown",
-      handleKeyDown
-    );
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
 
     return () => {
-      document.removeEventListener(
-        "mousedown",
-        handlePointerDown
-      );
-
-      document.removeEventListener(
-        "keydown",
-        handleKeyDown
-      );
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
     };
   }, []);
 
   return (
-    <div
-      ref={containerRef}
-      className="relative"
-    >
+    <div ref={containerRef} className="relative">
       <NotificationBell
-        unreadCount={
-          unreadCount
-        }
-        isOpen={
-          isOpen
-        }
-        onClick={() =>
-          setIsOpen(
-            (current) =>
-              !current
-          )
-        }
+        unreadCount={unreadCount}
+        isOpen={isOpen}
+        onClick={() => setIsOpen((current) => !current)}
       />
 
       {isOpen && (
         <div className="absolute right-0 top-[calc(100%+10px)] z-[100]">
           <NotificationDropdown
-            notifications={
-              notifications
-            }
-            onClose={() =>
-              setIsOpen(false)
-            }
+            notifications={notifications}
+            onClose={() => setIsOpen(false)}
           />
         </div>
       )}
