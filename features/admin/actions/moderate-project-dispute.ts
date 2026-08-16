@@ -57,19 +57,24 @@ export async function setProjectRiskHold(formData: FormData) {
   const disputeId=String(formData.get("disputeId")??"");
   const hold=String(formData.get("hold")??"")==="true";
   const reason=String(formData.get("reason")??"").trim();
-  if(hold&&reason.length<5) throw new Error("Укажите причину приостановки");
+
+  if(hold&&reason.length<5){
+    redirect(`/admin/disputes/${disputeId}?holdError=reason`);
+  }
 
   const client=await db.connect();
   try{
     await client.query("BEGIN");
-    await client.query(`
+    const result=await client.query(`
       UPDATE public.projects
       SET risk_hold=$1,
           risk_hold_reason=CASE WHEN $1 THEN $2::text ELSE NULL END,
           risk_hold_by=CASE WHEN $1 THEN $3::uuid ELSE NULL END,
           risk_hold_at=CASE WHEN $1 THEN now() ELSE NULL END
       WHERE id=$4::uuid
+      RETURNING id
     `,[hold,reason||null,user.id,projectId]);
+    if(!result.rowCount) throw new Error("Проект не найден");
     await client.query(`
       INSERT INTO public.project_audit_log(project_id,actor_id,action,entity_type,entity_id,payload)
       VALUES($1,$2,$3,'project',$1,$4::jsonb)
@@ -79,5 +84,7 @@ export async function setProjectRiskHold(formData: FormData) {
 
   revalidatePath("/admin/disputes");
   if(disputeId) revalidatePath(`/admin/disputes/${disputeId}`);
+  revalidatePath(`/customer/work/${projectId}`);
+  revalidatePath(`/contractor/work/${projectId}`);
   redirect(disputeId?`/admin/disputes/${disputeId}`:"/admin/disputes");
 }
