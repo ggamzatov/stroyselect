@@ -24,6 +24,10 @@ const metadataSchema = z.object({
   parentDocumentId: z.string().uuid().optional(),
 });
 
+export async function uploadProjectDocumentFormAction(formData: FormData): Promise<void> {
+  await uploadProjectDocument(formData);
+}
+
 export async function uploadProjectDocument(formData: FormData) {
   const parsed = metadataSchema.safeParse({
     projectId: formData.get("projectId"),
