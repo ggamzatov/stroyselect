@@ -212,8 +212,6 @@ export function ContractorCompanyForm({ categories, company }: Props) {
       <CompanyStatusBlock status={status} comment={company?.verification_comment ?? null} />
 
       <form onSubmit={handleSubmit(onSave, onInvalid)} className="space-y-6">
-        <input type="hidden" {...register("acceptsNewProjects")} />
-
         <CompanyMainSection register={register} errors={errors} disabled={formLocked} />
         <CompanyExperienceSection
           register={register}
