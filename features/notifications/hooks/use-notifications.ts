@@ -2,7 +2,6 @@
 
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-
 import { getMyNotifications } from "@/features/notifications/queries/get-my-notifications";
 
 export function useNotifications(userId: string) {
@@ -40,21 +39,25 @@ export function useNotifications(userId: string) {
       }
     }
 
-    const timer = window.setInterval(() => {
-      void checkNotifications();
-    }, 5000);
+    const timer = window.setInterval(() => void checkNotifications(), 4000);
 
     function handleVisibilityChange() {
       if (document.visibilityState === "visible") void checkNotifications();
     }
 
+    function handleFocus() {
+      void checkNotifications();
+    }
+
     document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleFocus);
     void checkNotifications();
 
     return () => {
       cancelled = true;
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleFocus);
     };
   }, [router, userId]);
 }
