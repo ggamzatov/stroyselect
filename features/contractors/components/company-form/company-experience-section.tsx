@@ -2,167 +2,139 @@ import {
   Banknote,
   BriefcaseBusiness,
   CalendarDays,
+  CheckCircle2,
+  PauseCircle,
   UsersRound,
 } from "lucide-react";
 
-import type {
-  UseFormRegister,
-} from "react-hook-form";
-
-import type {
-  ContractorCompanyFormInput,
-} from "@/features/contractors/schemas/contractor-company-schema";
+import type { FieldErrors, UseFormRegister } from "react-hook-form";
+import type { ContractorCompanyFormInput } from "@/features/contractors/schemas/contractor-company-schema";
 
 type Props = {
-  register:
-    UseFormRegister<ContractorCompanyFormInput>;
-
+  register: UseFormRegister<ContractorCompanyFormInput>;
+  errors: FieldErrors<ContractorCompanyFormInput>;
   disabled: boolean;
+  acceptsNewProjects: boolean;
+  availabilityPending: boolean;
+  onAvailabilityChange: (value: boolean) => void;
 };
 
 export function CompanyExperienceSection({
   register,
+  errors,
   disabled,
+  acceptsNewProjects,
+  availabilityPending,
+  onAvailabilityChange,
 }: Props) {
   return (
     <section className="rounded-[1.75rem] border border-border bg-card p-6 shadow-[var(--shadow-soft)] md:p-7">
       <SectionHeader />
 
       <div className="mt-6 grid gap-5 md:grid-cols-2">
-        <NumberField
-          label="Год начала работы"
-          icon={
-            <CalendarDays className="h-4 w-4" />
-          }
-        >
+        <NumberField field="foundedYear" label="Год начала работы" required error={errors.foundedYear?.message} icon={<CalendarDays className="h-4 w-4" />}>
           <input
             type="number"
             disabled={disabled}
-            className="stroy-input"
-            {...register(
-              "foundedYear"
-            )}
+            className={inputClass(Boolean(errors.foundedYear))}
+            placeholder="Например, 2018"
+            {...register("foundedYear")}
           />
         </NumberField>
 
-        <NumberField
-          label="Количество сотрудников"
-          icon={
-            <UsersRound className="h-4 w-4" />
-          }
-        >
+        <NumberField field="employeeCount" label="Количество сотрудников" required error={errors.employeeCount?.message} icon={<UsersRound className="h-4 w-4" />}>
           <input
             type="number"
+            min={1}
             disabled={disabled}
-            className="stroy-input"
-            {...register(
-              "employeeCount"
-            )}
+            className={inputClass(Boolean(errors.employeeCount))}
+            placeholder="Например, 8"
+            {...register("employeeCount")}
           />
         </NumberField>
 
-        <NumberField
-          label="Минимальный бюджет проекта"
-          icon={
-            <Banknote className="h-4 w-4" />
-          }
-        >
-          <input
-            type="number"
-            disabled={disabled}
-            className="stroy-input"
-            {...register(
-              "minimumProjectBudget"
-            )}
-          />
+        <NumberField field="minimumProjectBudget" label="Минимальный бюджет проекта" icon={<Banknote className="h-4 w-4" />}>
+          <input type="number" min={0} disabled={disabled} className="stroy-input" {...register("minimumProjectBudget")} />
         </NumberField>
 
-        <NumberField
-          label="Максимальный бюджет проекта"
-          icon={
-            <Banknote className="h-4 w-4" />
-          }
-        >
-          <input
-            type="number"
-            disabled={disabled}
-            className="stroy-input"
-            {...register(
-              "maximumProjectBudget"
-            )}
-          />
+        <NumberField field="maximumProjectBudget" label="Максимальный бюджет проекта" error={errors.maximumProjectBudget?.message} icon={<Banknote className="h-4 w-4" />}>
+          <input type="number" min={1} disabled={disabled} className={inputClass(Boolean(errors.maximumProjectBudget))} {...register("maximumProjectBudget")} />
         </NumberField>
       </div>
 
-      <label className="mt-6 flex cursor-pointer items-center gap-3 rounded-[1.25rem] border border-border bg-background/60 p-4">
-        <input
-          type="checkbox"
-          disabled={disabled}
-          className="h-5 w-5 accent-[var(--primary)]"
-          {...register(
-            "acceptsNewProjects"
-          )}
-        />
+      <div className="mt-6 rounded-[1.4rem] border border-border bg-background/60 p-4" data-company-field="acceptsNewProjects">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-sm font-bold text-foreground">Доступность для новых проектов</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              Этот статус видят заказчики и администрация. Его можно менять даже после подтверждения профиля.
+            </p>
+          </div>
 
-        <div>
-          <p className="text-sm font-semibold text-foreground">
-            Сейчас принимаем новые проекты
-          </p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <button
+              type="button"
+              disabled={availabilityPending}
+              onClick={() => onAvailabilityChange(true)}
+              className={[
+                "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-semibold transition disabled:cursor-wait disabled:opacity-60",
+                acceptsNewProjects
+                  ? "border-emerald-500/40 bg-emerald-50 text-emerald-700 ring-2 ring-emerald-500/10 dark:bg-emerald-950/35 dark:text-emerald-300"
+                  : "border-border bg-card text-muted-foreground hover:bg-secondary",
+              ].join(" ")}
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              Принимаю новые проекты
+            </button>
 
-          <p className="mt-1 text-xs text-muted-foreground">
-            Ваш профиль будет участвовать
-            в подборе новых заказов.
-          </p>
+            <button
+              type="button"
+              disabled={availabilityPending}
+              onClick={() => onAvailabilityChange(false)}
+              className={[
+                "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-semibold transition disabled:cursor-wait disabled:opacity-60",
+                !acceptsNewProjects
+                  ? "border-amber-500/40 bg-amber-50 text-amber-800 ring-2 ring-amber-500/10 dark:bg-amber-950/35 dark:text-amber-300"
+                  : "border-border bg-card text-muted-foreground hover:bg-secondary",
+              ].join(" ")}
+            >
+              <PauseCircle className="h-4 w-4" />
+              Не принимаю новые проекты
+            </button>
+          </div>
         </div>
-      </label>
+      </div>
     </section>
   );
+}
+
+function inputClass(hasError: boolean) {
+  return ["stroy-input", hasError ? "border-destructive ring-2 ring-destructive/15 focus:border-destructive" : ""].join(" ");
 }
 
 function SectionHeader() {
   return (
     <div className="flex items-start gap-3">
-      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-secondary text-primary">
-        <BriefcaseBusiness className="h-5 w-5" />
-      </div>
-
+      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-secondary text-primary"><BriefcaseBusiness className="h-5 w-5" /></div>
       <div>
-        <h2 className="text-xl font-bold text-foreground">
-          Опыт и возможности
-        </h2>
-
-        <p className="mt-1 text-sm text-muted-foreground">
-          Опыт компании и диапазон подходящих проектов.
-        </p>
+        <h2 className="text-xl font-bold text-foreground">Опыт и возможности</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Год начала работы и количество сотрудников обязательны. Бюджет можно не указывать.</p>
       </div>
     </div>
   );
 }
 
-function NumberField({
-  label,
-  icon,
-  children,
-}: {
-  label: string;
-  icon: React.ReactNode;
-  children: React.ReactNode;
-}) {
+function NumberField({ field, label, required, error, icon, children }: { field?: string; label: string; required?: boolean; error?: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div>
+    <div data-company-field={field}>
       <div className="flex items-center gap-2">
-        <span className="text-primary">
-          {icon}
-        </span>
-
+        <span className="text-primary">{icon}</span>
         <label className="text-sm font-semibold text-foreground">
-          {label}
+          {label}{required && <span className="ml-1 text-destructive">*</span>}
         </label>
       </div>
-
-      <div className="mt-2">
-        {children}
-      </div>
+      <div className="mt-2">{children}</div>
+      {error && <p className="mt-2 text-sm font-medium text-destructive">{error}</p>}
     </div>
   );
 }
