@@ -1,36 +1,43 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# StroySelect
 
-## Getting Started
+Next.js application backed by PostgreSQL, custom `auth_sessions` and S3-compatible object storage.
 
-First, run the development server:
+## Local development
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The application uses `.env.local` for runtime configuration. PostgreSQL and S3/MinIO can be started with the repository infrastructure setup.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Transactional email
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Email verification and password recovery use a small Resend HTTP adapter. In production configure:
 
-## Learn More
+```env
+APP_BASE_URL=https://stroyselect.example
+RESEND_API_KEY=re_...
+EMAIL_FROM=StroySelect <noreply@stroyselect.example>
+```
 
-To learn more about Next.js, take a look at the following resources:
+In development, when `RESEND_API_KEY` or `EMAIL_FROM` is absent, verification and reset messages are printed to the server console with the generated local link. Tokens are stored only as SHA-256 hashes in PostgreSQL and are single-use.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Verification
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Run the repository-wide checks before pushing:
 
-## Deploy on Vercel
+```bash
+npm run verify
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+This validates the migration sequence, audits legacy and security-sensitive dependencies, runs ESLint and builds the production application.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Health endpoints:
+
+```text
+/api/health/live
+/api/health/ready
+```
+
+The product maturity roadmap is in `docs/BUILDZOOM_LEVEL_ROADMAP.md`.
