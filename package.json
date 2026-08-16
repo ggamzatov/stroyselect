@@ -7,6 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "migrations:check": "node scripts/check-migrations.mjs",
+    "legacy:audit": "node scripts/audit-legacy-dependencies.mjs",
+    "verify": "npm run migrations:check && npm run legacy:audit && npm run lint && npm run build",
     "storage:audit": "node --env-file=.env.local scripts/audit-storage.mjs"
   },
   "dependencies": {
