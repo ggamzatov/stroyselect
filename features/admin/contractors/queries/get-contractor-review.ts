@@ -34,7 +34,7 @@ type CompanyRow = {
     } | null;
   }>;
   contractor_service_areas: Array<{
-    id: number;
+    id: string;
     city: string;
     region: string | null;
     travel_radius_km: number | null;
@@ -69,7 +69,7 @@ export async function getContractorReview(contractorId: string) {
           COALESCE((
             SELECT jsonb_agg(
               jsonb_build_object(
-                'id', csa.id::int,
+                'id', csa.id::text,
                 'city', csa.city,
                 'region', csa.region,
                 'travel_radius_km', csa.travel_radius_km,
@@ -81,7 +81,7 @@ export async function getContractorReview(contractorId: string) {
             WHERE csa.contractor_id = cc.id
           ), '[]'::jsonb) AS contractor_service_areas
         FROM public.contractor_companies cc
-        WHERE cc.id = $1
+        WHERE cc.id = $1::uuid
         LIMIT 1
       `,
       [contractorId]
@@ -102,7 +102,7 @@ export async function getContractorReview(contractorId: string) {
         `
           SELECT id, first_name, last_name, phone, city, created_at
           FROM public.profiles
-          WHERE id = $1
+          WHERE id = $1::uuid
           LIMIT 1
         `,
         [company.owner_id]
@@ -124,7 +124,7 @@ export async function getContractorReview(contractorId: string) {
             created_at,
             admin_id
           FROM public.contractor_verification_logs
-          WHERE contractor_id = $1
+          WHERE contractor_id = $1::uuid
           ORDER BY created_at DESC
         `,
         [contractorId]
