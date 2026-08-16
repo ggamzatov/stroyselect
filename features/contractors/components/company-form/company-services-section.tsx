@@ -8,18 +8,11 @@ import type {
 } from "@/features/contractors/types/contractor-company-form";
 
 type Props = {
-  categories:
-    ContractorCategory[];
-
-  selectedIds:
-    number[];
-
+  categories: ContractorCategory[];
+  selectedIds: number[];
   disabled: boolean;
-
   error?: string;
-
-  onToggle:
-    (categoryId: number) => void;
+  onToggle: (categoryId: number) => void;
 };
 
 export function CompanyServicesSection({
@@ -30,81 +23,64 @@ export function CompanyServicesSection({
   onToggle,
 }: Props) {
   return (
-    <section className="rounded-[1.75rem] border border-border bg-card p-6 shadow-[var(--shadow-soft)] md:p-7">
+    <section
+      data-company-field="categoryIds"
+      className={[
+        "rounded-[1.75rem] border bg-card p-6 shadow-[var(--shadow-soft)] md:p-7",
+        error ? "border-destructive ring-2 ring-destructive/10" : "border-border",
+      ].join(" ")}
+    >
       <div className="flex items-start gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-secondary text-primary">
           <Wrench className="h-5 w-5" />
         </div>
-
         <div>
           <h2 className="text-xl font-bold text-foreground">
-            Специализации
+            Специализации <span className="text-destructive">*</span>
           </h2>
-
           <p className="mt-1 text-sm text-muted-foreground">
-            Выберите виды работ, которые выполняет ваша компания.
+            Выберите хотя бы один вид работ для отправки профиля на проверку.
           </p>
         </div>
       </div>
 
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
-        {categories.map(
-          (category) => {
-            const selected =
-              selectedIds.includes(
-                category.id
-              );
-
-            return (
-              <button
-                key={
-                  category.id
-                }
-                type="button"
-                disabled={
-                  disabled
-                }
-                onClick={() =>
-                  onToggle(
-                    category.id
-                  )
-                }
-                className={[
-                  "flex min-h-16 items-center justify-between gap-3 rounded-[1.25rem] border p-4 text-left transition",
-                  selected
-                    ? "border-primary/40 bg-secondary text-foreground shadow-[var(--shadow-soft)]"
+        {categories.map((category) => {
+          const selected = selectedIds.includes(category.id);
+          return (
+            <button
+              key={category.id}
+              type="button"
+              disabled={disabled}
+              onClick={() => onToggle(category.id)}
+              className={[
+                "flex min-h-16 items-center justify-between gap-3 rounded-[1.25rem] border p-4 text-left transition",
+                selected
+                  ? "border-primary/40 bg-secondary text-foreground shadow-[var(--shadow-soft)]"
+                  : error
+                    ? "border-destructive/60 bg-destructive/5 text-foreground hover:border-destructive"
                     : "border-border bg-background/60 text-foreground hover:border-primary/20 hover:bg-secondary/30",
-                  disabled
-                    ? "cursor-not-allowed opacity-60"
-                    : "",
+                disabled ? "cursor-not-allowed opacity-60" : "",
+              ].join(" ")}
+            >
+              <span className="font-semibold">{category.name}</span>
+              <span
+                className={[
+                  "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border",
+                  selected
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border text-transparent",
                 ].join(" ")}
               >
-                <span className="font-semibold">
-                  {
-                    category.name
-                  }
-                </span>
-
-                <span
-                  className={[
-                    "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border",
-                    selected
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border text-transparent",
-                  ].join(" ")}
-                >
-                  <Check className="h-4 w-4" />
-                </span>
-              </button>
-            );
-          }
-        )}
+                <Check className="h-4 w-4" />
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {error && (
-        <p className="mt-3 text-sm font-medium text-destructive">
-          {error}
-        </p>
+        <p className="mt-3 text-sm font-medium text-destructive">{error}</p>
       )}
     </section>
   );
