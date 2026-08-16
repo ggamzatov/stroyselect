@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - product/project-intake-matching
       - audit/production-hardening
   pull_request:
 
@@ -36,6 +37,12 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Validate migration sequence
+        run: npm run migrations:check
+
+      - name: Audit legacy runtime dependencies
+        run: npm run legacy:audit
 
       - name: Lint
         run: npm run lint
