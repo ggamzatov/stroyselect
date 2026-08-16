@@ -5,14 +5,8 @@ import {
   Phone,
 } from "lucide-react";
 
-import type {
-  FieldErrors,
-  UseFormRegister,
-} from "react-hook-form";
-
-import type {
-  ContractorCompanyFormInput,
-} from "@/features/contractors/schemas/contractor-company-schema";
+import type { FieldErrors, UseFormRegister } from "react-hook-form";
+import type { ContractorCompanyFormInput } from "@/features/contractors/schemas/contractor-company-schema";
 
 type Props = {
   register: UseFormRegister<ContractorCompanyFormInput>;
@@ -29,51 +23,25 @@ export function CompanyContactsSection({ register, errors, disabled }: Props) {
         </div>
         <div>
           <h2 className="text-xl font-bold text-foreground">Контактные данные</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Контакты для связи с заказчиками.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Телефон и email обязательны. Сайт и Telegram можно не указывать.</p>
         </div>
       </div>
 
       <div className="mt-6 grid gap-5 md:grid-cols-2">
-        <Field
-          field="contactPhone"
-          icon={<Phone className="h-4 w-4" />}
-          label="Телефон"
-          required
-          error={errors.contactPhone?.message}
-        >
-          <input
-            disabled={disabled}
-            className={inputClass(Boolean(errors.contactPhone))}
-            placeholder="+7 999 000-00-00"
-            {...register("contactPhone")}
-          />
+        <Field field="contactPhone" icon={<Phone className="h-4 w-4" />} label="Телефон" required error={errors.contactPhone?.message}>
+          <input disabled={disabled} className={inputClass(Boolean(errors.contactPhone))} placeholder="+7 999 000-00-00" {...register("contactPhone")} />
         </Field>
 
-        <Field icon={<Mail className="h-4 w-4" />} label="Email" error={errors.contactEmail?.message}>
-          <input
-            type="email"
-            disabled={disabled}
-            className={inputClass(Boolean(errors.contactEmail))}
-            {...register("contactEmail")}
-          />
+        <Field field="contactEmail" icon={<Mail className="h-4 w-4" />} label="Email" required error={errors.contactEmail?.message}>
+          <input type="email" disabled={disabled} className={inputClass(Boolean(errors.contactEmail))} placeholder="company@example.ru" {...register("contactEmail")} />
         </Field>
 
-        <Field icon={<Globe2 className="h-4 w-4" />} label="Сайт" error={errors.website?.message}>
-          <input
-            disabled={disabled}
-            className={inputClass(Boolean(errors.website))}
-            placeholder="https://example.ru"
-            {...register("website")}
-          />
+        <Field field="website" icon={<Globe2 className="h-4 w-4" />} label="Сайт" error={errors.website?.message}>
+          <input disabled={disabled} className={inputClass(Boolean(errors.website))} placeholder="https://example.ru" {...register("website")} />
         </Field>
 
-        <Field icon={<MessageCircle className="h-4 w-4" />} label="Telegram" error={errors.telegram?.message}>
-          <input
-            disabled={disabled}
-            className={inputClass(Boolean(errors.telegram))}
-            placeholder="@company"
-            {...register("telegram")}
-          />
+        <Field field="telegram" icon={<MessageCircle className="h-4 w-4" />} label="Telegram" error={errors.telegram?.message}>
+          <input disabled={disabled} className={inputClass(Boolean(errors.telegram))} placeholder="@company" {...register("telegram")} />
         </Field>
       </div>
     </section>
@@ -81,34 +49,16 @@ export function CompanyContactsSection({ register, errors, disabled }: Props) {
 }
 
 function inputClass(hasError: boolean) {
-  return [
-    "stroy-input",
-    hasError ? "border-destructive ring-2 ring-destructive/15 focus:border-destructive" : "",
-  ].join(" ");
+  return ["stroy-input", hasError ? "border-destructive ring-2 ring-destructive/15 focus:border-destructive" : ""].join(" ");
 }
 
-function Field({
-  field,
-  icon,
-  label,
-  required,
-  error,
-  children,
-}: {
-  field?: string;
-  icon: React.ReactNode;
-  label: string;
-  required?: boolean;
-  error?: string;
-  children: React.ReactNode;
-}) {
+function Field({ field, icon, label, required, error, children }: { field?: string; icon: React.ReactNode; label: string; required?: boolean; error?: string; children: React.ReactNode }) {
   return (
     <div data-company-field={field}>
       <div className="flex items-center gap-2">
         <span className="text-primary">{icon}</span>
         <label className="text-sm font-semibold text-foreground">
-          {label}
-          {required && <span className="ml-1 text-destructive">*</span>}
+          {label}{required && <span className="ml-1 text-destructive">*</span>}
         </label>
       </div>
       <div className="mt-2">{children}</div>
