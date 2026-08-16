@@ -28,7 +28,12 @@ type MatchRow = {
   exact_city_match: boolean;
   region_match: boolean;
   budget_match: boolean;
-  is_invited: boolean;
+  invitation_status: string | null;
+  shortlisted_at: Date | string | null;
+  response_rate: number | string | null;
+  completion_rate: number | string | null;
+  dispute_free_rate: number | string | null;
+  avg_response_hours: number | string | null;
   match_score: number | string;
 };
 
@@ -47,6 +52,12 @@ export type ProjectContractorMatch = {
   matchScore: number;
   reasons: string[];
   isInvited: boolean;
+  invitationStatus: string | null;
+  isShortlisted: boolean;
+  responseRate: number;
+  completionRate: number;
+  disputeFreeRate: number;
+  averageResponseHours: number;
 };
 
 export async function getProjectContractorMatches(
@@ -66,7 +77,6 @@ export async function getProjectContractorMatches(
 
   const project = projectResult.rows[0];
   if (!project || project.category_id === null) return [];
-
   const safeLimit = Math.min(Math.max(Math.trunc(limit), 1), 20);
 
   const result = await db.query<MatchRow>(
@@ -100,15 +110,14 @@ export async function getProjectContractorMatches(
           ELSE coalesce(cc.minimum_project_budget, 0) <= coalesce($5::numeric, $4::numeric, 999999999999)
             AND coalesce(cc.maximum_project_budget, 999999999999) >= coalesce($4::numeric, $5::numeric, 0)
         END AS budget_match,
-        EXISTS (
-          SELECT 1
-          FROM public.project_contractor_invitations pci
-          WHERE pci.project_id = $7::uuid
-            AND pci.contractor_id = cc.id
-            AND pci.status <> 'cancelled'
-        ) AS is_invited,
+        pci.status AS invitation_status,
+        pci.shortlisted_at,
+        perf.response_rate,
+        perf.completion_rate,
+        perf.dispute_free_rate,
+        perf.avg_response_hours,
         round(
-          35
+          32
           + CASE WHEN cs.is_primary THEN 5 ELSE 0 END
           + CASE
               WHEN EXISTS (
@@ -121,8 +130,7 @@ export async function getProjectContractorMatches(
                 WHERE csa.contractor_id = cc.id
                   AND $3 <> ''
                   AND lower(trim(coalesce(csa.region, ''))) = lower(trim($3))
-              ) THEN 10
-              ELSE 0
+              ) THEN 10 ELSE 0
             END
           + CASE
               WHEN $4::numeric IS NULL AND $5::numeric IS NULL THEN 8
@@ -131,19 +139,24 @@ export async function getProjectContractorMatches(
                 AND coalesce(cc.maximum_project_budget, 999999999999) >= coalesce($4::numeric, $5::numeric, 0)
               THEN 15 ELSE 0
             END
-          + least(greatest(coalesce(score.stroyselect_score, 0), 0), 100) * 0.20
+          + least(greatest(coalesce(score.stroyselect_score, 0), 0), 100) * 0.15
           + least(greatest(coalesce(cc.rating, 0), 0), 5)
+          + least(greatest(coalesce(perf.response_rate,0),0),100) * 0.04
+          + least(greatest(coalesce(perf.completion_rate,0),0),100) * 0.04
+          + least(greatest(coalesce(perf.dispute_free_rate,0),0),100) * 0.03
         , 1) AS match_score
       FROM public.contractor_companies cc
       JOIN public.contractor_services cs
-        ON cs.contractor_id = cc.id
-       AND cs.category_id = $1
-      LEFT JOIN public.contractor_score_components score
-        ON score.contractor_id = cc.id
+        ON cs.contractor_id = cc.id AND cs.category_id = $1
+      LEFT JOIN public.contractor_score_components score ON score.contractor_id = cc.id
+      LEFT JOIN public.contractor_performance_metrics perf ON perf.contractor_id = cc.id
+      LEFT JOIN public.project_contractor_invitations pci
+        ON pci.project_id=$7::uuid AND pci.contractor_id=cc.id
       WHERE cc.verification_status = 'verified'
         AND cc.accepts_new_projects = true
         AND cc.owner_id <> $6::uuid
       ORDER BY
+        (pci.shortlisted_at IS NOT NULL) DESC,
         match_score DESC,
         score.stroyselect_score DESC NULLS LAST,
         cc.rating DESC NULLS LAST,
@@ -166,13 +179,17 @@ export async function getProjectContractorMatches(
   return result.rows.map((row) => {
     const reasons: string[] = ["Работает по нужной категории"];
     const stroyselectScore = safeNumber(row.stroyselect_score);
+    const responseRate = safeNumber(row.response_rate);
+    const completionRate = safeNumber(row.completion_rate);
+    const disputeFreeRate = safeNumber(row.dispute_free_rate);
     if (row.is_primary_service) reasons.push("Это основная специализация");
     if (row.exact_city_match) reasons.push("Работает в вашем городе");
     else if (row.region_match) reasons.push("Работает в вашем регионе");
     if (row.budget_match) reasons.push("Бюджет подходит");
+    if (responseRate >= 80) reasons.push("Быстро отвечает на приглашения");
+    if (completionRate >= 80) reasons.push("Высокая доля завершённых проектов");
+    if (disputeFreeRate >= 90 && row.completed_projects_count > 0) reasons.push("Работает преимущественно без споров");
     if (stroyselectScore >= 80) reasons.push("Высокий StroySelect Score");
-    if (Number(row.rating ?? 0) >= 4.5 && row.rating_count > 0) reasons.push("Высокий рейтинг");
-    if (row.completed_projects_count > 0) reasons.push("Есть завершённые проекты");
 
     return {
       contractorId: row.contractor_id,
@@ -187,8 +204,14 @@ export async function getProjectContractorMatches(
       maximumProjectBudget: toNullableNumber(row.maximum_project_budget),
       yearsExperience: row.years_experience,
       matchScore: Math.min(100, Math.max(0, safeNumber(row.match_score))),
-      reasons: reasons.slice(0, 5),
-      isInvited: Boolean(row.is_invited),
+      reasons: reasons.slice(0, 6),
+      isInvited: Boolean(row.invitation_status && row.invitation_status !== "cancelled"),
+      invitationStatus: row.invitation_status,
+      isShortlisted: Boolean(row.shortlisted_at),
+      responseRate,
+      completionRate,
+      disputeFreeRate,
+      averageResponseHours: safeNumber(row.avg_response_hours),
     };
   });
 }
@@ -197,7 +220,6 @@ function safeNumber(value: unknown) {
   const number = Number(value);
   return Number.isFinite(number) ? number : 0;
 }
-
 function toNullableNumber(value: unknown) {
   if (value === null || value === undefined || value === "") return null;
   const number = Number(value);
