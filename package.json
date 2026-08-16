@@ -11,7 +11,12 @@
     "legacy:audit": "node scripts/audit-legacy-dependencies.mjs",
     "security:audit": "node scripts/security-audit.mjs",
     "verify": "npm run migrations:check && npm run legacy:audit && npm run security:audit && npm run lint && npm run build",
-    "storage:audit": "node --env-file=.env.local scripts/audit-storage.mjs"
+    "verify:full": "npm run verify && npm run test:e2e",
+    "storage:audit": "node --env-file=.env.local scripts/audit-storage.mjs",
+    "maintenance": "node --env-file=.env.local scripts/maintenance.mjs",
+    "db:backup": "bash scripts/db-backup.sh",
+    "db:restore": "bash scripts/db-restore.sh",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1110.0",
