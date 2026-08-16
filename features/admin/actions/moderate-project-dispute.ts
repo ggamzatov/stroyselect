@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/lib/db/pool";
 import { requireStaffUser } from "@/lib/auth/require-staff-user";
+import { notifyProjectParticipantsAsAdmin } from "@/features/notifications/server/notify-project-participants-as-admin";
 
 const prioritySchema=z.enum(["low","normal","high","critical"]);
 const statusSchema=z.enum(["open","under_review","resolved","closed"]);
@@ -62,19 +63,22 @@ export async function setProjectRiskHold(formData: FormData) {
     redirect(`/admin/disputes/${disputeId}?holdError=reason`);
   }
 
+  let changedAt: string | null = null;
   const client=await db.connect();
   try{
     await client.query("BEGIN");
-    const result=await client.query(`
+    const result=await client.query<{risk_hold_at:Date|string|null}>(`
       UPDATE public.projects
       SET risk_hold=$1::boolean,
           risk_hold_reason=CASE WHEN $1::boolean THEN $2::text ELSE NULL END,
           risk_hold_by=CASE WHEN $1::boolean THEN $3::uuid ELSE NULL END,
           risk_hold_at=CASE WHEN $1::boolean THEN now() ELSE NULL END
       WHERE id=$4::uuid
-      RETURNING id
+      RETURNING risk_hold_at
     `,[hold,reason||null,user.id,projectId]);
     if(!result.rowCount) throw new Error("Проект не найден");
+    const rawChangedAt=result.rows[0]?.risk_hold_at;
+    changedAt=rawChangedAt instanceof Date?rawChangedAt.toISOString():rawChangedAt?String(rawChangedAt):new Date().toISOString();
     await client.query(`
       INSERT INTO public.project_audit_log(
         project_id,
@@ -101,9 +105,20 @@ export async function setProjectRiskHold(formData: FormData) {
     await client.query("COMMIT");
   }catch(error){await client.query("ROLLBACK");throw error}finally{client.release()}
 
+  await notifyProjectParticipantsAsAdmin({
+    projectId,
+    actorUserId:user.id,
+    notificationType:hold?"project_risk_hold_enabled":"project_risk_hold_disabled",
+    title:hold?"Проект временно приостановлен":"Project Hold снят",
+    body:hold?(reason||"Администрация временно ограничила финансовые и рабочие действия по проекту."):"Финансовые операции, изменения и управление этапами снова доступны.",
+    deduplicationKey:`project-hold:${projectId}:${hold?"enabled":"disabled"}:${changedAt??"now"}`,
+  });
+
   revalidatePath("/admin/disputes");
   if(disputeId) revalidatePath(`/admin/disputes/${disputeId}`);
   revalidatePath(`/customer/work/${projectId}`);
   revalidatePath(`/contractor/work/${projectId}`);
+  revalidatePath("/customer", "layout");
+  revalidatePath("/contractor", "layout");
   redirect(disputeId?`/admin/disputes/${disputeId}`:"/admin/disputes");
 }
