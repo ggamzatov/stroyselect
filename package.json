@@ -9,7 +9,8 @@
     "lint": "eslint",
     "migrations:check": "node scripts/check-migrations.mjs",
     "legacy:audit": "node scripts/audit-legacy-dependencies.mjs",
-    "verify": "npm run migrations:check && npm run legacy:audit && npm run lint && npm run build",
+    "security:audit": "node scripts/security-audit.mjs",
+    "verify": "npm run migrations:check && npm run legacy:audit && npm run security:audit && npm run lint && npm run build",
     "storage:audit": "node --env-file=.env.local scripts/audit-storage.mjs"
   },
   "dependencies": {
