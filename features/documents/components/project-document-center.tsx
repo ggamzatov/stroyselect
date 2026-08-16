@@ -3,7 +3,10 @@
 import Link from "next/link";
 import { FileText, Plus, Trash2 } from "lucide-react";
 
-import { deleteProjectDocument, uploadProjectDocument } from "@/features/documents/actions/project-documents";
+import {
+  deleteProjectDocument,
+  uploadProjectDocumentFormAction,
+} from "@/features/documents/actions/project-documents";
 
 const CATEGORIES = [
   ["contract", "Договор"], ["estimate", "Смета"], ["act", "Акт"],
@@ -39,7 +42,7 @@ export function ProjectDocumentCenter({ projectId, role, documents, backHref }: 
         </section>
         <section className="mt-6 rounded-[1.75rem] border border-border bg-card p-5 shadow-[var(--shadow-soft)] md:p-6">
           <h2 className="font-bold text-foreground">Добавить документ</h2>
-          <form action={uploadProjectDocument} className="mt-4 grid gap-3 lg:grid-cols-[1fr_220px_1fr_auto]">
+          <form action={uploadProjectDocumentFormAction} className="mt-4 grid gap-3 lg:grid-cols-[1fr_220px_1fr_auto]">
             <input type="hidden" name="projectId" value={projectId} />
             <input name="title" required minLength={2} maxLength={240} placeholder="Название документа" className="stroy-input" />
             <select name="category" defaultValue="other" className="stroy-input">{CATEGORIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
@@ -56,7 +59,7 @@ export function ProjectDocumentCenter({ projectId, role, documents, backHref }: 
               </div>
               <div className="flex shrink-0 gap-2">
                 <a href={document.downloadUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center justify-center rounded-xl border border-border bg-background px-4 text-xs font-semibold text-foreground">Открыть</a>
-                <form action={uploadProjectDocument}>
+                <form action={uploadProjectDocumentFormAction}>
                   <input type="hidden" name="projectId" value={projectId} />
                   <input type="hidden" name="category" value={document.category} />
                   <input type="hidden" name="title" value={document.title} />
