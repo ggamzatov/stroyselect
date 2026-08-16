@@ -1,4 +1,53 @@
 import Link from "next/link";
 import { Banknote, FolderOpen, ShieldAlert } from "lucide-react";
-type Props={children:React.ReactNode;params:Promise<{id:string}>};
-export default async function CustomerWorkLayout({children,params}:Props){const {id}=await params;return <><div className="border-b border-border bg-background/95 backdrop-blur"><div className="app-container flex flex-wrap gap-2 py-3"><Link href={`/customer/work/${id}`} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-border bg-card px-4 text-sm font-semibold"><FolderOpen className="h-4 w-4 text-primary"/>Рабочее пространство</Link><Link href={`/customer/work/${id}/changes`} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground"><Banknote className="h-4 w-4"/>Бюджет и изменения</Link><Link href={`/customer/work/${id}/disputes`} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-border bg-card px-4 text-sm font-semibold"><ShieldAlert className="h-4 w-4 text-primary"/>Споры и аудит</Link></div></div>{children}</>}
+
+import { ProjectRiskHoldBanner } from "@/features/workspace/components/project-risk-hold-banner";
+import { getProjectRiskHoldForParticipant } from "@/features/workspace/queries/get-project-risk-hold";
+
+type Props = {
+  children: React.ReactNode;
+  params: Promise<{ id: string }>;
+};
+
+export default async function CustomerWorkLayout({
+  children,
+  params,
+}: Props) {
+  const { id } = await params;
+  const riskHold = await getProjectRiskHoldForParticipant(id);
+
+  return (
+    <>
+      <div className="border-b border-border bg-background/95 backdrop-blur">
+        <div className="app-container flex flex-wrap gap-2 py-3">
+          <Link
+            href={`/customer/work/${id}`}
+            className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-border bg-card px-4 text-sm font-semibold"
+          >
+            <FolderOpen className="h-4 w-4 text-primary" />
+            Рабочее пространство
+          </Link>
+
+          <Link
+            href={`/customer/work/${id}/changes`}
+            className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground"
+          >
+            <Banknote className="h-4 w-4" />
+            Бюджет и изменения
+          </Link>
+
+          <Link
+            href={`/customer/work/${id}/disputes`}
+            className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-border bg-card px-4 text-sm font-semibold"
+          >
+            <ShieldAlert className="h-4 w-4 text-primary" />
+            Споры и аудит
+          </Link>
+        </div>
+      </div>
+
+      <ProjectRiskHoldBanner state={riskHold} />
+      {children}
+    </>
+  );
+}
