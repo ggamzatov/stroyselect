@@ -33,6 +33,7 @@ type ProjectRow = {
   exact_city_match: boolean;
   region_match: boolean;
   budget_match: boolean;
+  is_invited: boolean;
   match_score: string | number;
 };
 
@@ -56,46 +57,28 @@ export async function getAvailableProjects() {
   );
 
   const company = companyResult.rows[0];
-  if (!company) {
-    return { company: null, projects: [], debugMessage: "Компания подрядчика не найдена" };
-  }
-  if (company.verification_status !== "verified") {
-    return { company, projects: [], debugMessage: `Статус подрядчика: ${company.verification_status}` };
-  }
-  if (!company.accepts_new_projects) {
-    return { company, projects: [], debugMessage: "Подрядчик не принимает новые проекты" };
-  }
+  if (!company) return { company: null, projects: [], debugMessage: "Компания подрядчика не найдена" };
+  if (company.verification_status !== "verified") return { company, projects: [], debugMessage: `Статус подрядчика: ${company.verification_status}` };
+  if (!company.accepts_new_projects) return { company, projects: [], debugMessage: "Подрядчик не принимает новые проекты" };
 
   try {
     const [projectsResult, bidsResult] = await Promise.all([
       db.query<ProjectRow>(
         `
           SELECT
-            p.id,
-            p.category_id,
-            p.title,
-            p.description,
-            p.property_type,
-            p.region,
-            p.city,
-            p.budget_min,
-            p.budget_max,
-            p.desired_start_date,
-            p.desired_end_date,
-            p.status,
-            p.published_at,
-            p.created_at,
+            p.id, p.category_id, p.title, p.description, p.property_type,
+            p.region, p.city, p.budget_min, p.budget_max,
+            p.desired_start_date, p.desired_end_date, p.status,
+            p.published_at, p.created_at,
             sc.name AS category_name,
             cs.is_primary AS is_primary_service,
             EXISTS (
-              SELECT 1
-              FROM public.contractor_service_areas csa
+              SELECT 1 FROM public.contractor_service_areas csa
               WHERE csa.contractor_id = $1::uuid
                 AND lower(trim(csa.city)) = lower(trim(coalesce(p.city, '')))
             ) AS exact_city_match,
             EXISTS (
-              SELECT 1
-              FROM public.contractor_service_areas csa
+              SELECT 1 FROM public.contractor_service_areas csa
               WHERE csa.contractor_id = $1::uuid
                 AND coalesce(trim(p.region), '') <> ''
                 AND lower(trim(coalesce(csa.region, ''))) = lower(trim(p.region))
@@ -103,10 +86,16 @@ export async function getAvailableProjects() {
             CASE
               WHEN p.budget_min IS NULL AND p.budget_max IS NULL THEN true
               WHEN cc.minimum_project_budget IS NULL AND cc.maximum_project_budget IS NULL THEN true
-              ELSE
-                coalesce(cc.minimum_project_budget, 0) <= coalesce(p.budget_max, p.budget_min, 999999999999)
+              ELSE coalesce(cc.minimum_project_budget, 0) <= coalesce(p.budget_max, p.budget_min, 999999999999)
                 AND coalesce(cc.maximum_project_budget, 999999999999) >= coalesce(p.budget_min, p.budget_max, 0)
             END AS budget_match,
+            EXISTS (
+              SELECT 1
+              FROM public.project_contractor_invitations pci
+              WHERE pci.project_id = p.id
+                AND pci.contractor_id = $1::uuid
+                AND pci.status <> 'cancelled'
+            ) AS is_invited,
             round(
               55
               + CASE WHEN cs.is_primary THEN 5 ELSE 0 END
@@ -121,43 +110,38 @@ export async function getAvailableProjects() {
                     WHERE csa.contractor_id = $1::uuid
                       AND coalesce(trim(p.region), '') <> ''
                       AND lower(trim(coalesce(csa.region, ''))) = lower(trim(p.region))
-                  ) THEN 15
-                  ELSE 0
+                  ) THEN 15 ELSE 0
                 END
               + CASE
                   WHEN p.budget_min IS NULL AND p.budget_max IS NULL THEN 10
                   WHEN cc.minimum_project_budget IS NULL AND cc.maximum_project_budget IS NULL THEN 8
                   WHEN coalesce(cc.minimum_project_budget, 0) <= coalesce(p.budget_max, p.budget_min, 999999999999)
                     AND coalesce(cc.maximum_project_budget, 999999999999) >= coalesce(p.budget_min, p.budget_max, 0)
-                  THEN 15
-                  ELSE 0
+                  THEN 15 ELSE 0
                 END
             , 1) AS match_score
           FROM public.projects p
           JOIN public.contractor_services cs
             ON cs.contractor_id = $1::uuid
            AND cs.category_id = p.category_id
-          JOIN public.contractor_companies cc
-            ON cc.id = $1::uuid
-          LEFT JOIN public.service_categories sc
-            ON sc.id = p.category_id
+          JOIN public.contractor_companies cc ON cc.id = $1::uuid
+          LEFT JOIN public.service_categories sc ON sc.id = p.category_id
           WHERE p.status IN ('published', 'collecting_bids')
             AND (
               EXISTS (
-                SELECT 1
-                FROM public.contractor_service_areas csa
+                SELECT 1 FROM public.contractor_service_areas csa
                 WHERE csa.contractor_id = $1::uuid
                   AND lower(trim(csa.city)) = lower(trim(coalesce(p.city, '')))
               )
               OR EXISTS (
-                SELECT 1
-                FROM public.contractor_service_areas csa
+                SELECT 1 FROM public.contractor_service_areas csa
                 WHERE csa.contractor_id = $1::uuid
                   AND coalesce(trim(p.region), '') <> ''
                   AND lower(trim(coalesce(csa.region, ''))) = lower(trim(p.region))
               )
             )
           ORDER BY
+            is_invited DESC,
             match_score DESC,
             p.published_at DESC NULLS LAST,
             p.created_at DESC
@@ -203,10 +187,10 @@ export async function getAvailableProjects() {
         created_at: toIsoString(row.created_at),
         match_score: Math.min(100, Math.max(0, Number(row.match_score) || 0)),
         match_reasons: reasons,
-        service_categories:
-          row.category_id && row.category_name
-            ? { id: Number(row.category_id), name: row.category_name }
-            : null,
+        is_invited: Boolean(row.is_invited),
+        service_categories: row.category_id && row.category_name
+          ? { id: Number(row.category_id), name: row.category_name }
+          : null,
         project_bids: bidsByProject.get(row.id) ?? [],
       };
     });
