@@ -14,7 +14,9 @@ export function InvitationResponseCard({
 }: {
   invitation: ContractorProjectInvitation;
 }) {
-  const [status, setStatus] = useState(invitation.status);
+  const [status, setStatus] = useState(
+    invitation.status === "invited" ? "viewed" : invitation.status
+  );
   const [note, setNote] = useState(invitation.responseNote ?? "");
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -22,7 +24,6 @@ export function InvitationResponseCard({
   useEffect(() => {
     if (invitation.status === "invited") {
       void markProjectInvitationViewed(invitation.projectId);
-      setStatus("viewed");
     }
   }, [invitation.projectId, invitation.status]);
 
