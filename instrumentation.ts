@@ -53,7 +53,6 @@ export const onRequestError: Instrumentation.onRequestError = async (
         routePath: context.routePath,
         renderSource: context.renderSource,
         revalidateReason: context.revalidateReason,
-        renderType: context.renderType,
       },
     });
   } catch (loggingError) {
