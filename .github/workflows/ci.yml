@@ -44,6 +44,9 @@ jobs:
       - name: Audit legacy runtime dependencies
         run: npm run legacy:audit
 
+      - name: Security audit
+        run: npm run security:audit
+
       - name: Lint
         run: npm run lint
 
