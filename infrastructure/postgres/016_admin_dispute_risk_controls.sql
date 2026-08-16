@@ -53,7 +53,7 @@ WITH dispute_stats AS (
          count(*) FILTER (
            WHERE planned_end_date IS NOT NULL
              AND planned_end_date < CURRENT_DATE
-             AND status NOT IN ('approved','completed')
+             AND status <> 'completed'
          ) AS overdue_stages
   FROM public.project_stages
   GROUP BY project_id
