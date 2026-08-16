@@ -6,6 +6,7 @@ import { z } from "zod";
 import { db } from "@/lib/db/pool";
 import { requireActiveUser } from "@/lib/auth/require-active-user";
 import { requireActiveProject } from "@/lib/projects/require-active-project";
+import { enforceRateLimit, rateLimitMessage } from "@/lib/security/rate-limit";
 import { getProjectChatAccess } from "@/features/chat/server/get-project-chat-access";
 import { createNotification } from "@/features/notifications/server/create-notification";
 import { getProjectNotificationRecipient } from "@/features/notifications/server/get-project-notification-recipient";
@@ -20,19 +21,11 @@ const sendProjectMessageSchema = z.object({
 });
 
 export type SendProjectMessageInput = z.infer<typeof sendProjectMessageSchema>;
-export type SendProjectMessageResult = {
-  success: boolean;
-  message: string;
-  messageId?: string;
-};
+export type SendProjectMessageResult = { success: boolean; message: string; messageId?: string };
 
-export async function sendProjectMessage(
-  input: SendProjectMessageInput
-): Promise<SendProjectMessageResult> {
+export async function sendProjectMessage(input: SendProjectMessageInput): Promise<SendProjectMessageResult> {
   const parsed = sendProjectMessageSchema.safeParse(input);
-  if (!parsed.success) {
-    return { success: false, message: parsed.error.issues[0]?.message ?? "Проверьте сообщение" };
-  }
+  if (!parsed.success) return { success: false, message: parsed.error.issues[0]?.message ?? "Проверьте сообщение" };
 
   const activeUser = await requireActiveUser();
   if (!activeUser.success) return { success: false, message: activeUser.message };
@@ -43,6 +36,15 @@ export async function sendProjectMessage(
   }
 
   const { projectId, messageText, replyToId } = parsed.data;
+  const limit = await enforceRateLimit({
+    scope: `chat:send:${projectId}`,
+    identity: user.id,
+    limit: 30,
+    windowSeconds: 60,
+    blockSeconds: 60,
+  });
+  if (!limit.allowed) return { success: false, message: rateLimitMessage(limit) };
+
   const activeProject = await requireActiveProject(projectId);
   if (!activeProject.success) return { success: false, message: activeProject.message };
 
@@ -57,18 +59,15 @@ export async function sendProjectMessage(
 
   if (replyToId) {
     const replyResult = await db.query<{ id: string; is_deleted: boolean }>(
-      `SELECT id, is_deleted FROM public.project_messages WHERE id = $1 AND project_id = $2 LIMIT 1`,
+      `SELECT id, is_deleted FROM public.project_messages WHERE id = $1::uuid AND project_id = $2::uuid LIMIT 1`,
       [replyToId, projectId]
     );
     const repliedMessage = replyResult.rows[0];
     if (!repliedMessage) return { success: false, message: "Исходное сообщение не найдено" };
-    if (repliedMessage.is_deleted) {
-      return { success: false, message: "Нельзя ответить на удалённое сообщение" };
-    }
+    if (repliedMessage.is_deleted) return { success: false, message: "Нельзя ответить на удалённое сообщение" };
   }
 
   const normalizedMessage = messageText.trim();
-
   let createdMessage: { id: string } | undefined;
   try {
     const result = await db.query<{ id: string }>(
@@ -77,7 +76,7 @@ export async function sendProjectMessage(
           project_id, sender_id, message_text, reply_to_id,
           edited_at, is_deleted, deleted_at, deleted_by
         )
-        VALUES ($1, $2, $3, $4, NULL, false, NULL, NULL)
+        VALUES ($1::uuid, $2::uuid, $3::text, $4::uuid, NULL, false, NULL, NULL)
         RETURNING id
       `,
       [projectId, user.id, normalizedMessage, replyToId ?? null]
@@ -101,11 +100,9 @@ export async function sendProjectMessage(
         body: getNotificationPreview(normalizedMessage),
         projectId,
         messageId: createdMessage.id,
-        url:
-          recipient.recipientRole === "customer"
-            ? `/customer/work/${projectId}`
-            : `/contractor/work/${projectId}`,
+        url: recipient.recipientRole === "customer" ? `/customer/work/${projectId}` : `/contractor/work/${projectId}`,
         metadata: { sender_id: user.id, reply_to_id: replyToId ?? null },
+        deduplicationKey: `chat-message:${createdMessage.id}`,
       });
       if (!result.success) console.error("Не удалось создать уведомление о новом сообщении:", result.message);
     }
