@@ -8,6 +8,7 @@ import { db } from "@/lib/db/pool";
 import { s3 } from "@/lib/storage/s3";
 import { requireActiveUser } from "@/lib/auth/require-active-user";
 import { requireActiveProject } from "@/lib/projects/require-active-project";
+import { enforceRateLimit, rateLimitMessage } from "@/lib/security/rate-limit";
 import { getProjectChatAccess } from "@/features/chat/server/get-project-chat-access";
 import { chatAttachmentSchema } from "@/features/chat/schemas/chat-attachment-schema";
 import { createNotification } from "@/features/notifications/server/create-notification";
@@ -64,6 +65,17 @@ export async function sendChatAttachment(
   const { user, profile } = activeUser;
   if (!["customer", "contractor"].includes(profile.role)) {
     return { success: false, message: "У вас нет доступа к чату проекта" };
+  }
+
+  const uploadLimit = await enforceRateLimit({
+    scope: `chat:attachment:${projectId}`,
+    identity: user.id,
+    limit: 8,
+    windowSeconds: 5 * 60,
+    blockSeconds: 5 * 60,
+  });
+  if (!uploadLimit.allowed) {
+    return { success: false, message: rateLimitMessage(uploadLimit) };
   }
 
   const activeProject = await requireActiveProject(projectId);
@@ -184,6 +196,7 @@ export async function sendChatAttachment(
           file_category: fileCategory,
           sender_id: user.id,
         },
+        deduplicationKey: `chat-file:${fileId}`,
       });
     }
   } catch (error) {
