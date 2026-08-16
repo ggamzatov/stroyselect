@@ -6,7 +6,6 @@ import {
   BadgeCheck,
   Banknote,
   Bookmark,
-  BriefcaseBusiness,
   CheckCircle2,
   Clock3,
   MailPlus,
