@@ -4,10 +4,11 @@ DO $$
 DECLARE
   id_type text;
   id_default text;
+  id_is_identity text;
   max_id bigint;
 BEGIN
-  SELECT data_type, column_default
-    INTO id_type, id_default
+  SELECT data_type, column_default, is_identity
+    INTO id_type, id_default, id_is_identity
   FROM information_schema.columns
   WHERE table_schema = 'public'
     AND table_name = 'service_categories'
@@ -19,6 +20,12 @@ BEGIN
 
   IF id_type NOT IN ('smallint', 'integer', 'bigint') THEN
     RAISE EXCEPTION 'Unsupported service_categories.id type: %', id_type;
+  END IF;
+
+  -- Identity columns already generate ids themselves. PostgreSQL intentionally
+  -- reports column_default as NULL for them, so trying SET DEFAULT would fail.
+  IF id_is_identity = 'YES' THEN
+    RETURN;
   END IF;
 
   IF id_default IS NULL THEN
