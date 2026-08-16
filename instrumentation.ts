@@ -5,34 +5,28 @@ export const onRequestError: Instrumentation.onRequestError = async (
   request,
   context
 ) => {
-  if (context.runtime !== "nodejs") return;
+  if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
   try {
     const { logApplicationError } = await import(
       "./lib/observability/application-errors"
     );
 
-    const normalized = error instanceof Error
-      ? error
-      : new Error(String(error));
-
     await logApplicationError({
       source: "server",
       severity: "error",
-      message: normalized.message,
-      stack: normalized.stack ?? null,
+      message: error.message,
+      stack: error.stack ?? null,
       route: request.path,
       method: request.method,
-      digest:
-        typeof (error as { digest?: unknown })?.digest === "string"
-          ? (error as { digest: string }).digest
-          : null,
+      digest: error.digest ?? null,
       metadata: {
         routerKind: context.routerKind,
         routeType: context.routeType,
         routePath: context.routePath,
         renderSource: context.renderSource,
         revalidateReason: context.revalidateReason,
+        renderType: context.renderType,
       },
     });
   } catch (loggingError) {
