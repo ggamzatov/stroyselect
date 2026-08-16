@@ -40,11 +40,7 @@ export function CompanyExperienceSection({
             disabled={disabled}
             className="stroy-input"
             {...register(
-              "foundedYear",
-              {
-                valueAsNumber:
-                  true,
-              }
+              "foundedYear"
             )}
           />
         </NumberField>
@@ -60,11 +56,7 @@ export function CompanyExperienceSection({
             disabled={disabled}
             className="stroy-input"
             {...register(
-              "employeeCount",
-              {
-                valueAsNumber:
-                  true,
-              }
+              "employeeCount"
             )}
           />
         </NumberField>
@@ -80,11 +72,7 @@ export function CompanyExperienceSection({
             disabled={disabled}
             className="stroy-input"
             {...register(
-              "minimumProjectBudget",
-              {
-                valueAsNumber:
-                  true,
-              }
+              "minimumProjectBudget"
             )}
           />
         </NumberField>
@@ -100,11 +88,7 @@ export function CompanyExperienceSection({
             disabled={disabled}
             className="stroy-input"
             {...register(
-              "maximumProjectBudget",
-              {
-                valueAsNumber:
-                  true,
-              }
+              "maximumProjectBudget"
             )}
           />
         </NumberField>
