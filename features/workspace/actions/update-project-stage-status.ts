@@ -3,11 +3,11 @@
 import { revalidatePath } from "next/cache";
 import type { PoolClient } from "pg";
 
+import { createNotification } from "@/features/notifications/server/create-notification";
+import { getProjectNotificationRecipient } from "@/features/notifications/server/get-project-notification-recipient";
 import { db } from "@/lib/db/pool";
 import { requireActiveUser } from "@/lib/auth/require-active-user";
 import { requireActiveProject } from "@/lib/projects/require-active-project";
-import { createNotification } from "@/features/notifications/server/create-notification";
-import { getProjectNotificationRecipient } from "@/features/notifications/server/get-project-notification-recipient";
 
 type StageAction = "start" | "submit" | "resume";
 
@@ -25,6 +25,8 @@ type StageRow = {
 type ProjectRow = {
   id: string;
   status: string;
+  risk_hold: boolean;
+  risk_hold_reason: string | null;
 };
 
 export async function updateProjectStageStatus(
@@ -98,7 +100,11 @@ export async function updateProjectStageStatus(
 
     const projectResult = await client.query<ProjectRow>(
       `
-        SELECT id, status
+        SELECT
+          id,
+          status,
+          risk_hold,
+          risk_hold_reason
         FROM public.projects
         WHERE id = $1
           AND selected_contractor_id = $2
@@ -116,6 +122,14 @@ export async function updateProjectStageStatus(
       return {
         success: false,
         message: "Проект не найден или не назначен вашей компании",
+      };
+    }
+
+    if (project.risk_hold) {
+      await client.query("ROLLBACK");
+      return {
+        success: false,
+        message: holdMessage(project.risk_hold_reason),
       };
     }
 
@@ -238,7 +252,10 @@ export async function updateProjectStageStatus(
     } else {
       if (stage.status !== "revision_required") {
         await client.query("ROLLBACK");
-        return { success: false, message: "Возобновить можно только этап с замечанием" };
+        return {
+          success: false,
+          message: "Возобновить можно только этап с замечанием",
+        };
       }
 
       await client.query(
@@ -295,7 +312,6 @@ export async function updateProjectStageStatus(
   }
 
   revalidateWorkspace(projectId);
-
   return { success: true, message: successMessage };
 }
 
@@ -366,8 +382,21 @@ async function insertStageEvent(
       )
       VALUES ($1, $2, $3, $4, $5, $6::jsonb)
     `,
-    [projectId, authorId, eventType, title, description, JSON.stringify({ stage_id: stageId })]
+    [
+      projectId,
+      authorId,
+      eventType,
+      title,
+      description,
+      JSON.stringify({ stage_id: stageId }),
+    ]
   );
+}
+
+function holdMessage(reason: string | null) {
+  return reason
+    ? `Проект приостановлен администрацией: ${reason}`
+    : "Проект приостановлен администрацией";
 }
 
 function revalidateWorkspace(projectId: string) {
