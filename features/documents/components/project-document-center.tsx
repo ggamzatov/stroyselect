@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { FileText, Plus, Trash2 } from "lucide-react";
 
@@ -25,28 +27,16 @@ type DocumentItem = {
   downloadUrl: string;
 };
 
-export function ProjectDocumentCenter({
-  projectId,
-  role,
-  documents,
-  backHref,
-}: {
-  projectId: string;
-  role: "customer" | "contractor";
-  documents: DocumentItem[];
-  backHref: string;
-}) {
+export function ProjectDocumentCenter({ projectId, role, documents, backHref }: { projectId: string; role: "customer" | "contractor"; documents: DocumentItem[]; backHref: string }) {
   return (
     <main className="min-h-screen bg-background">
       <div className="app-container py-8 md:py-12">
         <Link href={backHref} className="text-sm font-semibold text-muted-foreground hover:text-primary">← Вернуться к проекту</Link>
-
         <section className="mt-5 rounded-[2rem] border border-border bg-card p-6 shadow-[var(--shadow-soft)] md:p-8">
           <p className="text-sm font-semibold text-primary">Документы проекта</p>
           <h1 className="mt-2 text-3xl font-black tracking-[-0.04em] text-foreground md:text-4xl">Единый центр файлов</h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">Договоры, сметы, акты, счета, планы и гарантии хранятся в приватном S3. Каждая новая версия остаётся отдельной записью с автором и временем загрузки.</p>
         </section>
-
         <section className="mt-6 rounded-[1.75rem] border border-border bg-card p-5 shadow-[var(--shadow-soft)] md:p-6">
           <h2 className="font-bold text-foreground">Добавить документ</h2>
           <form action={uploadProjectDocument} className="mt-4 grid gap-3 lg:grid-cols-[1fr_220px_1fr_auto]">
@@ -57,7 +47,6 @@ export function ProjectDocumentCenter({
             <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground"><Plus className="h-4 w-4" />Загрузить</button>
           </form>
         </section>
-
         <div className="mt-6 space-y-3">
           {documents.map((document) => (
             <article key={document.id} className="flex flex-col gap-4 rounded-[1.4rem] border border-border bg-card p-4 shadow-[var(--shadow-soft)] md:flex-row md:items-center md:justify-between">
