@@ -24,6 +24,7 @@ import {
 
 import {
   contractorCompanyDraftSchema,
+  contractorCompanySchema,
   type ContractorCompanyFormInput,
   type ContractorCompanyInput,
 } from
@@ -80,6 +81,9 @@ export function ContractorCompanyForm({ categories, company }: Props) {
     watch,
     setValue,
     reset,
+    getValues,
+    setError,
+    clearErrors,
     formState: { errors, isDirty },
   } = useForm<ContractorCompanyFormInput, unknown, ContractorCompanyInput>({
     resolver: zodResolver(contractorCompanyDraftSchema),
@@ -115,6 +119,7 @@ export function ContractorCompanyForm({ categories, company }: Props) {
       ? watchedCategories.filter((id) => id !== categoryId)
       : [...watchedCategories, categoryId];
     setValue("categoryIds", updated, { shouldValidate: true, shouldDirty: true });
+    if (updated.length > 0) clearErrors("categoryIds");
   }
 
   function toggleCity(city: string) {
@@ -123,6 +128,7 @@ export function ContractorCompanyForm({ categories, company }: Props) {
       ? watchedCities.filter((item) => item !== city)
       : [...watchedCities, city];
     setValue("cities", updated, { shouldValidate: true, shouldDirty: true });
+    if (updated.length > 0) clearErrors("cities");
   }
 
   function onSave(values: ContractorCompanyInput) {
@@ -160,6 +166,39 @@ export function ContractorCompanyForm({ categories, company }: Props) {
   function handleSubmitForVerification() {
     setMessage(null);
     setErrorMessage(null);
+    clearErrors();
+
+    const values = getValues();
+    const parsed = contractorCompanySchema.safeParse(values);
+
+    if (!parsed.success) {
+      const firstIssue = parsed.error.issues[0];
+
+      for (const issue of parsed.error.issues) {
+        const field = issue.path[0];
+        if (typeof field !== "string") continue;
+        setError(field as keyof ContractorCompanyFormInput, {
+          type: "manual",
+          message: issue.message,
+        });
+      }
+
+      setErrorMessage(
+        "Заполните обязательные поля, отмеченные красным, и повторите отправку."
+      );
+
+      if (firstIssue) {
+        const firstField = String(firstIssue.path[0] ?? "");
+        window.requestAnimationFrame(() => {
+          const target = document.querySelector<HTMLElement>(
+            `[data-company-field="${firstField}"]`
+          );
+          target?.scrollIntoView({ behavior: "smooth", block: "center" });
+          target?.querySelector<HTMLElement>("input, textarea, select, button")?.focus();
+        });
+      }
+      return;
+    }
 
     startSubmitting(async () => {
       try {
@@ -217,7 +256,7 @@ export function ContractorCompanyForm({ categories, company }: Props) {
             <div className="flex items-start gap-3">
               <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0" />
               <div>
-                <p className="text-sm font-semibold">Не удалось выполнить действие</p>
+                <p className="text-sm font-semibold">Проверьте профиль</p>
                 <p className="mt-1 text-sm leading-6 opacity-85">{errorMessage}</p>
               </div>
             </div>
