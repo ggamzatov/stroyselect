@@ -18,6 +18,7 @@ type ContractorRow = {
   inn: string | null;
   ogrn: string | null;
   contact_phone: string | null;
+  accepts_new_projects: boolean;
   verification_status: string;
   verification_comment: string | null;
   created_at: Date | string;
@@ -41,13 +42,9 @@ type ContractorRow = {
   }>;
 };
 
-export async function getContractorsForReview(
-  filter: ContractorReviewFilter = "pending"
-) {
+export async function getContractorsForReview(filter: ContractorReviewFilter = "pending") {
   const values: unknown[] = [];
-  const filterSql = filter === "all"
-    ? ""
-    : `WHERE cc.verification_status = $1`;
+  const filterSql = filter === "all" ? "" : `WHERE cc.verification_status = $1`;
 
   if (filter !== "all") values.push(filter);
 
@@ -63,6 +60,7 @@ export async function getContractorsForReview(
           cc.inn,
           cc.ogrn,
           cc.contact_phone,
+          cc.accepts_new_projects,
           cc.verification_status::text AS verification_status,
           cc.verification_comment,
           cc.created_at,
