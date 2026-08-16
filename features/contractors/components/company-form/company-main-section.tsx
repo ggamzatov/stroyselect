@@ -36,18 +36,16 @@ export function CompanyMainSection({
     >
       <div className="grid gap-5 md:grid-cols-2">
         <Field
+          field="publicName"
           label="Публичное название"
-          error={
-            errors.publicName?.message
-          }
+          required
+          error={errors.publicName?.message}
         >
           <input
             disabled={disabled}
-            className="stroy-input"
+            className={inputClass(Boolean(errors.publicName))}
             placeholder="Например, СтройДом"
-            {...register(
-              "publicName"
-            )}
+            {...register("publicName")}
           />
         </Field>
 
@@ -55,25 +53,12 @@ export function CompanyMainSection({
           <select
             disabled={disabled}
             className="stroy-select"
-            {...register(
-              "companyType"
-            )}
+            {...register("companyType")}
           >
-            <option value="individual">
-              Частная бригада
-            </option>
-
-            <option value="self_employed">
-              Самозанятый
-            </option>
-
-            <option value="entrepreneur">
-              Индивидуальный предприниматель
-            </option>
-
-            <option value="company">
-              Юридическое лицо
-            </option>
+            <option value="individual">Частная бригада</option>
+            <option value="self_employed">Самозанятый</option>
+            <option value="entrepreneur">Индивидуальный предприниматель</option>
+            <option value="company">Юридическое лицо</option>
           </select>
         </Field>
 
@@ -83,64 +68,63 @@ export function CompanyMainSection({
               disabled={disabled}
               className="stroy-input"
               placeholder="ИП Иванов Иван Иванович"
-              {...register(
-                "legalName"
-              )}
+              {...register("legalName")}
             />
           </Field>
         </div>
 
-        <Field
-          label="ИНН"
-          error={
-            errors.inn?.message
-          }
-        >
+        <Field label="ИНН" error={errors.inn?.message}>
           <input
             disabled={disabled}
             inputMode="numeric"
-            className="stroy-input"
+            className={inputClass(Boolean(errors.inn))}
             {...register("inn")}
           />
         </Field>
 
-        <Field
-          label="ОГРН или ОГРНИП"
-          error={
-            errors.ogrn?.message
-          }
-        >
+        <Field label="ОГРН или ОГРНИП" error={errors.ogrn?.message}>
           <input
             disabled={disabled}
             inputMode="numeric"
-            className="stroy-input"
+            className={inputClass(Boolean(errors.ogrn))}
             {...register("ogrn")}
           />
         </Field>
 
         <div className="md:col-span-2">
           <Field
+            field="description"
             label="О компании"
-            description="Опишите опыт, команду, типы объектов и ваши сильные стороны."
-            error={
-              errors.description
-                ?.message
-            }
+            required
+            description="Для отправки на проверку — минимум 50 символов."
+            error={errors.description?.message}
           >
             <textarea
               disabled={disabled}
               rows={7}
-              className="stroy-textarea"
+              className={textareaClass(Boolean(errors.description))}
               placeholder="Расскажите об опыте компании..."
-              {...register(
-                "description"
-              )}
+              {...register("description")}
             />
           </Field>
         </div>
       </div>
     </FormSection>
   );
+}
+
+function inputClass(hasError: boolean) {
+  return [
+    "stroy-input",
+    hasError ? "border-destructive ring-2 ring-destructive/15 focus:border-destructive" : "",
+  ].join(" ");
+}
+
+function textareaClass(hasError: boolean) {
+  return [
+    "stroy-textarea",
+    hasError ? "border-destructive ring-2 ring-destructive/15 focus:border-destructive" : "",
+  ].join(" ");
 }
 
 function FormSection({
@@ -160,56 +144,43 @@ function FormSection({
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-secondary text-primary">
           {icon}
         </div>
-
         <div>
-          <h2 className="text-xl font-bold text-foreground">
-            {title}
-          </h2>
-
-          <p className="mt-1 text-sm leading-6 text-muted-foreground">
-            {description}
-          </p>
+          <h2 className="text-xl font-bold text-foreground">{title}</h2>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">{description}</p>
         </div>
       </div>
-
-      <div className="mt-6">
-        {children}
-      </div>
+      <div className="mt-6">{children}</div>
     </section>
   );
 }
 
 function Field({
+  field,
   label,
+  required,
   description,
   error,
   children,
 }: {
+  field?: string;
   label: string;
+  required?: boolean;
   description?: string;
   error?: string;
   children: React.ReactNode;
 }) {
   return (
-    <div>
+    <div data-company-field={field}>
       <label className="text-sm font-semibold text-foreground">
         {label}
+        {required && <span className="ml-1 text-destructive">*</span>}
       </label>
-
       {description && (
-        <p className="mt-1 text-xs leading-5 text-muted-foreground">
-          {description}
-        </p>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p>
       )}
-
-      <div className="mt-2">
-        {children}
-      </div>
-
+      <div className="mt-2">{children}</div>
       {error && (
-        <p className="mt-2 text-sm font-medium text-destructive">
-          {error}
-        </p>
+        <p className="mt-2 text-sm font-medium text-destructive">{error}</p>
       )}
     </div>
   );
