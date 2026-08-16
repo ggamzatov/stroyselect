@@ -1,6 +1,5 @@
 BEGIN;
 
--- 1/2. Admin audit trail for sensitive staff actions.
 CREATE TABLE IF NOT EXISTS public.admin_audit_log (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   actor_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
@@ -16,7 +15,6 @@ CREATE INDEX IF NOT EXISTS admin_audit_log_created_idx
 CREATE INDEX IF NOT EXISTS admin_audit_log_entity_idx
   ON public.admin_audit_log(entity_type, entity_id, created_at DESC);
 
--- 2. Group recurring application errors without losing the raw journal.
 ALTER TABLE public.application_errors
   ADD COLUMN IF NOT EXISTS fingerprint varchar(64),
   ADD COLUMN IF NOT EXISTS occurrence_count integer NOT NULL DEFAULT 1,
@@ -25,7 +23,6 @@ ALTER TABLE public.application_errors
 CREATE INDEX IF NOT EXISTS application_errors_fingerprint_idx
   ON public.application_errors(fingerprint, resolved_at, last_seen_at DESC);
 
--- 3. Invitation pipeline: invite -> viewed -> accepted/declined, with shortlist/cancel.
 ALTER TABLE public.project_contractor_invitations
   ADD COLUMN IF NOT EXISTS viewed_at timestamptz,
   ADD COLUMN IF NOT EXISTS responded_at timestamptz,
@@ -33,19 +30,19 @@ ALTER TABLE public.project_contractor_invitations
   ADD COLUMN IF NOT EXISTS shortlisted_at timestamptz,
   ADD COLUMN IF NOT EXISTS cancelled_at timestamptz;
 
+ALTER TABLE public.project_contractor_invitations
+  DROP CONSTRAINT IF EXISTS project_contractor_invitations_status_check;
+
 UPDATE public.project_contractor_invitations
 SET status = 'accepted', responded_at = COALESCE(responded_at, updated_at)
 WHERE status = 'responded';
 
-ALTER TABLE public.project_contractor_invitations
-  DROP CONSTRAINT IF EXISTS project_contractor_invitations_status_check;
 ALTER TABLE public.project_contractor_invitations
   ADD CONSTRAINT project_contractor_invitations_status_check
   CHECK (status IN ('invited','viewed','accepted','declined','cancelled'));
 CREATE INDEX IF NOT EXISTS project_contractor_invitations_pipeline_idx
   ON public.project_contractor_invitations(project_id, status, shortlisted_at DESC, updated_at DESC);
 
--- 4. Review moderation and budget-adherence dimension.
 ALTER TABLE public.contractor_reviews
   ADD COLUMN IF NOT EXISTS budget_rating smallint,
   ADD COLUMN IF NOT EXISTS moderation_status varchar(24) NOT NULL DEFAULT 'published',
@@ -77,7 +74,6 @@ END $$;
 CREATE INDEX IF NOT EXISTS contractor_reviews_moderation_idx
   ON public.contractor_reviews(moderation_status, created_at DESC);
 
--- 5. Explainable contractor operating metrics used by matching and admin.
 CREATE OR REPLACE VIEW public.contractor_performance_metrics AS
 WITH invitation_stats AS (
   SELECT contractor_id,
@@ -155,7 +151,6 @@ LEFT JOIN project_stats p ON p.contractor_id=cc.id
 LEFT JOIN dispute_stats d ON d.contractor_id=cc.id
 LEFT JOIN review_stats r ON r.contractor_id=cc.id;
 
--- 6. Payment confirmation workflow without rewriting immutable payment records.
 CREATE TABLE IF NOT EXISTS public.project_payment_confirmations (
   payment_id uuid PRIMARY KEY REFERENCES public.project_payments(id) ON DELETE CASCADE,
   project_id uuid NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
@@ -175,7 +170,6 @@ CREATE TABLE IF NOT EXISTS public.project_payment_confirmations (
 CREATE INDEX IF NOT EXISTS project_payment_confirmations_project_idx
   ON public.project_payment_confirmations(project_id, status, updated_at DESC);
 
--- 7. Versioned document center. Objects remain private in S3; DB owns lifecycle.
 CREATE TABLE IF NOT EXISTS public.project_documents (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id uuid NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
@@ -201,7 +195,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS project_documents_storage_uidx
 CREATE INDEX IF NOT EXISTS project_documents_project_idx
   ON public.project_documents(project_id, category, deleted_at, created_at DESC);
 
--- 7/9. Punch-list / issue tracking for execution quality.
 CREATE TABLE IF NOT EXISTS public.project_issues (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id uuid NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
@@ -222,7 +215,6 @@ CREATE TABLE IF NOT EXISTS public.project_issues (
 CREATE INDEX IF NOT EXISTS project_issues_project_idx
   ON public.project_issues(project_id, status, priority, created_at DESC);
 
--- 8. Notification preferences for communication delivery policy.
 CREATE TABLE IF NOT EXISTS public.notification_preferences (
   user_id uuid PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE,
   in_app_enabled boolean NOT NULL DEFAULT true,
@@ -235,7 +227,6 @@ CREATE TABLE IF NOT EXISTS public.notification_preferences (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
--- 9. DB guard: completed projects cannot gain new mutable execution records.
 CREATE OR REPLACE FUNCTION public.guard_completed_project_mutation()
 RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE project_status text;
@@ -257,7 +248,6 @@ CREATE TRIGGER project_issues_completed_guard
 BEFORE INSERT ON public.project_issues
 FOR EACH ROW EXECUTE FUNCTION public.guard_completed_project_mutation();
 
--- 1. Maintenance function; call daily from cron/ops.
 CREATE OR REPLACE FUNCTION public.stroyselect_housekeeping()
 RETURNS void LANGUAGE plpgsql AS $$
 BEGIN
@@ -265,7 +255,7 @@ BEGIN
     WHERE window_started_at < now() - interval '7 days'
       AND (blocked_until IS NULL OR blocked_until < now() - interval '1 day');
   DELETE FROM public.auth_login_attempts
-    WHERE last_attempt_at < now() - interval '30 days';
+    WHERE updated_at < now() - interval '30 days';
   DELETE FROM public.auth_sessions
     WHERE expires_at < now() - interval '30 days'
        OR (revoked_at IS NOT NULL AND revoked_at < now() - interval '30 days');
