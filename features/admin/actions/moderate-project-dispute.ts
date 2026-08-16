@@ -14,12 +14,21 @@ export async function moderateProjectDispute(formData: FormData) {
   const { user } = await requireStaffUser();
   const disputeId=String(formData.get("disputeId")??"");
   const projectId=String(formData.get("projectId")??"");
-  const priority=prioritySchema.parse(formData.get("priority"));
-  const status=statusSchema.parse(formData.get("status"));
+  const priorityResult=prioritySchema.safeParse(formData.get("priority"));
+  const statusResult=statusSchema.safeParse(formData.get("status"));
+
+  if(!priorityResult.success||!statusResult.success){
+    redirect(`/admin/disputes/${disputeId}?moderationError=invalid`);
+  }
+
+  const priority=priorityResult.data;
+  const status=statusResult.data;
   const adminNote=String(formData.get("adminNote")??"").trim()||null;
   const resolution=String(formData.get("resolution")??"").trim()||null;
 
-  if(status==="resolved"&&!resolution) throw new Error("Для разрешения спора нужен итог");
+  if(status==="resolved"&&!resolution){
+    redirect(`/admin/disputes/${disputeId}?moderationError=resolution`);
+  }
 
   const client=await db.connect();
   try{
@@ -38,18 +47,27 @@ export async function moderateProjectDispute(formData: FormData) {
       WHERE id=$6::uuid AND project_id=$7::uuid
       RETURNING id
     `,[priority,status,adminNote,resolution,user.id,disputeId,projectId]);
-    if(!result.rowCount) throw new Error("Спор не найден");
+    if(!result.rowCount){
+      await client.query("ROLLBACK");
+      redirect(`/admin/disputes/${disputeId}?moderationError=missing`);
+    }
     await client.query(`
       INSERT INTO public.project_audit_log(project_id,actor_id,action,entity_type,entity_id,payload)
       VALUES($1::uuid,$2::uuid,'admin_dispute_moderated','dispute',$3::text,$4::jsonb)
     `,[projectId,user.id,disputeId,JSON.stringify({priority,status,admin_note:adminNote,resolution})]);
     await client.query("COMMIT");
-  }catch(error){await client.query("ROLLBACK");throw error}finally{client.release()}
+  }catch(error){
+    await client.query("ROLLBACK");
+    throw error;
+  }finally{
+    client.release();
+  }
 
   revalidatePath("/admin/disputes");
   revalidatePath(`/admin/disputes/${disputeId}`);
   revalidatePath(`/customer/work/${projectId}/disputes`);
   revalidatePath(`/contractor/work/${projectId}/disputes`);
+  redirect(`/admin/disputes/${disputeId}?moderationSaved=1`);
 }
 
 export async function setProjectRiskHold(formData: FormData) {
