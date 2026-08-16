@@ -3,10 +3,11 @@ import {
   MapPin,
 } from "lucide-react";
 
-import { DAGESTAN_CITIES } from
-  "@/features/contractors/constants/cities";
+import type { ContractorCityOption } from
+  "@/features/contractors/queries/get-contractor-cities";
 
 type Props = {
+  cities: ContractorCityOption[];
   selectedCities: string[];
   disabled: boolean;
   error?: string;
@@ -14,6 +15,7 @@ type Props = {
 };
 
 export function CompanyCitiesSection({
+  cities,
   selectedCities,
   disabled,
   error,
@@ -41,31 +43,43 @@ export function CompanyCitiesSection({
         </div>
       </div>
 
-      <div className="mt-6 flex flex-wrap gap-2">
-        {DAGESTAN_CITIES.map((city) => {
-          const selected = selectedCities.includes(city);
-          return (
-            <button
-              key={city}
-              type="button"
-              disabled={disabled}
-              onClick={() => onToggle(city)}
-              className={[
-                "inline-flex min-h-10 items-center gap-2 rounded-full border px-4 text-sm font-semibold transition",
-                selected
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : error
-                    ? "border-destructive/60 bg-destructive/5 text-foreground hover:border-destructive"
-                    : "border-border bg-background/60 text-foreground hover:border-primary/30 hover:bg-secondary",
-                disabled ? "cursor-not-allowed opacity-60" : "",
-              ].join(" ")}
-            >
-              {selected && <Check className="h-3.5 w-3.5" />}
-              {city}
-            </button>
-          );
-        })}
-      </div>
+      {cities.length === 0 ? (
+        <p className="mt-6 rounded-xl border border-dashed border-border bg-background/60 p-4 text-sm text-muted-foreground">
+          Администратор пока не добавил города для выбора.
+        </p>
+      ) : (
+        <div className="mt-6 flex flex-wrap gap-2">
+          {cities.map((city) => {
+            const selected = selectedCities.includes(city.name);
+            return (
+              <button
+                key={city.id}
+                type="button"
+                disabled={disabled}
+                onClick={() => onToggle(city.name)}
+                title={city.region ?? undefined}
+                className={[
+                  "inline-flex min-h-10 items-center gap-2 rounded-full border px-4 text-sm font-semibold transition",
+                  selected
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : error
+                      ? "border-destructive/60 bg-destructive/5 text-foreground hover:border-destructive"
+                      : "border-border bg-background/60 text-foreground hover:border-primary/30 hover:bg-secondary",
+                  disabled ? "cursor-not-allowed opacity-60" : "",
+                ].join(" ")}
+              >
+                {selected && <Check className="h-3.5 w-3.5" />}
+                {city.name}
+                {city.region && (
+                  <span className={selected ? "text-primary-foreground/70" : "text-muted-foreground"}>
+                    · {city.region}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {error && (
         <p className="mt-3 text-sm font-medium text-destructive">{error}</p>
