@@ -10,11 +10,18 @@ export type ServiceCategoryRow = {
   is_active: boolean;
 };
 
+type RawServiceCategoryRow = {
+  id: string | number;
+  name: string;
+  slug: string;
+  is_active: boolean;
+};
+
 export async function getActiveServiceCategories(): Promise<
   ServiceCategoryRow[]
 > {
   const result =
-    await db.query<ServiceCategoryRow>(`
+    await db.query<RawServiceCategoryRow>(`
       select
         id,
         name,
@@ -25,5 +32,8 @@ export async function getActiveServiceCategories(): Promise<
       order by name asc
     `);
 
-  return result.rows;
+  return result.rows.map((row) => ({
+    ...row,
+    id: Number(row.id),
+  }));
 }
