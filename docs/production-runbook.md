@@ -7,19 +7,47 @@ Before every production deploy:
 ```bash
 npm ci
 npm run verify
+npm run production:env:check
 npm run test:e2e:production:seeded
 npm run storage:audit
 ```
 
 Never run seeded E2E against a production database. The seed commands create deterministic disposable users/projects and mutate payment confirmation state.
 
-For the actual deployment environment, run the strict environment check with the production variables loaded:
+## Production environment
+
+Create `.env.production` from `.env.example` on the deployment host or provide the same variables from your secret manager. Never commit `.env.production`.
+
+Required production values include:
+
+- `DATABASE_URL` — private PostgreSQL connection string;
+- `APP_BASE_URL` / `NEXT_PUBLIC_APP_URL` — canonical HTTPS origin;
+- `S3_ENDPOINT`, `S3_REGION`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_FORCE_PATH_STYLE`;
+- `RESEND_API_KEY`, `EMAIL_FROM`.
+
+The application must be exposed through an HTTPS reverse proxy/load balancer. The provided production Compose file binds the app to `127.0.0.1` intentionally; TLS termination should happen in the proxy.
+
+## Container deployment
+
+The repository contains a multi-stage `Dockerfile` using Next.js standalone output. The runtime container runs as a non-root user and contains only the standalone server, public assets and Next static assets.
+
+Build locally/on the deployment host:
 
 ```bash
-node scripts/production-readiness-audit.mjs --env
+APP_IMAGE_TAG=$(git rev-parse --short HEAD) npm run production:image:build
 ```
 
-The deployed environment must provide at minimum `DATABASE_URL`, `APP_BASE_URL`, `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `RESEND_API_KEY` and `EMAIL_FROM`. `APP_BASE_URL` must be the canonical HTTPS origin. Use `.env.example` only as a variable contract; never copy placeholder credentials into production.
+Or start with the hardened Compose profile:
+
+```bash
+cp .env.example .env.production
+# Replace every placeholder in .env.production with real production secrets/endpoints.
+APP_IMAGE_TAG=$(git rev-parse --short HEAD) npm run production:compose:up
+```
+
+`docker-compose.production.yml` applies a read-only root filesystem, drops Linux capabilities, sets `no-new-privileges`, provides a temporary `/tmp`, binds only to loopback and checks `/api/health/ready`.
+
+Do not put PostgreSQL or S3 credentials into the image build. They are runtime environment variables only.
 
 ## Database backup
 
@@ -45,25 +73,37 @@ For production, restore into an isolated database/server first. Never test a res
 
 ## Migration deployment
 
-1. Backup database.
+1. Create a database backup.
 2. Put the application into maintenance/read-only mode if a migration is not backward-compatible.
-3. Apply new SQL migration files in numeric order with `ON_ERROR_STOP=1` or the tested migration runner.
-4. Run readiness check.
-5. Deploy application build.
-6. Run smoke tests.
-
-Example health checks:
+3. Run migrations exactly once against the target database:
 
 ```bash
-curl -fsS https://YOUR_HOST/api/health/live
-curl -fsS https://YOUR_HOST/api/health/ready
+DATABASE_URL='postgresql://...' npm run migrations:apply
 ```
 
-## HTTPS and proxy requirements
+4. Deploy/start the new immutable application image.
+5. Wait for `/api/health/ready` to become green.
+6. Run the post-deploy smoke test.
 
-Production must terminate TLS before requests reach the application. The production build sends `Strict-Transport-Security: max-age=31536000; includeSubDomains`, so do not deploy the production build on a hostname that must remain HTTP-accessible.
+Do not run migrations from every application replica during startup. Migration execution must be a separate deployment step to avoid races between replicas.
 
-Preserve the original client IP through a trusted reverse proxy using the configured forwarding headers. Do not expose PostgreSQL or object-storage management ports publicly.
+## Post-deploy smoke
+
+Run against the real deployed HTTPS origin without seeding or mutating application data:
+
+```bash
+DEPLOY_BASE_URL=https://YOUR_HOST npm run production:smoke
+```
+
+The smoke checks:
+
+- `/api/health/live`;
+- `/api/health/ready` and database connectivity;
+- public login page availability;
+- required security headers and HSTS on HTTPS;
+- that an anonymous request cannot open `/admin/errors`.
+
+Then manually verify login with one real/staging customer and contractor account. Do not use E2E seed scripts on production.
 
 ## Rollback
 
@@ -72,6 +112,7 @@ Application-only regression:
 1. Roll back to the previous immutable image/release.
 2. Do not roll back a database migration unless a tested down migration exists.
 3. Verify `/api/health/live` and `/api/health/ready`.
+4. Run `production:smoke` against the rolled-back release.
 
 Database/data regression:
 
@@ -80,6 +121,15 @@ Database/data regression:
 3. Restore the last known-good backup into a new database.
 4. Validate counts and critical flows.
 5. Switch application connection only after validation.
+
+## Health checks
+
+```bash
+curl -fsS https://YOUR_HOST/api/health/live
+curl -fsS https://YOUR_HOST/api/health/ready
+```
+
+The liveness endpoint proves the process is serving requests. Readiness additionally checks PostgreSQL and returns `503` when the database is unavailable.
 
 ## Error monitoring
 
@@ -110,21 +160,29 @@ npm run maintenance
 
 This removes stale rate-limit/login/session/token rows and resolved application errors according to the database housekeeping policy.
 
+## Network and TLS
+
+Production must use HTTPS. Terminate TLS at a trusted reverse proxy/load balancer and forward only the application port internally. PostgreSQL, Redis/MinIO administration ports and any database management interfaces must not be publicly exposed.
+
+HSTS is emitted by the production application build. Do not serve the same production hostname over plain HTTP except to redirect immediately to HTTPS.
+
 ## Secrets
 
-Do not commit `.env.local`, `.env.e2e.local`, database dumps, S3 credentials, email-provider credentials or other deployment secrets. Rotate secrets after any suspected exposure and invalidate active sessions when authentication material is compromised.
+Do not commit `.env.local`, `.env.production`, `.env.e2e.local`, database dumps, S3 credentials, email credentials or session secrets. Rotate secrets after any suspected exposure and invalidate active sessions when authentication secrets are rotated.
 
 ## Release acceptance checklist
 
 A release is accepted only when all are true:
 
 - `npm run verify` is green;
-- `node scripts/production-readiness-audit.mjs --env` is green with the real deployment environment;
+- `npm run production:env:check` is green against deployment values;
 - production seeded E2E is green on an isolated test database;
-- backup has been created;
+- backup has been created before schema changes;
 - restore drill has passed recently;
-- readiness endpoint is green;
-- HTTPS is active and HSTS is present;
-- admin error monitoring receives test events;
+- migrations completed successfully as a separate deployment step;
+- application container is healthy;
+- `/api/health/live` and `/api/health/ready` are green;
+- `DEPLOY_BASE_URL=https://... npm run production:smoke` is green;
+- admin error monitoring receives test events in staging;
 - no unresolved P0/P1 error is visible in `/admin/errors`;
 - critical customer and contractor flows work from a clean browser session.
