@@ -4,31 +4,42 @@ import path from "node:path";
 const ROOTS = ["features", "app"];
 const ACTION_PATH_RE = /(?:^|\/)actions(?:\/|$)|action\.ts$/;
 const MUTATION_HINT_RE = /\b(INSERT INTO|UPDATE\s+public\.|DELETE FROM|db\.query\s*\(|client\.query\s*\()/i;
+
+// Keep this list limited to helpers that actually resolve an authenticated
+// application user. The audit is intentionally conservative: adding a helper
+// here should mean that callers cannot proceed anonymously.
 const AUTH_GUARDS = [
   "getCurrentSessionUserId",
+  "requireActiveUser",
   "requireStaffUser",
   "requireCurrentUser",
-  "requireProject",
-  "getAccess(",
-  "getProjectAccess",
-  "assertProject",
-  "requireProjectParticipant",
 ];
+
 const STAFF_GUARDS = [
   "requireStaffUser",
   "STAFF_ROLES",
   "role === \"admin\"",
   "role !== \"admin\"",
+  "profile.role === \"admin\"",
+  "profile.role !== \"admin\"",
 ];
+
+// These helpers/queries establish that the authenticated actor is allowed to
+// operate on the referenced project (or constrain the mutation to an owner /
+// selected contractor). Merely mentioning project_id is not enough.
 const PROJECT_SCOPE_HINTS = [
+  "requireActiveProject(",
   "getAccess(",
   "getProjectAccess",
+  "getProjectChatAccess",
   "requireProjectParticipant",
+  "assertProject",
   "selected_contractor_id",
   "customer_id",
+  "owner_id",
   "contractor_id",
-  "project_id",
 ];
+
 const PUBLIC_AUTH_ALLOWLIST = [
   /features\/auth\/actions\/(login|register|forgot-password|reset-password|verify-email)/,
 ];
