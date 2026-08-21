@@ -30,7 +30,7 @@ test.describe("production hardening", () => {
     const marker = `E2E observability ${Date.now()}`;
 
     await login(page, customer!);
-    const response = await page.request.post("/api/errors/client", {
+    const response = await page.context().request.post("/api/errors/client", {
       data: {
         message: marker,
         route: "/e2e/observability",
