@@ -6,20 +6,20 @@ RUN npm ci
 FROM node:22-bookworm-slim AS builder
 WORKDIR /app
 ENV NODE_ENV=production
-# Next.js imports server modules while collecting route metadata during build.
-# These non-secret placeholders satisfy fail-fast configuration checks only;
-# the real values are injected into the runtime container by the deployment.
-ENV DATABASE_URL=postgresql://build:build@127.0.0.1:5432/build
-ENV S3_ENDPOINT=http://127.0.0.1:9000
-ENV S3_REGION=ru-1
-ENV S3_ACCESS_KEY=build-placeholder
-ENV S3_SECRET_KEY=build-placeholder
-ENV S3_FORCE_PATH_STYLE=true
-ENV APP_BASE_URL=https://build.invalid
-ENV NEXT_PUBLIC_APP_URL=https://build.invalid
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npm run build
+# Next.js imports server modules while collecting route metadata during build.
+# These values exist only for this build command and are non-secret placeholders;
+# real production configuration is injected into the runtime container.
+RUN DATABASE_URL=postgresql://build:build@127.0.0.1:5432/build \
+    S3_ENDPOINT=http://127.0.0.1:9000 \
+    S3_REGION=ru-1 \
+    S3_ACCESS_KEY=build-placeholder \
+    S3_SECRET_KEY=build-placeholder \
+    S3_FORCE_PATH_STYLE=true \
+    APP_BASE_URL=https://build.invalid \
+    NEXT_PUBLIC_APP_URL=https://build.invalid \
+    npm run build
 
 FROM node:22-bookworm-slim AS runner
 WORKDIR /app
