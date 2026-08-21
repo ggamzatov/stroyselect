@@ -25,6 +25,14 @@ const securityHeaders = [
     key: "Cross-Origin-Resource-Policy",
     value: "same-origin",
   },
+  ...(process.env.NODE_ENV === "production"
+    ? [
+        {
+          key: "Strict-Transport-Security",
+          value: "max-age=31536000; includeSubDomains",
+        },
+      ]
+    : []),
 ] as const;
 
 const nextConfig: NextConfig = {
