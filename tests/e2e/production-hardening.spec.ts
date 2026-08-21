@@ -30,23 +30,35 @@ test.describe("production hardening", () => {
     const marker = `E2E observability ${Date.now()}`;
 
     await login(page, customer!);
-    const response = await page.context().request.post("/api/errors/client", {
-      data: {
-        message: marker,
-        route: "/e2e/observability",
-        digest: "e2e-observability",
-        metadata: { suite: "production-hardening" },
-      },
-    });
-    expect(response.ok()).toBeTruthy();
+    await page.goto("/customer/dashboard");
+
+    const response = await page.evaluate(async (message) => {
+      const result = await fetch("/api/errors/client", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          message,
+          route: "/e2e/observability",
+          digest: "e2e-observability",
+          metadata: { suite: "production-hardening" },
+        }),
+      });
+
+      return { ok: result.ok, status: result.status };
+    }, marker);
+
+    expect(response.ok, `client error endpoint returned ${response.status}`).toBeTruthy();
 
     await logout(page);
     await login(page, { email: adminEmail!, password: adminPassword! });
     await page.goto("/admin/errors");
     await expect(page).toHaveURL(/\/admin\/errors/);
-    await expect(page.getByText(marker, { exact: true })).toBeVisible();
-    await expect(page.locator("body")).toContainText("/e2e/observability");
-    await expect(page.locator("body")).toContainText(customer!.email);
+
+    const errorCard = page.getByText(marker, { exact: true }).locator("xpath=ancestor::article");
+    await expect(errorCard).toBeVisible();
+    await expect(errorCard).toContainText("/e2e/observability");
+    await expect(errorCard).toContainText(customer!.email);
   });
 
   test("payment requires confirmation by both participants", async ({ page }) => {
