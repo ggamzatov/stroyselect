@@ -1,6 +1,6 @@
 import type { NextConfig } from "next";
 
-const securityHeaders = [
+const securityHeaders: Array<{ key: string; value: string }> = [
   {
     key: "X-Content-Type-Options",
     value: "nosniff",
@@ -25,13 +25,13 @@ const securityHeaders = [
     key: "Cross-Origin-Resource-Policy",
     value: "same-origin",
   },
-] as const;
+];
 
 if (process.env.NODE_ENV === "production") {
   securityHeaders.push({
     key: "Strict-Transport-Security",
     value: "max-age=31536000; includeSubDomains",
-  } as (typeof securityHeaders)[number]);
+  });
 }
 
 const nextConfig: NextConfig = {
