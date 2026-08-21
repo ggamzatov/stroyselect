@@ -11,7 +11,7 @@ import {
 const customer = credentials("CUSTOMER");
 const contractor = credentials("CONTRACTOR");
 const projectId = requiredProjectId("PROJECT");
-const workspaceProjectId = requiredProjectId("WORKSPACE") ?? projectId;
+const workspaceProjectId = requiredProjectId("WORKSPACE");
 const completedProjectId = requiredProjectId("COMPLETED");
 
 const fixtureAvailable = Boolean(customer && contractor && projectId);
