@@ -12,6 +12,7 @@
 
 # testing
 /coverage
+/test-results/
 
 # next.js
 /.next/
@@ -29,6 +30,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+/lint-output.txt
 
 # environment / local infrastructure
 .env*
@@ -38,6 +40,7 @@ yarn-error.log*
 .env.supabase-storage
 
 # local database dumps and exports
+/backups/
 /infrastructure/postgres/backups/
 *.dump
 *.dump.gz
