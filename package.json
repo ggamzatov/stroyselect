@@ -16,7 +16,8 @@
     "maintenance": "node --env-file=.env.local scripts/maintenance.mjs",
     "db:backup": "bash scripts/db-backup.sh",
     "db:restore": "bash scripts/db-restore.sh",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:marketplace": "playwright test tests/e2e/marketplace-flow.spec.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1110.0",
