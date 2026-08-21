@@ -40,8 +40,12 @@ const PROJECT_SCOPE_HINTS = [
   "contractor_id",
 ];
 
+// Public authentication endpoints deliberately run without a logged-in
+// session. They are protected by one-time email tokens, password verification
+// and/or rate limiting instead. Keep this allowlist narrow and path-specific.
 const PUBLIC_AUTH_ALLOWLIST = [
   /features\/auth\/actions\/(login|register|forgot-password|reset-password|verify-email)/,
+  /features\/auth\/actions\/account-email\.ts$/,
 ];
 
 async function walk(dir, out = []) {
