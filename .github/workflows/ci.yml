@@ -14,7 +14,22 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: stroyselect
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d stroyselect"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
 
     env:
       NODE_ENV: production
@@ -41,6 +56,9 @@ jobs:
       - name: Validate migration sequence
         run: npm run migrations:check
 
+      - name: Apply database migrations
+        run: npm run migrations:apply
+
       - name: Audit legacy runtime dependencies
         run: npm run legacy:audit
 
@@ -56,5 +74,5 @@ jobs:
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Run production smoke tests
-        run: npm run test:e2e
+      - name: Run seeded production E2E gate
+        run: npm run test:e2e:production:seeded
