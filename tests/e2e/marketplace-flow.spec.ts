@@ -22,7 +22,7 @@ test.describe("marketplace journey", () => {
   test.beforeEach(() => {
     test.skip(
       !fixtureAvailable,
-      "Set E2E_CUSTOMER_EMAIL, E2E_CUSTOMER_PASSWORD, E2E_CONTRACTOR_EMAIL, E2E_CONTRACTOR_PASSWORD and E2E_PROJECT_PROJECT_ID"
+      "Set E2E_CUSTOMER_EMAIL, E2E_CUSTOMER_PASSWORD, E2E_CONTRACTOR_EMAIL, E2E_CONTRACTOR_PASSWORD and E2E_PROJECT_ID"
     );
   });
 
