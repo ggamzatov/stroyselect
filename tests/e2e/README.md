@@ -2,81 +2,89 @@
 
 `public-smoke.spec.ts` runs without authenticated fixtures.
 
-`marketplace-flow.spec.ts` validates the authenticated marketplace journey across customer and contractor roles. It is read-only by default so it is safe to run repeatedly against the dedicated local E2E fixture.
+`marketplace-flow.spec.ts` validates the customer/contractor marketplace journey. `production-hardening.spec.ts` validates admin authorization, end-to-end application error monitoring and two-party payment confirmation.
 
-## Recommended: automatic seed
+## Recommended automatic seed
 
-The simplest local workflow is:
+Build once, then run the complete seeded production suite:
 
 ```bash
 npm run build
-npm run test:e2e:marketplace:seeded
+npm run test:e2e:production:seeded
 ```
 
-The seeded command first runs `scripts/seed-e2e.mjs` using `DATABASE_URL` from `.env.local`. The seed is deterministic and idempotent: rerunning it refreshes the same E2E customer, contractor, contractor company, published project, active workspace project and completed project instead of continuously creating new records.
+The seeded command runs `scripts/seed-e2e.mjs` and `scripts/seed-e2e-ops.mjs` using `DATABASE_URL` from `.env.local`. The seed is deterministic and idempotent: rerunning it refreshes the same E2E customer, contractor, admin, contractor company, published project, active workspace project, completed project and pending payment.
 
-The seed writes the generated Playwright fixture variables to `.env.e2e.local`, which is ignored by git because `.env*` is excluded.
+The seed writes Playwright fixture variables to `.env.e2e.local`. This file is ignored by git.
 
 Default seed accounts:
 
 ```text
 Customer:   e2e.customer@stroyselect.local
 Contractor: e2e.contractor@stroyselect.local
+Admin:      e2e.admin@stroyselect.local
 Password:   StroySelect-E2E-2026!
 ```
 
-You can override the password before seeding:
+Override the shared test password before seeding if needed:
 
 ```bash
 E2E_SEED_PASSWORD='Another-Strong-Test-Password' npm run e2e:seed
 ```
 
-Run only the seed:
+Run only the original marketplace journey:
 
 ```bash
-npm run e2e:seed
+npm run test:e2e:marketplace:seeded
 ```
 
-Then run the marketplace test with the generated environment file:
+Run marketplace plus production-hardening checks:
 
 ```bash
-node --env-file=.env.e2e.local ./node_modules/@playwright/test/cli.js test tests/e2e/marketplace-flow.spec.ts
+npm run test:e2e:production:seeded
 ```
 
 ## Manual fixtures
 
-If you do not want to use the automatic seed, provide:
+Without automatic seed, provide:
 
 ```bash
 E2E_CUSTOMER_EMAIL=customer@example.test
 E2E_CUSTOMER_PASSWORD='...'
 E2E_CONTRACTOR_EMAIL=contractor@example.test
 E2E_CONTRACTOR_PASSWORD='...'
-E2E_PROJECT_PROJECT_ID='<published project uuid visible to the contractor>'
+E2E_ADMIN_EMAIL=admin@example.test
+E2E_ADMIN_PASSWORD='...'
+E2E_PROJECT_ID='<published project uuid visible to the contractor>'
 E2E_WORKSPACE_PROJECT_ID='<selected contractor project uuid>'
 E2E_COMPLETED_PROJECT_ID='<completed project uuid>'
-```
-
-Then run:
-
-```bash
-npm run test:e2e:marketplace
+E2E_PAYMENT_ID='<pending payment uuid in workspace project>'
 ```
 
 ## Mutation mode
 
-By default the suite does not perform destructive workflow mutations. To allow actions such as sending a new invitation or submitting/updating a bid, set:
+The marketplace suite is read-only by default. To allow invitation/bid mutations on a disposable fixture:
 
 ```bash
 E2E_RUN_MUTATIONS=1
 ```
 
-Use mutation mode only with disposable E2E fixture records, never with production projects.
+The production-hardening payment test intentionally mutates the deterministic seeded payment by confirming it as both participants. The seed resets that payment to `pending` before every run.
 
-Run the whole Playwright suite:
+Never point automatic seed or mutation-mode E2E at production data.
+
+## Browser installation
+
+After installing/updating Playwright on a new workstation:
+
+```bash
+npx playwright install chromium
+```
+
+## Full public suite
 
 ```bash
 npm run test:e2e
 ```
 
-When authenticated fixture variables are absent, marketplace tests are skipped while public smoke tests continue to run. This keeps CI usable before a dedicated CI database fixture is provisioned.
+When authenticated fixture variables are absent, fixture-dependent tests are skipped while public smoke tests continue to run.
