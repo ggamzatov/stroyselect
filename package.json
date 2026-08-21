@@ -16,10 +16,12 @@
     "maintenance": "node --env-file=.env.local scripts/maintenance.mjs",
     "db:backup": "bash scripts/db-backup.sh",
     "db:restore": "bash scripts/db-restore.sh",
-    "e2e:seed": "node --env-file=.env.local scripts/seed-e2e.mjs",
+    "db:restore-drill": "bash scripts/db-restore-drill.sh",
+    "e2e:seed": "node --env-file=.env.local scripts/seed-e2e.mjs && node --env-file=.env.local scripts/seed-e2e-ops.mjs",
     "test:e2e": "playwright test",
     "test:e2e:marketplace": "playwright test tests/e2e/marketplace-flow.spec.ts",
-    "test:e2e:marketplace:seeded": "npm run e2e:seed && node --env-file=.env.e2e.local ./node_modules/@playwright/test/cli.js test tests/e2e/marketplace-flow.spec.ts"
+    "test:e2e:marketplace:seeded": "npm run e2e:seed && node --env-file=.env.e2e.local ./node_modules/@playwright/test/cli.js test tests/e2e/marketplace-flow.spec.ts",
+    "test:e2e:production:seeded": "npm run e2e:seed && node --env-file=.env.e2e.local ./node_modules/@playwright/test/cli.js test tests/e2e/marketplace-flow.spec.ts tests/e2e/production-hardening.spec.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1110.0",
