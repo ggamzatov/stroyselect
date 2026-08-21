@@ -1,0 +1,15 @@
+node_modules
+.next
+.git
+.github
+.env*
+!.env.example
+backups
+*.dump
+*.dump.gz
+*.sql.gz
+test-results
+playwright-report
+coverage
+.DS_Store
+npm-debug.log*
