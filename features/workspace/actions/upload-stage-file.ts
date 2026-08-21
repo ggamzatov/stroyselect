@@ -8,13 +8,13 @@ import { db } from "@/lib/db/pool";
 import { requireActiveUser } from "@/lib/auth/require-active-user";
 import { requireActiveProject } from "@/lib/projects/require-active-project";
 import { s3 } from "@/lib/storage/s3";
+import { validateUploadedFile } from "@/lib/storage/validate-upload";
 
 import { stageFileMetadataSchema } from "@/features/workspace/schemas/stage-file-schema";
 import { createNotification } from "@/features/notifications/server/create-notification";
 import { getProjectNotificationRecipient } from "@/features/notifications/server/get-project-notification-recipient";
 
 const PROJECT_FILES_BUCKET = "project-files";
-const MAX_FILE_SIZE = 20 * 1024 * 1024;
 
 const ALLOWED_MIME_TYPES = new Set([
   "image/jpeg",
@@ -62,16 +62,12 @@ export async function uploadStageFile(
     return { success: false, message: "Выберите файл" };
   }
 
-  if (fileValue.size === 0) {
-    return { success: false, message: "Файл пустой" };
-  }
+  const validation = await validateUploadedFile(fileValue, {
+    allowedMimeTypes: ALLOWED_MIME_TYPES,
+  });
 
-  if (fileValue.size > MAX_FILE_SIZE) {
-    return { success: false, message: "Размер файла не должен превышать 20 МБ" };
-  }
-
-  if (!ALLOWED_MIME_TYPES.has(fileValue.type)) {
-    return { success: false, message: "Этот формат файла не поддерживается" };
+  if (!validation.ok) {
+    return { success: false, message: validation.message };
   }
 
   const { projectId, stageId, fileCategory, description } = parsed.data;
@@ -142,16 +138,15 @@ export async function uploadStageFile(
 
   const fileExtension = getSafeFileExtension(fileValue.name);
   const storagePath = `${projectId}/${stageId}/${crypto.randomUUID()}${fileExtension}`;
-  const body = Buffer.from(await fileValue.arrayBuffer());
 
   try {
     await s3.send(
       new PutObjectCommand({
         Bucket: PROJECT_FILES_BUCKET,
         Key: storagePath,
-        Body: body,
+        Body: validation.buffer,
         ContentType: fileValue.type,
-        CacheControl: "3600",
+        CacheControl: "private, max-age=0, no-store",
       })
     );
   } catch (error) {
