@@ -7,6 +7,8 @@ const MIME_KINDS = new Map<string, "jpeg" | "png" | "webp" | "pdf" | "zip" | "ol
   ["image/png", "png"],
   ["image/webp", "webp"],
   ["application/pdf", "pdf"],
+  ["application/zip", "zip"],
+  ["application/x-zip-compressed", "zip"],
   ["application/vnd.openxmlformats-officedocument.wordprocessingml.document", "zip"],
   ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "zip"],
   ["application/msword", "ole"],
