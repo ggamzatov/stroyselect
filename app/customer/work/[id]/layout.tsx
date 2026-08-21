@@ -1,7 +1,5 @@
-import Link from "next/link";
-import { Banknote, FolderOpen, ShieldAlert } from "lucide-react";
-
 import { ProjectRiskHoldBanner } from "@/features/workspace/components/project-risk-hold-banner";
+import { ProjectWorkspaceNav } from "@/features/workspace/components/project-workspace-nav";
 import { getProjectRiskHoldForParticipant } from "@/features/workspace/queries/get-project-risk-hold";
 
 type Props = {
@@ -18,34 +16,7 @@ export default async function CustomerWorkLayout({
 
   return (
     <>
-      <div className="border-b border-border bg-background/95 backdrop-blur">
-        <div className="app-container flex flex-wrap gap-2 py-3">
-          <Link
-            href={`/customer/work/${id}`}
-            className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-border bg-card px-4 text-sm font-semibold"
-          >
-            <FolderOpen className="h-4 w-4 text-primary" />
-            Рабочее пространство
-          </Link>
-
-          <Link
-            href={`/customer/work/${id}/changes`}
-            className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground"
-          >
-            <Banknote className="h-4 w-4" />
-            Бюджет и изменения
-          </Link>
-
-          <Link
-            href={`/customer/work/${id}/disputes`}
-            className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-border bg-card px-4 text-sm font-semibold"
-          >
-            <ShieldAlert className="h-4 w-4 text-primary" />
-            Споры и аудит
-          </Link>
-        </div>
-      </div>
-
+      <ProjectWorkspaceNav projectId={id} role="customer" />
       <ProjectRiskHoldBanner state={riskHold} />
       {children}
     </>
