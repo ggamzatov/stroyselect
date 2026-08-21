@@ -24,7 +24,8 @@ export async function logout(page: Page) {
 }
 
 export function requiredProjectId(name: "PROJECT" | "WORKSPACE" | "COMPLETED") {
-  return process.env[`E2E_${name}_PROJECT_ID`]?.trim() || null;
+  const envName = name === "PROJECT" ? "E2E_PROJECT_ID" : `E2E_${name}_PROJECT_ID`;
+  return process.env[envName]?.trim() || null;
 }
 
 export const mutationsEnabled = process.env.E2E_RUN_MUTATIONS === "1";
