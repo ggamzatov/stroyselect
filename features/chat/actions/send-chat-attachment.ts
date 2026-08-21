@@ -6,6 +6,7 @@ import { DeleteObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 
 import { db } from "@/lib/db/pool";
 import { s3 } from "@/lib/storage/s3";
+import { validateUploadedFile } from "@/lib/storage/validate-upload";
 import { requireActiveUser } from "@/lib/auth/require-active-user";
 import { requireActiveProject } from "@/lib/projects/require-active-project";
 import { enforceRateLimit, rateLimitMessage } from "@/lib/security/rate-limit";
@@ -22,7 +23,6 @@ export type SendChatAttachmentResult = {
 };
 
 const CHAT_FILES_BUCKET = "chat-files";
-const MAX_FILE_SIZE = 20 * 1024 * 1024;
 const ALLOWED_MIME_TYPES = new Set([
   "image/jpeg",
   "image/png",
@@ -50,13 +50,11 @@ export async function sendChatAttachment(
 
   const fileValue = formData.get("file");
   if (!(fileValue instanceof File)) return { success: false, message: "Выберите файл" };
-  if (fileValue.size <= 0) return { success: false, message: "Файл пустой" };
-  if (fileValue.size > MAX_FILE_SIZE) {
-    return { success: false, message: "Размер файла не должен превышать 20 МБ" };
-  }
-  if (!ALLOWED_MIME_TYPES.has(fileValue.type)) {
-    return { success: false, message: "Этот формат файла не поддерживается" };
-  }
+
+  const validation = await validateUploadedFile(fileValue, {
+    allowedMimeTypes: ALLOWED_MIME_TYPES,
+  });
+  if (!validation.ok) return { success: false, message: validation.message };
 
   const { projectId, messageText } = parsed.data;
   const activeUser = await requireActiveUser();
@@ -95,16 +93,15 @@ export async function sendChatAttachment(
   const fileId = crypto.randomUUID();
   const extension = getSafeFileExtension(fileValue.name);
   const storagePath = `${projectId}/${messageId}/${crypto.randomUUID()}${extension}`;
-  const body = Buffer.from(await fileValue.arrayBuffer());
 
   try {
     await s3.send(
       new PutObjectCommand({
         Bucket: CHAT_FILES_BUCKET,
         Key: storagePath,
-        Body: body,
+        Body: validation.buffer,
         ContentType: fileValue.type,
-        CacheControl: "3600",
+        CacheControl: "private, max-age=0, no-store",
       })
     );
   } catch (error) {
