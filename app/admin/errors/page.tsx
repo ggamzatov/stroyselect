@@ -148,7 +148,12 @@ function formatUser(item: {
   role: string | null;
 }) {
   const name = [item.first_name, item.last_name].filter(Boolean).join(" ").trim();
-  return [name || item.email || "Не определён", item.role].filter(Boolean).join(" · ");
+
+  if (!name && !item.email) {
+    return ["Не определён", item.role].filter(Boolean).join(" · ");
+  }
+
+  return [name || null, item.email, item.role].filter(Boolean).join(" · ");
 }
 
 function formatDateTime(value: string) {
