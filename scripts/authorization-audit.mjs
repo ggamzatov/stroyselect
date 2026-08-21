@@ -1,4 +1,4 @@
-import { readdir, readFile, stat } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
 const ROOTS = ["features", "app"];
@@ -14,7 +14,12 @@ const AUTH_GUARDS = [
   "assertProject",
   "requireProjectParticipant",
 ];
-const STAFF_GUARDS = ["requireStaffUser", "STAFF_ROLES", "role === \"admin\"", "role !== \"admin\""];
+const STAFF_GUARDS = [
+  "requireStaffUser",
+  "STAFF_ROLES",
+  "role === \"admin\"",
+  "role !== \"admin\"",
+];
 const PROJECT_SCOPE_HINTS = [
   "getAccess(",
   "getProjectAccess",
@@ -30,7 +35,12 @@ const PUBLIC_AUTH_ALLOWLIST = [
 
 async function walk(dir, out = []) {
   let entries;
-  try { entries = await readdir(dir, { withFileTypes: true }); } catch { return out; }
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch {
+    return out;
+  }
+
   for (const entry of entries) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) await walk(full, out);
@@ -52,14 +62,17 @@ let audited = 0;
 for (const file of files.sort()) {
   const normalized = file.split(path.sep).join("/");
   if (!ACTION_PATH_RE.test(normalized)) continue;
+
   const source = await readFile(file, "utf8");
   if (!MUTATION_HINT_RE.test(source)) continue;
   if (PUBLIC_AUTH_ALLOWLIST.some((re) => re.test(normalized))) continue;
 
   audited += 1;
-  const hasAuth = hasAny(source, AUTH_GUARDS);
-  if (!hasAuth) {
-    findings.push(`${normalized}: mutation without an explicit session/role authorization guard`);
+
+  if (!hasAny(source, AUTH_GUARDS)) {
+    findings.push(
+      `${normalized}: mutation without an explicit session/role authorization guard`
+    );
     continue;
   }
 
@@ -68,19 +81,23 @@ for (const file of files.sort()) {
   }
 
   if (
-    /projectId|project_id|projectId:|project_id:/.test(source) &&
+    /projectId|project_id/.test(source) &&
     !normalized.includes("features/admin/") &&
     !normalized.includes("features/auth/") &&
     !hasAny(source, PROJECT_SCOPE_HINTS)
   ) {
-    findings.push(`${normalized}: project mutation lacks a recognizable project ownership/participant scope check`);
+    findings.push(
+      `${normalized}: project mutation lacks a recognizable project ownership/participant scope check`
+    );
   }
 }
 
 if (findings.length) {
   console.error("Authorization audit failed:\n");
   for (const finding of findings) console.error(`- ${finding}`);
-  console.error("\nAdd an explicit authorization guard or document a narrowly-scoped exception in the audit script.");
+  console.error(
+    "\nAdd an explicit authorization guard or document a narrowly-scoped exception in the audit script."
+  );
   process.exit(1);
 }
 
