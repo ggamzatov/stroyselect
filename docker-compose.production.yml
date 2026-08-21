@@ -7,7 +7,7 @@ services:
     container_name: stroyselect-app
     restart: unless-stopped
     env_file:
-      - .env.production
+      - ${APP_ENV_FILE:-.env.production}
     ports:
       - "127.0.0.1:${APP_PORT:-3000}:3000"
     read_only: true
