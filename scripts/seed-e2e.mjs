@@ -153,7 +153,7 @@ try {
     `E2E_CUSTOMER_PASSWORD=${PASSWORD}`,
     `E2E_CONTRACTOR_EMAIL=${CONTRACTOR_EMAIL}`,
     `E2E_CONTRACTOR_PASSWORD=${PASSWORD}`,
-    `E2E_PROJECT_PROJECT_ID=${IDS.publishedProject}`,
+    `E2E_PROJECT_ID=${IDS.publishedProject}`,
     `E2E_WORKSPACE_PROJECT_ID=${IDS.workspaceProject}`,
     `E2E_COMPLETED_PROJECT_ID=${IDS.completedProject}`,
     `E2E_RUN_MUTATIONS=0`,
