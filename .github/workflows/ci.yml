@@ -65,6 +65,9 @@ jobs:
       - name: Security audit
         run: npm run security:audit
 
+      - name: Authorization audit
+        run: npm run authorization:audit
+
       - name: Lint
         run: npm run lint
 
