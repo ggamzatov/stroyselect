@@ -51,10 +51,6 @@ export async function logApplicationError(input: ApplicationErrorInput) {
   const fingerprint = errorFingerprint(input, message);
 
   try {
-    // UPDATE использует отдельный компактный набор параметров.
-    // Ранее сюда передавался массив для INSERT с пропущенными placeholders
-    // ($2, $4, $6, $7), из-за чего PostgreSQL не мог вывести их тип и
-    // завершал запрос с 42P18: could not determine data type of parameter.
     const updated = await db.query(
       `
         UPDATE public.application_errors
@@ -62,15 +58,19 @@ export async function logApplicationError(input: ApplicationErrorInput) {
           occurrence_count = occurrence_count + 1,
           last_seen_at = now(),
           user_id = COALESCE($1::uuid, user_id),
-          severity = $2::text,
-          stack = COALESCE($3::text, stack),
-          digest = COALESCE($4::text, digest),
-          user_agent = COALESCE($5::text, user_agent),
-          metadata = metadata || $6::jsonb
+          source = $2::text,
+          severity = $3::text,
+          message = $4::text,
+          stack = COALESCE($5::text, stack),
+          route = COALESCE($6::text, route),
+          method = COALESCE($7::text, method),
+          digest = COALESCE($8::text, digest),
+          user_agent = COALESCE($9::text, user_agent),
+          metadata = metadata || $10::jsonb
         WHERE id = (
           SELECT id
           FROM public.application_errors
-          WHERE fingerprint = $7::text
+          WHERE fingerprint = $11::text
             AND resolved_at IS NULL
           ORDER BY last_seen_at DESC
           LIMIT 1
@@ -79,8 +79,12 @@ export async function logApplicationError(input: ApplicationErrorInput) {
       `,
       [
         input.userId ?? null,
+        source,
         severity,
+        message,
         stack,
+        route,
+        method,
         digest,
         userAgent,
         metadata,
