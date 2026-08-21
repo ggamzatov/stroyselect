@@ -25,18 +25,18 @@ const securityHeaders = [
     key: "Cross-Origin-Resource-Policy",
     value: "same-origin",
   },
-  ...(process.env.NODE_ENV === "production"
-    ? [
-        {
-          key: "Strict-Transport-Security",
-          value: "max-age=31536000; includeSubDomains",
-        },
-      ]
-    : []),
 ] as const;
+
+if (process.env.NODE_ENV === "production") {
+  securityHeaders.push({
+    key: "Strict-Transport-Security",
+    value: "max-age=31536000; includeSubDomains",
+  } as (typeof securityHeaders)[number]);
+}
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  output: "standalone",
 
   async headers() {
     return [
