@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Banknote,
+  CalendarClock,
   FileSignature,
   FileText,
   FolderOpen,
@@ -18,6 +19,7 @@ type Props = {
 
 const items = [
   { suffix: "", label: "Обзор", icon: FolderOpen },
+  { suffix: "/appointments", label: "Встречи", icon: CalendarClock },
   { suffix: "/contract", label: "Договор", icon: FileSignature },
   { suffix: "/changes", label: "Бюджет и платежи", icon: Banknote },
   { suffix: "/documents", label: "Документы", icon: FileText },
