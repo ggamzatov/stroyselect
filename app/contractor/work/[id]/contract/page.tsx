@@ -1,7 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 
 import { getCurrentProfile } from "@/lib/auth/get-current-profile";
-import { ProjectWorkspaceNav } from "@/features/workspace/components/project-workspace-nav";
 import { ProjectContractCenter } from "@/features/workspace/components/project-contract-center";
 import { getProjectContract } from "@/features/workspace/queries/get-project-contract";
 
@@ -13,5 +12,5 @@ export default async function ContractorProjectContractPage({ params }: Props) {
   if (profile.role !== "contractor") redirect("/dashboard");
   const contract = await getProjectContract(id);
   if (!contract || contract.viewerRole !== "contractor") notFound();
-  return <main className="min-h-screen bg-background"><ProjectWorkspaceNav projectId={id} role="contractor" /><ProjectContractCenter contract={contract} /></main>;
+  return <main className="min-h-screen bg-background"><ProjectContractCenter contract={contract} /></main>;
 }
