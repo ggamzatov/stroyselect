@@ -26,6 +26,60 @@ test.describe("marketplace journey", () => {
     );
   });
 
+  test("customer creates and reopens a structured project intake draft", async ({ page }) => {
+    await login(page, customer!);
+    await page.goto("/customer/projects/new");
+
+    await expect(page.getByText("Шаг 1 из 4")).toBeVisible();
+    await page.getByLabel("Название проекта").fill("E2E Новый структурированный проект");
+    await page
+      .getByLabel("Что нужно сделать")
+      .fill("Выполнить комплекс строительных работ с подготовкой основания, монтажом конструкций и итоговой приёмкой результата.");
+    await page.getByLabel("Город").selectOption({ label: "Махачкала" });
+
+    await page.getByRole("button", { name: "Сохранить и продолжить" }).click();
+    await expect(page.getByText("Шаг 2 из 4")).toBeVisible();
+    await expect(page.getByText("Черновик сохранён", { exact: true }).first()).toBeVisible();
+
+    await page.getByLabel("Вид работ").fill("Общестроительные работы");
+    await page
+      .getByLabel("Состав и объём работ")
+      .fill("Подготовка основания, монтаж основных конструкций, отделочные работы и сдача объекта.");
+    await page.getByLabel("Текущее состояние объекта").fill("Подготовленный объект");
+    await page.getByLabel("Размеры и количества").fill("120 м²");
+    await page.getByLabel("Уровень результата").selectOption("standard");
+    await page.getByLabel("Предпочтения по материалам").fill("Без специальных ограничений");
+
+    await page.getByRole("button", { name: "Сохранить и продолжить" }).click();
+    await expect(page.getByText("Шаг 3 из 4")).toBeVisible();
+
+    await page.getByLabel("Разрешения").selectOption("not_needed");
+    await page.getByLabel("Проект / дизайн").selectOption("ready");
+    await page.getByLabel("Адрес или ориентир").fill("E2E тестовый объект");
+    await page.getByLabel("Условия выезда и доступа").fill("Свободный доступ в рабочее время");
+
+    await page.getByRole("button", { name: "Сохранить и продолжить" }).click();
+    await expect(page.getByText("Шаг 4 из 4")).toBeVisible();
+
+    await page.getByLabel("Бюджет от, ₽").fill("500000");
+    await page.getByLabel("Бюджет до, ₽").fill("900000");
+    await page.getByLabel("Желаемое начало").fill("2026-09-01");
+    await page.getByLabel("Желаемое окончание").fill("2026-11-30");
+    await page.getByRole("button", { name: "Сохранить проект" }).click();
+
+    await expect(page).toHaveURL(/\/customer\/projects\/[0-9a-f-]+$/i);
+    const createdUrl = new URL(page.url());
+    const createdProjectId = createdUrl.pathname.split("/").at(-1);
+    expect(createdProjectId).toBeTruthy();
+
+    await page.goto(`/customer/projects/${createdProjectId}/edit`);
+    await expect(page.getByText("Шаг 1 из 4")).toBeVisible();
+    await page.getByRole("button", { name: /2\. Объём и состояние/ }).click();
+    await expect(page.getByLabel("Вид работ")).toHaveValue("Общестроительные работы");
+    await expect(page.getByLabel("Размеры и количества")).toHaveValue("120 м²");
+    await expect(page.getByLabel("Уровень результата")).toHaveValue("standard");
+  });
+
   test("customer sees matching and invitation pipeline", async ({ page }) => {
     await login(page, customer!);
     await page.goto(`/customer/projects/${projectId}/matches`);
