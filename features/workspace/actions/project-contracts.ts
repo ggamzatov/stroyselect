@@ -1,179 +1,40 @@
 "use server";
 
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-
 import { db } from "@/lib/db/pool";
 import { requireActiveUser } from "@/lib/auth/require-active-user";
+import { getRequestIp } from "@/lib/security/rate-limit";
 
-const projectSchema = z.string().uuid();
+const projectSchema=z.string().uuid();
+type ProjectForContract={id:string;customer_id:string;title:string;description:string;city:string|null;address:string|null;selected_contractor_id:string|null;selected_bid_id:string|null;customer_name:string|null;contractor_name:string|null;contractor_legal_name:string|null;contractor_inn:string|null;contractor_ogrn:string|null;price:string|number|null;duration_days:number|null;scope_summary:string|null;materials_summary:string|null;exclusions:string|null;payment_terms:string|null;warranty_months:number|null};
 
-type ProjectForContract = {
-  id: string;
-  customer_id: string;
-  title: string;
-  description: string;
-  city: string | null;
-  address: string | null;
-  selected_contractor_id: string | null;
-  selected_bid_id: string | null;
-  contractor_name: string | null;
-  price: string | number | null;
-  duration_days: number | null;
-  scope_summary: string | null;
-  materials_summary: string | null;
-  exclusions: string | null;
-  payment_terms: string | null;
-  warranty_months: number | null;
-};
-
-export async function createProjectContract(formData: FormData) {
-  const projectId = String(formData.get("projectId") ?? "");
-  if (!projectSchema.safeParse(projectId).success) return;
-  const auth = await requireActiveUser();
-  if (!auth.success || auth.profile.role !== "customer") return;
-
-  const projectResult = await db.query<ProjectForContract>(
-    `SELECT p.id,p.customer_id,p.title,p.description,p.city,p.address,p.selected_contractor_id,p.selected_bid_id,
-            cc.public_name AS contractor_name,pb.price,pb.duration_days,pb.scope_summary,pb.materials_summary,
-            pb.exclusions,pb.payment_terms,pb.warranty_months
-     FROM public.projects p
-     LEFT JOIN public.contractor_companies cc ON cc.id=p.selected_contractor_id
-     LEFT JOIN public.project_bids pb ON pb.id=p.selected_bid_id
-     WHERE p.id=$1::uuid AND p.customer_id=$2::uuid LIMIT 1`,
-    [projectId, auth.user.id]
-  );
-  const project = projectResult.rows[0];
-  if (!project?.selected_contractor_id) return;
-
-  const existing = await db.query<{ id: string }>(
-    `SELECT id FROM public.project_contracts WHERE project_id=$1::uuid LIMIT 1`,
-    [projectId]
-  );
-  if (existing.rows[0]) {
-    revalidateContractPages(projectId);
-    return;
-  }
-
-  const client = await db.connect();
-  try {
-    await client.query("BEGIN");
-    const contractResult = await client.query<{ id: string }>(
-      `INSERT INTO public.project_contracts(project_id,source_bid_id,customer_id,contractor_id,status,current_version)
-       VALUES($1::uuid,$2::uuid,$3::uuid,$4::uuid,'pending_approval',1) RETURNING id`,
-      [projectId, project.selected_bid_id, project.customer_id, project.selected_contractor_id]
-    );
-    const contractId = contractResult.rows[0]?.id;
-    if (!contractId) throw new Error("Contract was not created");
-
-    const terms = {
-      price: numberOrNull(project.price),
-      durationDays: project.duration_days,
-      scope: project.scope_summary,
-      materials: project.materials_summary,
-      exclusions: project.exclusions,
-      paymentTerms: project.payment_terms,
-      warrantyMonths: project.warranty_months,
-    };
-    const body = buildContractBody(project);
-    await client.query(
-      `INSERT INTO public.project_contract_versions(contract_id,version_no,title,body,commercial_terms,created_by)
-       VALUES($1::uuid,1,$2,$3,$4::jsonb,$5::uuid)`,
-      [contractId, `Договор по проекту «${project.title}»`, body, JSON.stringify(terms), auth.user.id]
-    );
-    await client.query("COMMIT");
-  } catch (error) {
-    await client.query("ROLLBACK");
-    console.error("Ошибка создания договора:", error);
-  } finally {
-    client.release();
-  }
-  revalidateContractPages(projectId);
+export async function createProjectContract(formData:FormData){
+ const projectId=String(formData.get("projectId")??"");if(!projectSchema.safeParse(projectId).success)return;const auth=await requireActiveUser();if(!auth.success||auth.profile.role!=="customer")return;
+ const result=await db.query<ProjectForContract>(`SELECT p.id,p.customer_id,p.title,p.description,p.city,p.address,p.selected_contractor_id,p.selected_bid_id,concat_ws(' ',pr.last_name,pr.first_name) customer_name,cc.public_name contractor_name,cc.legal_name contractor_legal_name,cc.inn contractor_inn,cc.ogrn contractor_ogrn,pb.price,pb.duration_days,pb.scope_summary,pb.materials_summary,pb.exclusions,pb.payment_terms,pb.warranty_months FROM public.projects p JOIN public.profiles pr ON pr.id=p.customer_id LEFT JOIN public.contractor_companies cc ON cc.id=p.selected_contractor_id LEFT JOIN public.project_bids pb ON pb.id=p.selected_bid_id WHERE p.id=$1::uuid AND p.customer_id=$2::uuid LIMIT 1`,[projectId,auth.user.id]);
+ const project=result.rows[0];if(!project?.selected_contractor_id)return;if((await db.query(`SELECT 1 FROM public.project_contracts WHERE project_id=$1::uuid`,[projectId])).rowCount){revalidateContractPages(projectId);return}
+ const client=await db.connect();try{await client.query("BEGIN");const c=await client.query<{id:string}>(`INSERT INTO public.project_contracts(project_id,source_bid_id,customer_id,contractor_id,status,current_version) VALUES($1::uuid,$2::uuid,$3::uuid,$4::uuid,'pending_approval',1) RETURNING id`,[projectId,project.selected_bid_id,project.customer_id,project.selected_contractor_id]);const contractId=c.rows[0]?.id;if(!contractId)throw new Error("Contract was not created");const terms={price:numberOrNull(project.price),durationDays:project.duration_days,scope:project.scope_summary,materials:project.materials_summary,exclusions:project.exclusions,paymentTerms:project.payment_terms,warrantyMonths:project.warranty_months,governingLaw:"Russian Federation",template:"ru-1.0"};await client.query(`INSERT INTO public.project_contract_versions(contract_id,version_no,title,body,commercial_terms,created_by,legal_template_version) VALUES($1::uuid,1,$2,$3,$4::jsonb,$5::uuid,'ru-1.0')`,[contractId,`Договор подряда по проекту «${project.title}»`,buildContractBody(project),JSON.stringify(terms),auth.user.id]);await client.query("COMMIT")}catch(error){await client.query("ROLLBACK");console.error("Ошибка создания договора:",error)}finally{client.release()}revalidateContractPages(projectId)
 }
 
-export async function approveProjectContract(formData: FormData) {
-  const projectId = String(formData.get("projectId") ?? "");
-  if (!projectSchema.safeParse(projectId).success) return;
-  const auth = await requireActiveUser();
-  if (!auth.success) return;
-
-  const access = await db.query<{
-    contract_id: string;
-    version_no: number;
-    customer_id: string;
-    contractor_owner_id: string | null;
-  }>(
-    `SELECT pc.id AS contract_id,pc.current_version AS version_no,pc.customer_id,cc.owner_id AS contractor_owner_id
-     FROM public.project_contracts pc
-     JOIN public.contractor_companies cc ON cc.id=pc.contractor_id
-     WHERE pc.project_id=$1::uuid LIMIT 1`,
-    [projectId]
-  );
-  const row = access.rows[0];
-  if (!row) return;
-  const isCustomer = row.customer_id === auth.user.id;
-  const isContractor = row.contractor_owner_id === auth.user.id;
-  if (!isCustomer && !isContractor) return;
-
-  const client = await db.connect();
-  try {
-    await client.query("BEGIN");
-    if (isCustomer) {
-      await client.query(
-        `UPDATE public.project_contract_versions SET customer_approved_at=COALESCE(customer_approved_at,now())
-         WHERE contract_id=$1::uuid AND version_no=$2`,
-        [row.contract_id, row.version_no]
-      );
-    } else {
-      await client.query(
-        `UPDATE public.project_contract_versions SET contractor_approved_at=COALESCE(contractor_approved_at,now())
-         WHERE contract_id=$1::uuid AND version_no=$2`,
-        [row.contract_id, row.version_no]
-      );
-    }
-    await client.query(
-      `UPDATE public.project_contracts pc SET status=CASE WHEN EXISTS(
-         SELECT 1 FROM public.project_contract_versions v
-         WHERE v.contract_id=pc.id AND v.version_no=pc.current_version
-           AND v.customer_approved_at IS NOT NULL AND v.contractor_approved_at IS NOT NULL
-       ) THEN 'active' ELSE 'pending_approval' END, updated_at=now()
-       WHERE pc.id=$1::uuid`,
-      [row.contract_id]
-    );
-    await client.query("COMMIT");
-  } catch (error) {
-    await client.query("ROLLBACK");
-    console.error("Ошибка согласования договора:", error);
-  } finally {
-    client.release();
-  }
-  revalidateContractPages(projectId);
+export async function approveProjectContract(formData:FormData){
+ const projectId=String(formData.get("projectId")??"");const signatureAgreement=String(formData.get("electronicSignatureAgreement")??"");if(!projectSchema.safeParse(projectId).success||signatureAgreement!=="accepted")return;const auth=await requireActiveUser();if(!auth.success)return;
+ const access=await db.query<{contract_id:string;version_no:number;customer_id:string;contractor_owner_id:string|null}>(`SELECT pc.id contract_id,pc.current_version version_no,pc.customer_id,cc.owner_id contractor_owner_id FROM public.project_contracts pc JOIN public.contractor_companies cc ON cc.id=pc.contractor_id WHERE pc.project_id=$1::uuid LIMIT 1`,[projectId]);const row=access.rows[0];if(!row)return;const isCustomer=row.customer_id===auth.user.id;const isContractor=row.contractor_owner_id===auth.user.id;if(!isCustomer&&!isContractor)return;
+ const h=await headers();const evidence=JSON.stringify({method:"authenticated_account_simple_electronic_signature",userId:auth.user.id,ip:await getRequestIp(),userAgent:h.get("user-agent"),acceptedAt:new Date().toISOString(),contractVersion:row.version_no,statement:"I confirm this contract version and agree to use my authenticated account action as a simple electronic signature under the parties' agreement."});
+ const client=await db.connect();try{await client.query("BEGIN");if(isCustomer)await client.query(`UPDATE public.project_contract_versions SET customer_approved_at=COALESCE(customer_approved_at,now()),customer_approval_evidence=COALESCE(customer_approval_evidence,$3::jsonb) WHERE contract_id=$1::uuid AND version_no=$2`,[row.contract_id,row.version_no,evidence]);else await client.query(`UPDATE public.project_contract_versions SET contractor_approved_at=COALESCE(contractor_approved_at,now()),contractor_approval_evidence=COALESCE(contractor_approval_evidence,$3::jsonb) WHERE contract_id=$1::uuid AND version_no=$2`,[row.contract_id,row.version_no,evidence]);await client.query(`UPDATE public.project_contracts pc SET status=CASE WHEN EXISTS(SELECT 1 FROM public.project_contract_versions v WHERE v.contract_id=pc.id AND v.version_no=pc.current_version AND v.customer_approved_at IS NOT NULL AND v.contractor_approved_at IS NOT NULL) THEN 'active' ELSE 'pending_approval' END,updated_at=now() WHERE pc.id=$1::uuid`,[row.contract_id]);await client.query("COMMIT")}catch(error){await client.query("ROLLBACK");console.error("Ошибка согласования договора:",error)}finally{client.release()}revalidateContractPages(projectId)
 }
 
-function buildContractBody(project: ProjectForContract) {
-  return [
-    `Проект: ${project.title}`,
-    `Объект: ${[project.city, project.address].filter(Boolean).join(", ") || "адрес уточняется"}`,
-    `Подрядчик: ${project.contractor_name || "выбранный подрядчик"}`,
-    "",
-    "Предмет договора:",
-    project.scope_summary || project.description,
-    "",
-    `Стоимость: ${project.price == null ? "по согласованию" : `${new Intl.NumberFormat("ru-RU").format(Number(project.price))} ₽`}`,
-    `Срок выполнения: ${project.duration_days ? `${project.duration_days} дней` : "по согласованию"}`,
-    `Материалы: ${project.materials_summary || "определяются сторонами"}`,
-    `Исключения: ${project.exclusions || "не указаны"}`,
-    `Порядок оплаты: ${project.payment_terms || "в соответствии с согласованным графиком платежей"}`,
-    `Гарантия: ${project.warranty_months == null ? "по согласованию" : `${project.warranty_months} мес.`}`,
-    "",
-    "Изменение объёма, стоимости или сроков оформляется через согласованный change order в СтройВыбор.",
-    "Факт согласования версии фиксируется отдельно для заказчика и подрядчика в системе.",
-  ].join("\n");
-}
-function numberOrNull(value: unknown) { const number = Number(value); return Number.isFinite(number) ? number : null; }
-function revalidateContractPages(projectId: string) {
-  revalidatePath(`/customer/work/${projectId}/contract`);
-  revalidatePath(`/contractor/work/${projectId}/contract`);
-  revalidatePath(`/customer/work/${projectId}`);
-  revalidatePath(`/contractor/work/${projectId}`);
-}
+function buildContractBody(p:ProjectForContract){const price=p.price==null?"определяется согласованным предложением":`${new Intl.NumberFormat("ru-RU").format(Number(p.price))} руб.`;return [
+"ДОГОВОР ПОДРЯДА / ОКАЗАНИЯ УСЛУГ",`Проект: ${p.title}`,`Заказчик: ${p.customer_name||"пользователь-заказчик СтройВыбор"}`,`Подрядчик: ${p.contractor_legal_name||p.contractor_name||"выбранный подрядчик"}`,`ИНН подрядчика: ${p.contractor_inn||"уточняется"}`,`ОГРН/ОГРНИП: ${p.contractor_ogrn||"уточняется"}`,`Объект: ${[p.city,p.address].filter(Boolean).join(", ")||"уточняется сторонами"}`,
+"","1. ПРЕДМЕТ ДОГОВОРА",p.scope_summary||p.description,"Подрядчик обязуется выполнить согласованный объём работ (оказать услуги), а Заказчик — принять результат и оплатить его на условиях настоящего договора и приложений.",
+"","2. ЦЕНА И РАСЧЁТЫ",`Цена: ${price}`,`Порядок оплаты: ${p.payment_terms||"по согласованному сторонами графику платежей"}. Изменение цены допускается по соглашению сторон и фиксируется отдельным изменением (change order).`,
+"","3. СРОКИ",`Плановый срок: ${p.duration_days?`${p.duration_days} календарных дней`:"согласуется сторонами"}. Изменение срока фиксируется сторонами в системе.`,
+"","4. МАТЕРИАЛЫ И КОМПЛЕКТАЦИЯ",p.materials_summary||"Распределение обязанностей по приобретению и передаче материалов определяется предложением, сметой и согласованными изменениями.",`Исключения из цены/объёма: ${p.exclusions||"отсутствуют, если иное не следует из сметы и приложений"}.`,
+"","5. СДАЧА И ПРИЁМКА","Результат и этапы предъявляются Заказчику. Замечания фиксируются в рабочем пространстве проекта/акте. Подписание акта или иное подтверждение приёмки не лишает потребителя прав, которые не могут быть ограничены договором.",
+"","6. КАЧЕСТВО И ГАРАНТИЯ",`Гарантийный срок: ${p.warranty_months==null?"определяется законом и/или согласованными условиями":`${p.warranty_months} мес.`}. Условия договора не ограничивают обязательные права потребителя и ответственность исполнителя, предусмотренные законодательством РФ.`,
+"","7. ОТВЕТСТВЕННОСТЬ И СПОРЫ","Стороны несут ответственность по законодательству Российской Федерации. Претензионный порядок применяется, если он обязателен по закону или согласован сторонами, и не ограничивает право потребителя на предусмотренные законом способы защиты.",
+"","8. ЭЛЕКТРОННОЕ ВЗАИМОДЕЙСТВИЕ","Стороны признают документы и действия в СтройВыбор электронным способом взаимодействия. Для использования действия в аутентифицированном аккаунте как простой электронной подписи стороны согласуют, что ключом простой электронной подписи являются данные доступа к аккаунту; сторона обязана сохранять их конфиденциальность. Система фиксирует пользователя, версию документа, дату и технические доказательства подтверждения.",
+"","9. ПЕРСОНАЛЬНЫЕ ДАННЫЕ","Персональные данные обрабатываются СтройВыбор на самостоятельных законных основаниях и в соответствии с опубликованной политикой. Согласие на обработку персональных данных не является частью настоящего договора и оформляется отдельно, когда оно требуется.",
+"","10. ЗАКЛЮЧИТЕЛЬНЫЕ ПОЛОЖЕНИЯ","Неотъемлемыми частями договора являются принятое предложение/смета, согласованный график, акты и последующие согласованные изменения. При противоречии императивным нормам законодательства РФ применяется закон.",
+].join("\n")}
+function numberOrNull(value:unknown){const n=Number(value);return Number.isFinite(n)?n:null}function revalidateContractPages(id:string){revalidatePath(`/customer/work/${id}/contract`);revalidatePath(`/contractor/work/${id}/contract`);revalidatePath(`/customer/work/${id}`);revalidatePath(`/contractor/work/${id}`)}
