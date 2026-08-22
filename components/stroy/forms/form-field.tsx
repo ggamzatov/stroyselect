@@ -18,34 +18,34 @@ export function FormField({
   children,
 }: Props) {
   return (
-    <div>
-      <div className="mb-2">
-        <div className="flex items-center gap-1">
-          <p className="text-sm font-semibold text-foreground">
+    <label className="block">
+      <span className="mb-2 block">
+        <span className="flex items-center gap-1">
+          <span className="text-sm font-semibold text-foreground">
             {label}
-          </p>
+          </span>
 
           {required && (
-            <span className="text-destructive">
+            <span className="text-destructive" aria-hidden="true">
               *
             </span>
           )}
-        </div>
+        </span>
 
         {description && (
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+          <span className="mt-1 block text-xs leading-5 text-muted-foreground">
             {description}
-          </p>
+          </span>
         )}
-      </div>
+      </span>
 
       {children}
 
       {error && (
-        <p className="mt-2 text-sm font-medium text-destructive">
+        <span className="mt-2 block text-sm font-medium text-destructive" role="alert">
           {error}
-        </p>
+        </span>
       )}
-    </div>
+    </label>
   );
 }
