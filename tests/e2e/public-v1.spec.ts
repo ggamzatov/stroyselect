@@ -45,7 +45,7 @@ test.describe("Public V1 product surfaces", () => {
     await expect(page.getByRole("link", { name: "Договор" })).toBeVisible();
     await page.getByRole("link", { name: "Договор" }).click();
     await expect(page).toHaveURL(new RegExp(`/customer/work/${workspaceProjectId}/contract`));
-    await expect(page.locator("body")).toContainText(/Договор и согласование|Создать договор/i);
+    await expect(page.locator("body")).toContainText(/Договор и (?:электронное )?согласование|Сформировать договор|Создать договор/i);
 
     await logout(page);
     await login(page, contractor!);
