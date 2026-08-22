@@ -15,6 +15,8 @@ export type ProjectAppointment = {
   customerResponse: "pending" | "accepted" | "declined";
   contractorResponse: "pending" | "accepted" | "declined";
   createdBy: string;
+  hasStarted: boolean;
+  hasEnded: boolean;
 };
 
 export async function getProjectAppointmentsForParticipant(projectId: string): Promise<ProjectAppointment[]> {
@@ -47,12 +49,16 @@ export async function getProjectAppointmentsForParticipant(projectId: string): P
     customer_response: ProjectAppointment["customerResponse"];
     contractor_response: ProjectAppointment["contractorResponse"];
     created_by: string;
+    has_started: boolean;
+    has_ended: boolean;
   }>(
     `SELECT id,project_id,appointment_type,title,scheduled_start,scheduled_end,
-            location,notes,reminder_at,status,customer_response,contractor_response,created_by
+            location,notes,reminder_at,status,customer_response,contractor_response,created_by,
+            scheduled_start <= now() AS has_started,
+            scheduled_end < now() AS has_ended
      FROM public.project_appointments
      WHERE project_id=$1::uuid
-     ORDER BY CASE WHEN scheduled_start >= now() THEN 0 ELSE 1 END,
+     ORDER BY CASE WHEN scheduled_end >= now() AND status NOT IN ('completed','cancelled') THEN 0 ELSE 1 END,
               scheduled_start ASC`,
     [projectId]
   );
@@ -71,5 +77,7 @@ export async function getProjectAppointmentsForParticipant(projectId: string): P
     customerResponse: row.customer_response,
     contractorResponse: row.contractor_response,
     createdBy: row.created_by,
+    hasStarted: row.has_started,
+    hasEnded: row.has_ended,
   }));
 }
