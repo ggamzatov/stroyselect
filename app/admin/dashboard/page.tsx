@@ -3,6 +3,7 @@ import Link from "next/link";
 import {
   ArrowRight,
   BadgeCheck,
+  BarChart3,
   Building2,
   CircleAlert,
   Clock3,
@@ -137,6 +138,7 @@ export default async function AdminDashboardPage() {
           <p className="text-sm font-semibold text-primary">Навигация</p>
           <h2 className="mt-1 text-xl font-bold text-foreground">Быстрые действия</h2>
           <div className="mt-5 space-y-2">
+            <QuickLink href="/admin/analytics" title="Аналитика" description="Воронка и метрики marketplace" icon={<BarChart3 className="h-4 w-4" />} />
             <QuickLink href="/admin/contractors" title="Подрядчики" description="Проверка и модерация" icon={<Building2 className="h-4 w-4" />} />
             <QuickLink href="/admin/projects" title="Проекты" description="Просмотр проектов" icon={<ShieldAlert className="h-4 w-4" />} />
             <QuickLink href="/admin/users" title="Пользователи" description="Управление аккаунтами" icon={<UsersRound className="h-4 w-4" />} />
