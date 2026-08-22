@@ -51,10 +51,11 @@ export async function getProjectBudgetControl(projectId: string) {
   const approvedDelta=changesResult.rows.filter(i=>i.status==="approved").reduce((s,i)=>s+toNumber(i.amount_delta),0);
   const approvedDurationDelta=changesResult.rows.filter(i=>i.status==="approved").reduce((s,i)=>s+(Number(i.duration_delta_days)||0),0);
   const currentContract=originalContract+approvedDelta;
-  const paidTotal=paymentsResult.rows.filter(i=>i.confirmation_status!=="cancelled").reduce((s,i)=>s+toNumber(i.amount),0);
+  const confirmedPayments=paymentsResult.rows.filter(i=>i.confirmation_status==="confirmed");
+  const paidTotal=confirmedPayments.reduce((s,i)=>s+toNumber(i.amount),0);
 
   const paymentsByStage=new Map<string,number>();
-  for(const payment of paymentsResult.rows){if(payment.stage_id&&payment.confirmation_status!=="cancelled") paymentsByStage.set(payment.stage_id,(paymentsByStage.get(payment.stage_id)??0)+toNumber(payment.amount));}
+  for(const payment of confirmedPayments){if(payment.stage_id) paymentsByStage.set(payment.stage_id,(paymentsByStage.get(payment.stage_id)??0)+toNumber(payment.amount));}
 
   const stages=stagesResult.rows.map(stage=>{
     const explicitAmount=stage.payment_due_amount===null?null:toNumber(stage.payment_due_amount);
