@@ -74,7 +74,8 @@ test.describe("marketplace journey", () => {
 
     await page.goto(`/customer/projects/${createdProjectId}/edit`);
     await expect(page.getByText("Шаг 1 из 4")).toBeVisible();
-    await page.getByRole("button", { name: /2\. Объём и состояние/ }).click();
+    await page.getByRole("button", { name: "Сохранить и продолжить" }).click();
+    await expect(page.getByText("Шаг 2 из 4")).toBeVisible();
     await expect(page.getByLabel("Вид работ")).toHaveValue("Общестроительные работы");
     await expect(page.getByLabel("Размеры и количества")).toHaveValue("120 м²");
     await expect(page.getByLabel("Уровень результата")).toHaveValue("standard");
