@@ -3,26 +3,31 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { createNotification } from "@/features/notifications/server/create-notification";
 import { requireActiveUser } from "@/lib/auth/require-active-user";
 import { db } from "@/lib/db/pool";
 
 const projectIdSchema = z.string().uuid();
 const appointmentIdSchema = z.string().uuid();
+const localDateTimeSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
 const createSchema = z.object({
   projectId: z.string().uuid(),
   appointmentType: z.enum(["site_visit", "meeting", "call", "video_call"]),
   title: z.string().trim().min(2).max(160),
-  scheduledStart: z.coerce.date(),
-  scheduledEnd: z.coerce.date(),
+  scheduledStart: localDateTimeSchema,
+  scheduledEnd: localDateTimeSchema,
   location: z.string().trim().max(300).optional(),
   notes: z.string().trim().max(2000).optional(),
   reminderMinutes: z.coerce.number().int().min(0).max(10080).default(60),
-}).refine((v) => v.scheduledEnd > v.scheduledStart, {
-  message: "Окончание должно быть позже начала",
-  path: ["scheduledEnd"],
 });
 
-async function getProjectAccess(projectId: string, userId: string) {
+type ProjectAccess = {
+  customer_id: string;
+  contractor_owner_id: string | null;
+  role: "customer" | "contractor";
+};
+
+async function getProjectAccess(projectId: string, userId: string): Promise<ProjectAccess | null> {
   const result = await db.query<{
     customer_id: string;
     contractor_owner_id: string | null;
@@ -56,30 +61,34 @@ export async function createProjectAppointment(formData: FormData) {
   });
   if (!parsed.success) return;
 
+  const scheduledStart = parseMoscowLocalDateTime(parsed.data.scheduledStart);
+  const scheduledEnd = parseMoscowLocalDateTime(parsed.data.scheduledEnd);
+  if (!scheduledStart || !scheduledEnd || scheduledEnd <= scheduledStart || scheduledStart.getTime() < Date.now() - 60_000) return;
+
   const auth = await requireActiveUser();
   if (!auth.success) return;
   const access = await getProjectAccess(parsed.data.projectId, auth.user.id);
-  if (!access) return;
+  if (!access || !access.contractor_owner_id) return;
 
   const reminderAt = parsed.data.reminderMinutes > 0
-    ? new Date(parsed.data.scheduledStart.getTime() - parsed.data.reminderMinutes * 60_000)
+    ? new Date(scheduledStart.getTime() - parsed.data.reminderMinutes * 60_000)
     : null;
 
-  await db.query(
+  const result = await db.query<{ id: string }>(
     `INSERT INTO public.project_appointments(
        project_id,created_by,appointment_type,title,scheduled_start,scheduled_end,
        location,notes,reminder_at,customer_response,contractor_response,status
      ) VALUES(
        $1::uuid,$2::uuid,$3,$4,$5,$6,$7,$8,$9,
        $10,$11,'proposed'
-     )`,
+     ) RETURNING id`,
     [
       parsed.data.projectId,
       auth.user.id,
       parsed.data.appointmentType,
       parsed.data.title,
-      parsed.data.scheduledStart,
-      parsed.data.scheduledEnd,
+      scheduledStart,
+      scheduledEnd,
       parsed.data.location || null,
       parsed.data.notes || null,
       reminderAt,
@@ -87,7 +96,19 @@ export async function createProjectAppointment(formData: FormData) {
       access.role === "contractor" ? "accepted" : "pending",
     ]
   );
+  const appointmentId = result.rows[0]?.id;
 
+  if (appointmentId) {
+    await notifyOtherParticipant({
+      access,
+      actorUserId: auth.user.id,
+      projectId: parsed.data.projectId,
+      type: "appointment_proposed",
+      title: "Предложено время встречи",
+      body: `${parsed.data.title} — ${formatMoscowDateTime(scheduledStart)}`,
+      deduplicationKey: `appointment:${appointmentId}:proposed`,
+    });
+  }
   revalidateAppointmentPages(parsed.data.projectId);
 }
 
@@ -105,7 +126,7 @@ export async function respondProjectAppointment(formData: FormData) {
   if (!access) return;
 
   const column = access.role === "customer" ? "customer_response" : "contractor_response";
-  await db.query(
+  const result = await db.query<{ title: string; scheduled_start: Date | string; status: string }>(
     `UPDATE public.project_appointments
      SET ${column}=$3,
          status=CASE
@@ -118,9 +139,22 @@ export async function respondProjectAppointment(formData: FormData) {
          cancelled_by=CASE WHEN $3='declined' THEN $2::uuid ELSE cancelled_by END,
          cancelled_at=CASE WHEN $3='declined' THEN now() ELSE cancelled_at END,
          updated_at=now()
-     WHERE id=$1::uuid AND project_id=$5::uuid AND status IN ('proposed','confirmed')`,
+     WHERE id=$1::uuid AND project_id=$5::uuid AND status IN ('proposed','confirmed')
+     RETURNING title,scheduled_start,status`,
     [appointmentId, auth.user.id, response, access.role, projectId]
   );
+  const appointment = result.rows[0];
+  if (appointment) {
+    await notifyOtherParticipant({
+      access,
+      actorUserId: auth.user.id,
+      projectId,
+      type: response === "accepted" ? "appointment_confirmed" : "appointment_declined",
+      title: response === "accepted" ? "Встреча подтверждена" : "Встреча отклонена",
+      body: `${appointment.title} — ${formatMoscowDateTime(new Date(appointment.scheduled_start))}`,
+      deduplicationKey: `appointment:${appointmentId}:${access.role}:${response}`,
+    });
+  }
   revalidateAppointmentPages(projectId);
 }
 
@@ -130,14 +164,28 @@ export async function cancelProjectAppointment(formData: FormData) {
   if (!projectIdSchema.safeParse(projectId).success || !appointmentIdSchema.safeParse(appointmentId).success) return;
 
   const auth = await requireActiveUser();
-  if (!auth.success || !(await getProjectAccess(projectId, auth.user.id))) return;
+  if (!auth.success) return;
+  const access = await getProjectAccess(projectId, auth.user.id);
+  if (!access) return;
 
-  await db.query(
+  const result = await db.query<{ title: string }>(
     `UPDATE public.project_appointments
      SET status='cancelled',cancelled_by=$2::uuid,cancelled_at=now(),updated_at=now()
-     WHERE id=$1::uuid AND project_id=$3::uuid AND status IN ('proposed','confirmed')`,
+     WHERE id=$1::uuid AND project_id=$3::uuid AND status IN ('proposed','confirmed')
+     RETURNING title`,
     [appointmentId, auth.user.id, projectId]
   );
+  if (result.rows[0]) {
+    await notifyOtherParticipant({
+      access,
+      actorUserId: auth.user.id,
+      projectId,
+      type: "appointment_cancelled",
+      title: "Встреча отменена",
+      body: result.rows[0].title,
+      deduplicationKey: `appointment:${appointmentId}:cancelled`,
+    });
+  }
   revalidateAppointmentPages(projectId);
 }
 
@@ -156,6 +204,50 @@ export async function completeProjectAppointment(formData: FormData) {
     [appointmentId, projectId]
   );
   revalidateAppointmentPages(projectId);
+}
+
+async function notifyOtherParticipant(input: {
+  access: ProjectAccess;
+  actorUserId: string;
+  projectId: string;
+  type: string;
+  title: string;
+  body: string;
+  deduplicationKey: string;
+}) {
+  const recipientId = input.access.role === "customer"
+    ? input.access.contractor_owner_id
+    : input.access.customer_id;
+  if (!recipientId || recipientId === input.actorUserId) return;
+  const url = input.access.role === "customer"
+    ? `/contractor/work/${input.projectId}/appointments`
+    : `/customer/work/${input.projectId}/appointments`;
+  await createNotification({
+    userId: recipientId,
+    actorId: input.actorUserId,
+    notificationType: input.type,
+    title: input.title,
+    body: input.body,
+    projectId: input.projectId,
+    url,
+    deduplicationKey: input.deduplicationKey,
+    metadata: { project_id: input.projectId, feature: "appointments" },
+  });
+}
+
+function parseMoscowLocalDateTime(value: string) {
+  const date = new Date(`${value}:00+03:00`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatMoscowDateTime(value: Date) {
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "numeric",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/Moscow",
+  }).format(value);
 }
 
 function revalidateAppointmentPages(projectId: string) {
