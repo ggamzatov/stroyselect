@@ -1,0 +1,17 @@
+import { notFound, redirect } from "next/navigation";
+
+import { getCurrentProfile } from "@/lib/auth/get-current-profile";
+import { ProjectWorkspaceNav } from "@/features/workspace/components/project-workspace-nav";
+import { ProjectContractCenter } from "@/features/workspace/components/project-contract-center";
+import { getProjectContract } from "@/features/workspace/queries/get-project-contract";
+
+type Props = { params: Promise<{ id: string }> };
+
+export default async function CustomerProjectContractPage({ params }: Props) {
+  const { id } = await params;
+  const { profile } = await getCurrentProfile();
+  if (profile.role !== "customer") redirect("/dashboard");
+  const contract = await getProjectContract(id);
+  if (!contract || contract.viewerRole !== "customer") notFound();
+  return <main className="min-h-screen bg-background"><ProjectWorkspaceNav projectId={id} role="customer" /><ProjectContractCenter contract={contract} /></main>;
+}
