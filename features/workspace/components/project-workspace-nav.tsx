@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Banknote,
+  FileSignature,
   FileText,
   FolderOpen,
   ListChecks,
@@ -16,31 +17,12 @@ type Props = {
 };
 
 const items = [
-  {
-    suffix: "",
-    label: "Обзор",
-    icon: FolderOpen,
-  },
-  {
-    suffix: "/changes",
-    label: "Бюджет и платежи",
-    icon: Banknote,
-  },
-  {
-    suffix: "/documents",
-    label: "Документы",
-    icon: FileText,
-  },
-  {
-    suffix: "/issues",
-    label: "Замечания",
-    icon: ListChecks,
-  },
-  {
-    suffix: "/disputes",
-    label: "Споры",
-    icon: ShieldAlert,
-  },
+  { suffix: "", label: "Обзор", icon: FolderOpen },
+  { suffix: "/contract", label: "Договор", icon: FileSignature },
+  { suffix: "/changes", label: "Бюджет и платежи", icon: Banknote },
+  { suffix: "/documents", label: "Документы", icon: FileText },
+  { suffix: "/issues", label: "Замечания", icon: ListChecks },
+  { suffix: "/disputes", label: "Споры", icon: ShieldAlert },
 ] as const;
 
 export function ProjectWorkspaceNav({ projectId, role }: Props) {
@@ -48,19 +30,13 @@ export function ProjectWorkspaceNav({ projectId, role }: Props) {
   const base = `/${role}/work/${projectId}`;
 
   return (
-    <nav
-      aria-label="Разделы рабочего пространства"
-      className="border-b border-border bg-background/95 backdrop-blur"
-    >
+    <nav aria-label="Разделы рабочего пространства" className="border-b border-border bg-background/95 backdrop-blur">
       <div className="app-container overflow-x-auto py-3">
         <div className="flex min-w-max gap-2">
           {items.map((item) => {
             const href = `${base}${item.suffix}`;
-            const active = item.suffix
-              ? pathname === href || pathname.startsWith(`${href}/`)
-              : pathname === base;
+            const active = item.suffix ? pathname === href || pathname.startsWith(`${href}/`) : pathname === base;
             const Icon = item.icon;
-
             return (
               <Link
                 key={item.suffix || "overview"}
@@ -73,12 +49,7 @@ export function ProjectWorkspaceNav({ projectId, role }: Props) {
                     : "border border-border bg-card text-foreground hover:border-primary/30 hover:bg-secondary/60",
                 ].join(" ")}
               >
-                <Icon
-                  className={[
-                    "h-4 w-4",
-                    active ? "text-primary-foreground" : "text-primary",
-                  ].join(" ")}
-                />
+                <Icon className={["h-4 w-4", active ? "text-primary-foreground" : "text-primary"].join(" ")} />
                 {item.label}
               </Link>
             );
