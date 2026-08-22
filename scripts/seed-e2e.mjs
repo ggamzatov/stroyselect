@@ -1,4 +1,3 @@
-import { existsSync } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import bcrypt from "bcryptjs";
@@ -7,12 +6,7 @@ import pg from "pg";
 const { Pool } = pg;
 
 if (!process.env.DATABASE_URL) {
-  const envFile = path.resolve(".env.local");
-  if (existsSync(envFile)) process.loadEnvFile(envFile);
-}
-
-if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL не указан ни в окружении, ни в .env.local");
+  throw new Error("DATABASE_URL не указан. Запускайте через npm run e2e:seed с .env.local");
 }
 
 const IDS = {
@@ -88,72 +82,73 @@ try {
     ]
   );
 
+  await client.query(`DELETE FROM public.contractor_services WHERE contractor_id=$1::uuid`, [IDS.company]);
   await client.query(
-    `
-      INSERT INTO public.contractor_services (contractor_id, category_id, is_primary)
-      VALUES ($1::uuid, $2::bigint, true)
-      ON CONFLICT (contractor_id, category_id) DO UPDATE SET is_primary=true
-    `,
+    `INSERT INTO public.contractor_services(contractor_id,category_id,is_primary) VALUES($1::uuid,$2,true)`,
     [IDS.company, categoryId]
+  );
+
+  await client.query(`DELETE FROM public.contractor_service_areas WHERE contractor_id=$1::uuid`, [IDS.company]);
+  await client.query(
+    `INSERT INTO public.contractor_service_areas(contractor_id,region,city,is_primary) VALUES($1::uuid,$2,$3,true)`,
+    [IDS.company, REGION, CITY]
   );
 
   await upsertProject(client, {
     id: IDS.publishedProject,
     customerId: IDS.customer,
     categoryId,
-    title: "E2E опубликованный проект",
-    description: "Тестовый опубликованный проект для проверки matching, приглашений и предложений подрядчиков.",
+    title: "E2E Опубликованный проект",
+    description: "Тестовый опубликованный проект для проверки matching, приглашения подрядчика и отправки предложения.",
     status: "published",
     selectedContractorId: null,
-    budgetMin: 250000,
-    budgetMax: 500000,
+    selectedBidId: null,
   });
 
   await upsertProject(client, {
     id: IDS.workspaceProject,
     customerId: IDS.customer,
     categoryId,
-    title: "E2E проект в работе",
-    description: "Тестовый проект с выбранным подрядчиком для проверки workspace, этапов и совместной работы.",
+    title: "E2E Проект в работе",
+    description: "Тестовый проект с выбранным подрядчиком для проверки рабочего пространства, бюджета, документов и замечаний.",
     status: "in_progress",
     selectedContractorId: IDS.company,
-    budgetMin: 500000,
-    budgetMax: 900000,
-  });
+    selectedBidId: IDS.workspaceBid,
+  }, false);
+
+  await upsertBid(client, IDS.workspaceBid, IDS.workspaceProject, IDS.company, "accepted", 1200000, 45);
+  await client.query(
+    `UPDATE public.projects SET selected_contractor_id=$2::uuid,selected_bid_id=$3::uuid,status='in_progress',updated_at=now() WHERE id=$1::uuid`,
+    [IDS.workspaceProject, IDS.company, IDS.workspaceBid]
+  );
+
+  await upsertStage(client, IDS.workspaceStage, IDS.workspaceProject, IDS.contractor, "Основной этап E2E", "in_progress", 100, 1200000);
 
   await upsertProject(client, {
     id: IDS.completedProject,
     customerId: IDS.customer,
     categoryId,
-    title: "E2E завершённый проект",
-    description: "Тестовый завершённый проект для проверки финального отзыва и истории сотрудничества.",
-    status: "completed",
+    title: "E2E Завершённый проект",
+    description: "Тестовый завершённый проект для проверки финального отзыва и истории выполнения.",
+    status: "in_progress",
     selectedContractorId: IDS.company,
-    budgetMin: 300000,
-    budgetMax: 450000,
-  });
+    selectedBidId: IDS.completedBid,
+  }, false);
 
-  await upsertBid(client, IDS.workspaceBid, IDS.workspaceProject, IDS.company, "accepted", 650000, 45);
-  await upsertBid(client, IDS.completedBid, IDS.completedProject, IDS.company, "accepted", 390000, 30);
-
-  await upsertStage(client, IDS.workspaceStage, IDS.workspaceProject, "Основной этап E2E", "in_progress", 1);
-  await upsertStage(client, IDS.completedStage, IDS.completedProject, "Завершённый этап E2E", "completed", 1);
-
+  await upsertBid(client, IDS.completedBid, IDS.completedProject, IDS.company, "accepted", 850000, 30);
   await client.query(
-    `
-      INSERT INTO public.project_contractor_invitations (project_id, contractor_id, invited_by, status, created_at, updated_at)
-      VALUES ($1::uuid,$2::uuid,$3::uuid,'invited',now(),now())
-      ON CONFLICT (project_id, contractor_id) DO UPDATE SET
-        invited_by=EXCLUDED.invited_by,
-        status='invited',
-        updated_at=now()
-    `,
-    [IDS.publishedProject, IDS.company, IDS.customer]
+    `UPDATE public.projects SET selected_contractor_id=$2::uuid,selected_bid_id=$3::uuid,status='in_progress',updated_at=now() WHERE id=$1::uuid`,
+    [IDS.completedProject, IDS.company, IDS.completedBid]
+  );
+  await upsertStage(client, IDS.completedStage, IDS.completedProject, IDS.contractor, "Завершённый этап E2E", "completed", 100, 850000);
+  await client.query(
+    `UPDATE public.projects SET status='completed',updated_at=now() WHERE id=$1::uuid`,
+    [IDS.completedProject]
   );
 
   await client.query("COMMIT");
 
-  const envLines = [
+  const envText = [
     `E2E_CUSTOMER_EMAIL=${CUSTOMER_EMAIL}`,
     `E2E_CUSTOMER_PASSWORD=${PASSWORD}`,
     `E2E_CONTRACTOR_EMAIL=${CONTRACTOR_EMAIL}`,
@@ -161,14 +156,24 @@ try {
     `E2E_PROJECT_ID=${IDS.publishedProject}`,
     `E2E_WORKSPACE_PROJECT_ID=${IDS.workspaceProject}`,
     `E2E_COMPLETED_PROJECT_ID=${IDS.completedProject}`,
-    "E2E_RUN_MUTATIONS=0",
-  ];
+    `E2E_RUN_MUTATIONS=0`,
+    "",
+  ].join("\n");
 
-  await fs.writeFile(path.resolve(".env.e2e.local"), `${envLines.join("\n")}\n`, "utf8");
-  console.log("Seeded E2E marketplace fixtures and wrote .env.e2e.local");
+  const envPath = path.join(process.cwd(), ".env.e2e.local");
+  await fs.writeFile(envPath, envText, { mode: 0o600 });
+
+  console.log("E2E seed готов.");
+  console.log(`Customer:   ${CUSTOMER_EMAIL}`);
+  console.log(`Contractor: ${CONTRACTOR_EMAIL}`);
+  console.log(`Project:    ${IDS.publishedProject}`);
+  console.log(`Workspace:  ${IDS.workspaceProject}`);
+  console.log(`Completed:  ${IDS.completedProject}`);
+  console.log("Переменные записаны в .env.e2e.local");
 } catch (error) {
-  await client.query("ROLLBACK").catch(() => undefined);
-  throw error;
+  await client.query("ROLLBACK");
+  console.error("E2E seed failed:", error);
+  process.exitCode = 1;
 } finally {
   client.release();
   await pool.end();
@@ -176,12 +181,12 @@ try {
 
 async function ensureCategory(client) {
   const existing = await client.query(
-    `SELECT id FROM public.service_categories WHERE is_active IS DISTINCT FROM false ORDER BY id LIMIT 1`
+    `SELECT id FROM public.service_categories WHERE COALESCE(is_active,true)=true ORDER BY id ASC LIMIT 1`
   );
-  if (existing.rows[0]?.id) return existing.rows[0].id;
+  if (existing.rows[0]?.id !== undefined) return existing.rows[0].id;
 
   const created = await client.query(
-    `INSERT INTO public.service_categories(name,slug,is_active) VALUES('E2E категория','e2e-category',true) RETURNING id`
+    `INSERT INTO public.service_categories(name,is_active) VALUES('E2E Общестроительные работы',true) RETURNING id`
   );
   return created.rows[0].id;
 }
@@ -192,104 +197,107 @@ async function upsertUser(client, id, email, passwordHash, role, firstName, last
       INSERT INTO public.users(id,email,password_hash,email_confirmed_at,raw_user_meta_data,is_active)
       VALUES($1::uuid,$2::text,$3::text,now(),$4::jsonb,true)
       ON CONFLICT(id) DO UPDATE SET
-        email=EXCLUDED.email,
-        password_hash=EXCLUDED.password_hash,
-        email_confirmed_at=now(),
-        raw_user_meta_data=EXCLUDED.raw_user_meta_data,
-        is_active=true
+        email=EXCLUDED.email,password_hash=EXCLUDED.password_hash,email_confirmed_at=now(),
+        raw_user_meta_data=EXCLUDED.raw_user_meta_data,is_active=true
     `,
     [id, email, passwordHash, JSON.stringify({ role, first_name: firstName, last_name: lastName })]
   );
 
   await client.query(
     `
-      INSERT INTO public.profiles(id,role,first_name,last_name,email,is_blocked)
-      VALUES($1::uuid,$2::text,$3::text,$4::text,$5::text,false)
+      INSERT INTO public.profiles(id,role,first_name,last_name,email,is_blocked,phone,city)
+      VALUES($1::uuid,$2,$3,$4,$5::text,false,$6,$7)
       ON CONFLICT(id) DO UPDATE SET
-        role=EXCLUDED.role,
-        first_name=EXCLUDED.first_name,
-        last_name=EXCLUDED.last_name,
-        email=EXCLUDED.email,
-        is_blocked=false
+        role=EXCLUDED.role,first_name=EXCLUDED.first_name,last_name=EXCLUDED.last_name,
+        email=EXCLUDED.email,is_blocked=false,phone=EXCLUDED.phone,city=EXCLUDED.city
     `,
-    [id, role, firstName, lastName, email]
+    [id, role, firstName, lastName, email, role === "customer" ? "+79990000001" : "+79990000002", CITY]
   );
 }
 
-async function upsertProject(client, project) {
+async function upsertProject(client, values, includeSelection = true) {
+  const params = [
+    values.id,
+    values.customerId,
+    values.categoryId,
+    values.title,
+    values.description,
+    "private_house",
+    REGION,
+    CITY,
+    "E2E тестовый адрес",
+    700000,
+    1500000,
+    values.status,
+  ];
+
   await client.query(
     `
       INSERT INTO public.projects(
-        id, customer_id, category_id, title, description, property_type, region, city,
-        budget_min, budget_max, status, selected_contractor_id, published_at, updated_at
-      ) VALUES(
-        $1::uuid,$2::uuid,$3::bigint,$4,$5,'private_house',$6,$7,$8,$9,$10,$11::uuid,
-        CASE WHEN $10='draft' THEN NULL ELSE now() END,now()
-      )
+        id,customer_id,category_id,title,description,property_type,region,city,address,
+        budget_min,budget_max,status,desired_start_date,desired_end_date,updated_at
+      ) VALUES($1::uuid,$2::uuid,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,current_date+7,current_date+90,now())
       ON CONFLICT(id) DO UPDATE SET
-        customer_id=EXCLUDED.customer_id,
-        category_id=EXCLUDED.category_id,
-        title=EXCLUDED.title,
-        description=EXCLUDED.description,
-        property_type=EXCLUDED.property_type,
-        region=EXCLUDED.region,
-        city=EXCLUDED.city,
-        budget_min=EXCLUDED.budget_min,
-        budget_max=EXCLUDED.budget_max,
-        status=EXCLUDED.status,
-        selected_contractor_id=EXCLUDED.selected_contractor_id,
-        published_at=EXCLUDED.published_at,
-        updated_at=now()
+        customer_id=EXCLUDED.customer_id,category_id=EXCLUDED.category_id,title=EXCLUDED.title,
+        description=EXCLUDED.description,property_type=EXCLUDED.property_type,region=EXCLUDED.region,
+        city=EXCLUDED.city,address=EXCLUDED.address,budget_min=EXCLUDED.budget_min,budget_max=EXCLUDED.budget_max,
+        desired_start_date=EXCLUDED.desired_start_date,desired_end_date=EXCLUDED.desired_end_date,
+        status=EXCLUDED.status,updated_at=now()
     `,
-    [
-      project.id,
-      project.customerId,
-      project.categoryId,
-      project.title,
-      project.description,
-      REGION,
-      CITY,
-      project.budgetMin,
-      project.budgetMax,
-      project.status,
-      project.selectedContractorId,
-    ]
+    params
   );
+
+  if (includeSelection) {
+    await client.query(
+      `UPDATE public.projects SET selected_contractor_id=$2::uuid,selected_bid_id=$3::uuid WHERE id=$1::uuid`,
+      [values.id, values.selectedContractorId, values.selectedBidId]
+    );
+  }
 }
 
 async function upsertBid(client, id, projectId, contractorId, status, price, durationDays) {
   await client.query(
     `
       INSERT INTO public.project_bids(
-        id,project_id,contractor_id,price,duration_days,message,status,scope_summary,materials_summary,payment_terms,updated_at
-      ) VALUES($1::uuid,$2::uuid,$3::uuid,$4,$5,'E2E предложение',$6,'Полный объём E2E работ','Материалы согласуются','Оплата по этапам',now())
+        id,project_id,contractor_id,price,duration_days,proposed_start_date,message,
+        scope_summary,materials_summary,exclusions,payment_terms,warranty_months,
+        price_includes_materials,completeness_score,status,updated_at
+      ) VALUES(
+        $1::uuid,$2::uuid,$3::uuid,$4,$5,current_date+7,$6,$7,$8,$9,$10,24,true,100,$11,now()
+      )
       ON CONFLICT(id) DO UPDATE SET
-        price=EXCLUDED.price,
-        duration_days=EXCLUDED.duration_days,
-        message=EXCLUDED.message,
-        status=EXCLUDED.status,
-        scope_summary=EXCLUDED.scope_summary,
-        materials_summary=EXCLUDED.materials_summary,
-        payment_terms=EXCLUDED.payment_terms,
-        updated_at=now()
+        project_id=EXCLUDED.project_id,contractor_id=EXCLUDED.contractor_id,price=EXCLUDED.price,
+        duration_days=EXCLUDED.duration_days,proposed_start_date=EXCLUDED.proposed_start_date,
+        message=EXCLUDED.message,scope_summary=EXCLUDED.scope_summary,materials_summary=EXCLUDED.materials_summary,
+        exclusions=EXCLUDED.exclusions,payment_terms=EXCLUDED.payment_terms,warranty_months=EXCLUDED.warranty_months,
+        price_includes_materials=EXCLUDED.price_includes_materials,completeness_score=EXCLUDED.completeness_score,
+        status=EXCLUDED.status,updated_at=now()
     `,
-    [id, projectId, contractorId, price, durationDays, status]
+    [
+      id, projectId, contractorId, price, durationDays,
+      "Автоматическое E2E предложение",
+      "Полный комплекс работ по тестовому проекту.",
+      "Основные материалы включены в стоимость.",
+      "Дополнительные работы вне согласованного объёма.",
+      "Оплата по этапам после приёмки.",
+      status,
+    ]
   );
 }
 
-async function upsertStage(client, id, projectId, title, status, position) {
+async function upsertStage(client, id, projectId, createdBy, title, status, weight, price) {
   await client.query(
     `
-      INSERT INTO public.project_stages(id,project_id,title,description,status,position,weight,updated_at)
-      VALUES($1::uuid,$2::uuid,$3,'E2E этап',$4,$5,100,now())
+      INSERT INTO public.project_stages(
+        id,project_id,created_by,title,description,price,progress_weight,sort_order,status,
+        planned_start_date,planned_end_date,updated_at
+      ) VALUES($1::uuid,$2::uuid,$3::uuid,$4,$5,$6,$7,0,$8,current_date-10,current_date+30,now())
       ON CONFLICT(id) DO UPDATE SET
-        title=EXCLUDED.title,
-        description=EXCLUDED.description,
-        status=EXCLUDED.status,
-        position=EXCLUDED.position,
-        weight=EXCLUDED.weight,
-        updated_at=now()
+        project_id=EXCLUDED.project_id,created_by=EXCLUDED.created_by,title=EXCLUDED.title,
+        description=EXCLUDED.description,price=EXCLUDED.price,progress_weight=EXCLUDED.progress_weight,
+        sort_order=0,status=EXCLUDED.status,planned_start_date=EXCLUDED.planned_start_date,
+        planned_end_date=EXCLUDED.planned_end_date,updated_at=now()
     `,
-    [id, projectId, title, status, position]
+    [id, projectId, createdBy, title, "Автоматический этап для E2E проверки", price, weight, status]
   );
 }
