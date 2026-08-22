@@ -27,7 +27,7 @@
     "db:backup": "bash scripts/db-backup.sh",
     "db:restore": "bash scripts/db-restore.sh",
     "db:restore-drill": "bash scripts/db-restore-drill.sh",
-    "e2e:seed": "node scripts/seed-e2e.mjs && node scripts/seed-e2e-ops.mjs",
+    "e2e:seed": "node scripts/run-e2e-seed.mjs",
     "test:e2e": "playwright test",
     "test:e2e:marketplace": "playwright test tests/e2e/marketplace-flow.spec.ts",
     "test:e2e:marketplace:seeded": "npm run build && npm run e2e:seed && node --env-file=.env.e2e.local ./node_modules/@playwright/test/cli.js test tests/e2e/marketplace-flow.spec.ts",
