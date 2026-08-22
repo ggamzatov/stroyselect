@@ -1,0 +1,192 @@
+.shell {
+  margin-top: 2rem;
+}
+
+.shell > div {
+  display: grid;
+  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
+  gap: 2rem;
+  align-items: start;
+}
+
+.shell > div > section:first-child {
+  position: sticky;
+  top: 1.5rem;
+  margin: 0;
+  padding: 0.25rem 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.shell > div > section:first-child > div:first-child {
+  display: block;
+}
+
+.shell > div > section:first-child > div:first-child > div:last-child {
+  display: none !important;
+}
+
+.shell > div > section:first-child > div:first-child p:first-child {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.shell > div > section:first-child > div:first-child h2 {
+  margin-top: 0.65rem;
+  font-size: 1.35rem;
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+}
+
+.shell > div > section:first-child > div:first-child h2 + p {
+  margin-top: 0.65rem;
+  max-width: 15rem;
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+
+.shell > div > section:first-child > div:nth-child(2) {
+  display: none;
+}
+
+.shell > div > section:first-child > div:nth-child(3) {
+  display: flex !important;
+  flex-direction: column;
+  gap: 0;
+  margin-top: 1.75rem;
+}
+
+.shell > div > section:first-child > div:nth-child(3) > button {
+  position: relative;
+  width: 100%;
+  min-height: 3.75rem;
+  padding: 0.9rem 0.75rem 0.9rem 1.25rem !important;
+  border: 0 !important;
+  border-left: 2px solid var(--border) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: var(--muted-foreground) !important;
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+  line-height: 1.35;
+  text-align: left;
+  box-shadow: none !important;
+}
+
+.shell > div > section:first-child > div:nth-child(3) > button:hover:not(:disabled) {
+  color: var(--foreground) !important;
+  background: color-mix(in srgb, var(--secondary) 45%, transparent) !important;
+}
+
+.shell > div > section:first-child > div:nth-child(3) > button[class~="text-primary-foreground"] {
+  border-left-color: var(--primary) !important;
+  background: transparent !important;
+  color: var(--foreground) !important;
+  font-weight: 750 !important;
+}
+
+.shell > div > section:first-child > div:nth-child(3) > button[class~="text-primary"] {
+  color: var(--foreground) !important;
+}
+
+.shell > div > section:first-child > div:nth-child(3) > button:disabled {
+  opacity: 0.48;
+}
+
+.shell > div > section:nth-child(2) {
+  min-width: 0;
+  min-height: 36rem;
+  margin: 0;
+  padding: 2rem 2.25rem;
+  border: 1px solid var(--border);
+  border-radius: 1.5rem;
+  background: var(--card);
+  box-shadow: var(--shadow-soft);
+}
+
+.shell > div > section:nth-child(2) :global(.stroy-input),
+.shell > div > section:nth-child(2) :global(.stroy-select),
+.shell > div > section:nth-child(2) :global(.stroy-textarea) {
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--card) 94%, var(--background));
+}
+
+.shell > div > section:nth-child(2) :global(.stroy-input),
+.shell > div > section:nth-child(2) :global(.stroy-select) {
+  min-height: 3.25rem;
+}
+
+.shell > div > section:nth-child(2) :global(.stroy-textarea) {
+  min-height: 8rem;
+}
+
+.shell > div > section:nth-child(2) > div:last-child {
+  margin-top: 2rem;
+  padding-top: 1.25rem;
+}
+
+.shell > div > section:nth-child(2) button {
+  border-radius: 0.75rem !important;
+}
+
+@media (max-width: 900px) {
+  .shell {
+    margin-top: 1.5rem;
+  }
+
+  .shell > div {
+    display: block;
+  }
+
+  .shell > div > section:first-child {
+    position: static;
+    margin-bottom: 1.25rem;
+  }
+
+  .shell > div > section:first-child > div:first-child h2 + p {
+    max-width: none;
+  }
+
+  .shell > div > section:first-child > div:nth-child(3) {
+    display: flex !important;
+    flex-direction: row;
+    gap: 0.5rem;
+    overflow-x: auto;
+    margin-top: 1rem;
+    padding-bottom: 0.25rem;
+    scrollbar-width: none;
+  }
+
+  .shell > div > section:first-child > div:nth-child(3)::-webkit-scrollbar {
+    display: none;
+  }
+
+  .shell > div > section:first-child > div:nth-child(3) > button {
+    flex: 0 0 auto;
+    width: auto;
+    min-height: 2.75rem;
+    padding: 0.7rem 0.9rem !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 0.75rem !important;
+    white-space: nowrap;
+  }
+
+  .shell > div > section:first-child > div:nth-child(3) > button[class~="text-primary-foreground"] {
+    border-color: var(--primary) !important;
+    background: var(--primary) !important;
+    color: var(--primary-foreground) !important;
+  }
+
+  .shell > div > section:nth-child(2) {
+    min-height: 0;
+    padding: 1.35rem;
+    border-radius: 1.25rem;
+  }
+}
