@@ -53,8 +53,8 @@ test.describe("marketplace journey", () => {
     await page.getByRole("button", { name: "Сохранить и продолжить" }).click();
     await expect(page.getByText("Шаг 3 из 4")).toBeVisible();
 
-    await page.getByLabel("Разрешения").selectOption("not_needed");
-    await page.getByLabel("Проект / дизайн").selectOption("ready");
+    await page.getByLabel("Разрешения и допуски").selectOption("not_needed");
+    await page.getByLabel("Проект / схема / дизайн").selectOption("ready");
     await page.getByLabel("Адрес или ориентир").fill("E2E тестовый объект");
     await page.getByLabel("Условия выезда и доступа").fill("Свободный доступ в рабочее время");
 
@@ -64,7 +64,7 @@ test.describe("marketplace journey", () => {
     await page.getByLabel("Бюджет от, ₽").fill("500000");
     await page.getByLabel("Бюджет до, ₽").fill("900000");
     await page.getByLabel("Желаемое начало").fill("2026-09-01");
-    await page.getByLabel("Желаемое окончание").fill("2026-11-30");
+    await page.getByLabel("Желаемое завершение").fill("2026-11-30");
     await page.getByRole("button", { name: "Сохранить проект" }).click();
 
     await expect(page).toHaveURL(/\/customer\/projects\/[0-9a-f-]+$/i);
