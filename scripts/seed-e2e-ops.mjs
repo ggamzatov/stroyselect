@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import bcrypt from "bcryptjs";
@@ -6,7 +7,12 @@ import pg from "pg";
 const { Pool } = pg;
 
 if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL не указан");
+  const envFile = path.resolve(".env.local");
+  if (existsSync(envFile)) process.loadEnvFile(envFile);
+}
+
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL не указан ни в окружении, ни в .env.local");
 }
 
 const ADMIN_ID = "00000000-0000-4000-8000-000000000103";
