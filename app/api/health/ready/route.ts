@@ -2,11 +2,31 @@ import { db } from "@/lib/db/pool";
 
 export const dynamic = "force-dynamic";
 
+type SchemaCheckRow = {
+  projects_table: boolean;
+  intake_column: boolean;
+};
+
 export async function GET() {
   const startedAt = Date.now();
 
   try {
-    await db.query("SELECT 1");
+    const result = await db.query<SchemaCheckRow>(`
+      SELECT
+        to_regclass('public.projects') IS NOT NULL AS projects_table,
+        EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'projects'
+            AND column_name = 'work_type'
+        ) AS intake_column
+    `);
+
+    const schema = result.rows[0];
+    if (!schema?.projects_table || !schema.intake_column) {
+      throw new Error("Database schema is behind the application migrations");
+    }
 
     return Response.json(
       {
@@ -14,6 +34,7 @@ export async function GET() {
         service: "stroyselect",
         check: "ready",
         database: "ok",
+        schema: "ok",
         latencyMs: Date.now() - startedAt,
         timestamp: new Date().toISOString(),
       },
@@ -32,7 +53,8 @@ export async function GET() {
         status: "error",
         service: "stroyselect",
         check: "ready",
-        database: "unavailable",
+        database: "unavailable_or_stale",
+        schema: "unavailable_or_stale",
         timestamp: new Date().toISOString(),
       },
       {
