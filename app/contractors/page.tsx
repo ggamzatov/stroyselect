@@ -32,8 +32,8 @@ export default async function PublicContractorsPage({ searchParams }: Props) {
 
         <form className="mt-6 grid gap-3 rounded-[1.5rem] border border-border bg-card p-4 shadow-[var(--shadow-soft)] md:grid-cols-[1fr_220px_260px_auto]">
           <label className="relative"><Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><input name="search" defaultValue={params.search ?? ""} className="stroy-input pl-10" placeholder="Название подрядчика" /></label>
-          <select name="city" defaultValue={params.city ?? ""} className="stroy-select"><option value="">Все города</option>{options.cities.map((city) => <option key={city} value={city}>{city}</option>)}</select>
-          <select name="categoryId" defaultValue={params.categoryId ?? ""} className="stroy-select"><option value="">Все специализации</option>{options.categories.map((category) => <option key={category.id} value={String(category.id)}>{category.name}</option>)}</select>
+          <select name="city" defaultValue={params.city ?? ""} className="stroy-select"><option value="">Все города</option>{options.cities.map((city) => <option key={city.value} value={city.value}>{city.label}</option>)}</select>
+          <select name="categoryId" defaultValue={params.categoryId ?? ""} className="stroy-select"><option value="">Все специализации</option>{options.categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select>
           <button className="rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground">Найти</button>
         </form>
 
