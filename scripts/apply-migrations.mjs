@@ -37,6 +37,13 @@ async function hasCoreSchema() {
   return result.rows[0]?.ready === true;
 }
 
+async function runSqlFile(fileName, label) {
+  const sql = await readFile(path.join(migrationsDir, fileName), "utf8");
+  process.stdout.write(`${label} ... `);
+  await client.query(sql);
+  console.log("OK");
+}
+
 try {
   if (!(await hasCoreSchema())) {
     if (!existsSync(baselineFile)) {
@@ -45,19 +52,23 @@ try {
       );
     }
 
-    // The historical baseline was exported from Supabase, where extensions live
-    // in a dedicated schema. Plain PostgreSQL installations do not create it.
+    // Supabase exports keep extensions in a dedicated schema. Create and seed it
+    // before running the historical baseline so extension-qualified functions exist.
     await client.query("CREATE SCHEMA IF NOT EXISTS extensions");
-
-    // The baseline contains functions that depend on current_user_id(), which is
-    // defined by our auth compatibility migration. Apply that prerequisite first.
-    const authCompat = await readFile(
-      path.join(migrationsDir, "000_auth_compat.sql"),
-      "utf8"
+    await client.query(
+      "CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions"
     );
-    process.stdout.write("Preparing auth compatibility ... ");
-    await client.query(authCompat);
-    console.log("OK");
+
+    // The baseline assumes both auth compatibility helpers/roles and public.users
+    // already exist. They are safe to run again in the normal numbered pass below.
+    await runSqlFile(
+      "000_auth_compat.sql",
+      "Preparing auth compatibility"
+    );
+    await runSqlFile(
+      "001_create_users.sql",
+      "Preparing users table"
+    );
 
     const baseline = await readFile(baselineFile, "utf8");
     process.stdout.write("Bootstrapping schema.local.sql ... ");
