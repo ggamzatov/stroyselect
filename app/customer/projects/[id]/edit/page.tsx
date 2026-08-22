@@ -5,6 +5,7 @@ import { getCurrentProfile } from "@/lib/auth/get-current-profile";
 import { getServiceCategories } from "@/features/contractors/queries/get-service-categories";
 import { getMyProject } from "@/features/projects/queries/get-my-project";
 import { ProjectForm } from "@/features/projects/components/project-form";
+import styles from "@/features/projects/components/project-intake-layout.module.css";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -22,22 +23,25 @@ export default async function EditProjectPage({ params }: Props) {
 
   return (
     <main className="min-h-screen bg-background">
-      <div className="app-container max-w-5xl py-8 md:py-12">
-        <Link href={`/customer/projects/${id}`} className="text-sm font-medium text-primary">
+      <div className="app-container max-w-7xl py-8 md:py-12">
+        <Link
+          href={`/customer/projects/${id}`}
+          className="inline-flex items-center text-sm font-medium text-muted-foreground transition hover:text-foreground"
+        >
           ← Вернуться к проекту
         </Link>
 
-        <div className="mt-5">
+        <header className="mt-6 max-w-3xl">
           <p className="text-sm font-semibold text-primary">Черновик проекта</p>
-          <h1 className="mt-1 text-3xl font-bold tracking-[-0.035em] md:text-4xl">
-            Уточнить строительный бриф
+          <h1 className="mt-2 text-3xl font-bold tracking-[-0.035em] text-foreground md:text-[2.65rem] md:leading-[1.08]">
+            Редактирование проекта
           </h1>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground md:text-base">
-            Пройдите шаги брифа и добавьте данные, которые помогут точнее подобрать подрядчиков.
+          <p className="mt-3 text-sm leading-6 text-muted-foreground md:text-base">
+            Уточните данные проекта. Набор вопросов автоматически зависит от выбранной категории работ.
           </p>
-        </div>
+        </header>
 
-        <div className="mt-8">
+        <div className={styles.shell}>
           <ProjectForm
             categories={categories}
             project={{
