@@ -139,11 +139,15 @@ export async function saveBid(input: BidInput): Promise<SaveBidResult> {
     }
 
     const completenessScore = calculateCompletenessScore(values);
+    // `message` is optional in the structured RFP form, but remains NOT NULL in
+    // the legacy database contract and is still consumed by older bid surfaces.
+    // Keep a meaningful compatibility value instead of weakening the DB invariant.
+    const legacyMessage = values.message?.trim() || values.scopeSummary.trim();
     const params = [
       values.price,
       values.durationDays,
       values.proposedStartDate || null,
-      values.message?.trim() || null,
+      legacyMessage,
       values.scopeSummary.trim(),
       values.materialsSummary.trim(),
       values.exclusions?.trim() || null,
@@ -189,7 +193,7 @@ export async function saveBid(input: BidInput): Promise<SaveBidResult> {
           values.price,
           values.durationDays,
           values.proposedStartDate || null,
-          values.message?.trim() || null,
+          legacyMessage,
           values.scopeSummary.trim(),
           values.materialsSummary.trim(),
           values.exclusions?.trim() || null,
