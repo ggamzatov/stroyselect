@@ -46,11 +46,11 @@ function TypeIcon({ type }: { type: ProjectAppointment["appointmentType"] }) {
 }
 
 export function ProjectAppointmentsPanel({ projectId, role, appointments }: Props) {
-  const now = Date.now();
   const upcoming = appointments.filter(
-    (item) => item.status !== "cancelled" && item.status !== "completed" && new Date(item.scheduledEnd).getTime() >= now
+    (item) => item.status !== "cancelled" && item.status !== "completed" && !item.hasEnded
   );
-  const history = appointments.filter((item) => !upcoming.some((upcomingItem) => upcomingItem.id === item.id));
+  const upcomingIds = new Set(upcoming.map((item) => item.id));
+  const history = appointments.filter((item) => !upcomingIds.has(item.id));
 
   return (
     <main className="app-container py-8 sm:py-10">
@@ -168,7 +168,7 @@ function AppointmentCard({
   const otherResponse = role === "customer" ? appointment.contractorResponse : appointment.customerResponse;
   const canRespond = appointment.status === "proposed" && ownResponse === "pending";
   const canCancel = appointment.status === "proposed" || appointment.status === "confirmed";
-  const canComplete = appointment.status === "confirmed" && new Date(appointment.scheduledStart).getTime() <= Date.now();
+  const canComplete = appointment.status === "confirmed" && appointment.hasStarted;
 
   return (
     <article className="rounded-2xl border border-border bg-card p-5 shadow-sm">
