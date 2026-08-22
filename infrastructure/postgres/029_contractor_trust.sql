@@ -50,7 +50,7 @@ CREATE INDEX IF NOT EXISTS contractor_verification_history_company_idx
 CREATE OR REPLACE FUNCTION public.capture_contractor_verification_change()
 RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-  IF TG_OP = 'INSERT' OR NEW.verification_status IS DISTINCT FROM OLD.verification_status THEN
+  IF NEW.verification_status IS DISTINCT FROM OLD.verification_status THEN
     IF NEW.verification_status::text = 'verified' AND NEW.verified_at IS NULL THEN
       NEW.verified_at := now();
     END IF;
@@ -59,7 +59,7 @@ BEGIN
       NEW.id,
       NEW.verification_status::text,
       NEW.verification_comment,
-      jsonb_build_object('previous_status', CASE WHEN TG_OP='INSERT' THEN NULL ELSE OLD.verification_status::text END)
+      jsonb_build_object('previous_status', OLD.verification_status::text)
     );
   END IF;
   RETURN NEW;
@@ -68,7 +68,7 @@ $$;
 
 DROP TRIGGER IF EXISTS contractor_verification_history_trigger ON public.contractor_companies;
 CREATE TRIGGER contractor_verification_history_trigger
-BEFORE INSERT OR UPDATE OF verification_status ON public.contractor_companies
+BEFORE UPDATE OF verification_status ON public.contractor_companies
 FOR EACH ROW EXECUTE FUNCTION public.capture_contractor_verification_change();
 
 UPDATE public.contractor_companies
