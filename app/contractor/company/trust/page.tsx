@@ -62,7 +62,7 @@ export default async function ContractorTrustPage() {
         <Link href="/contractor/company" className="text-sm font-semibold text-muted-foreground hover:text-primary">← Профиль компании</Link>
         <section className="mt-5 rounded-[2rem] border border-border bg-card p-6 shadow-[var(--shadow-soft)] md:p-8">
           <div className="flex items-start justify-between gap-5">
-            <div><p className="text-sm font-semibold text-primary">Trust Center</p><h1 className="mt-2 text-3xl font-black tracking-tight">Проверка и документы</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">Храните регистрационные документы, лицензии, СРО, сертификаты и страхование. Статус и срок действия учитываются при проверке профиля.</p></div>
+            <div><p className="text-sm font-semibold text-primary">Центр доверия</p><h1 className="mt-2 text-3xl font-black tracking-tight">Проверка и документы</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">Храните регистрационные документы, лицензии, СРО, сертификаты и страхование. Статус и срок действия учитываются при проверке профиля.</p></div>
             <ShieldCheck className="h-10 w-10 text-primary" />
           </div>
           <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-secondary px-3 py-2 text-sm font-semibold"><BadgeCheck className="h-4 w-4 text-primary" />{formatStatus(company.verification_status)}{company.verified_at ? ` · с ${formatDate(company.verified_at)}` : ""}</div>
