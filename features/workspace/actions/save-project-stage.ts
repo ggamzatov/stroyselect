@@ -18,6 +18,20 @@ export type SaveProjectStageResult = {
   stageId?: string;
 };
 
+type LockedProjectRow = {
+  id: string;
+  status: string;
+};
+
+type ExistingStageRow = {
+  id: string;
+  status: string;
+  title: string;
+  description: string | null;
+  price: string | number | null;
+  progress_weight: number;
+};
+
 export async function saveProjectStage(
   input: ProjectStageInput
 ): Promise<SaveProjectStageResult> {
@@ -55,21 +69,87 @@ export async function saveProjectStage(
   const client = await db.connect();
   try {
     await client.query("BEGIN");
-    await client.query(
-      `SELECT id FROM public.projects
-       WHERE id=$1 AND selected_contractor_id=$2
-         AND status IN ('contractor_selected','in_progress')
-         AND is_admin_blocked=false
-       FOR UPDATE`,
+
+    const projectResult = await client.query<LockedProjectRow>(
+      `
+        SELECT id,status::text AS status
+        FROM public.projects
+        WHERE id=$1::uuid
+          AND selected_contractor_id=$2::uuid
+          AND status IN ('contractor_selected','in_progress')
+          AND is_admin_blocked=false
+          AND COALESCE(risk_hold,false)=false
+        LIMIT 1
+        FOR UPDATE
+      `,
       [values.projectId, company.id]
     );
 
+    const lockedProject = projectResult.rows[0];
+    if (!lockedProject) {
+      await client.query("ROLLBACK");
+      return { success: false, message: "Проект недоступен для изменения этапов" };
+    }
+
+    const otherWeightResult = await client.query<{ total_weight: string | number }>(
+      `
+        SELECT COALESCE(SUM(progress_weight),0) AS total_weight
+        FROM public.project_stages
+        WHERE project_id=$1::uuid
+          AND ($2::uuid IS NULL OR id<>$2::uuid)
+      `,
+      [values.projectId, values.stageId ?? null]
+    );
+    const otherWeight = Number(otherWeightResult.rows[0]?.total_weight ?? 0);
+    if (otherWeight + values.progressWeight > 100) {
+      await client.query("ROLLBACK");
+      return {
+        success: false,
+        message: `Доли этапов не могут превышать 100%. Уже распределено ${otherWeight}%, для этого этапа доступно максимум ${Math.max(0, 100-otherWeight)}%.`,
+      };
+    }
+
     if (values.stageId) {
+      const existingResult = await client.query<ExistingStageRow>(
+        `
+          SELECT id,status::text AS status,title,description,price,progress_weight
+          FROM public.project_stages
+          WHERE id=$1::uuid AND project_id=$2::uuid
+          LIMIT 1
+          FOR UPDATE
+        `,
+        [values.stageId, values.projectId]
+      );
+      const existing = existingResult.rows[0];
+      if (!existing) {
+        await client.query("ROLLBACK");
+        return { success: false, message: "Этап не найден" };
+      }
+      if (existing.status !== "planned") {
+        await client.query("ROLLBACK");
+        return { success: false, message: "После начала этапа его объём, стоимость и долю изменять нельзя" };
+      }
+
+      if (lockedProject.status === "in_progress") {
+        const structuralChange =
+          existing.title !== values.title ||
+          (existing.description ?? "") !== (values.description?.trim() ?? "") ||
+          nullableNumber(existing.price) !== nullableNumber(values.price) ||
+          Number(existing.progress_weight) !== Number(values.progressWeight);
+        if (structuralChange) {
+          await client.query("ROLLBACK");
+          return {
+            success: false,
+            message: "После начала проекта объём, стоимость и доля этапа меняются только через согласованное изменение проекта. Здесь можно скорректировать только плановые даты.",
+          };
+        }
+      }
+
       const result = await client.query<{ id: string }>(
         `UPDATE public.project_stages
          SET title=$1,description=$2,price=$3,progress_weight=$4,
              planned_start_date=$5,planned_end_date=$6,updated_at=now()
-         WHERE id=$7 AND project_id=$8
+         WHERE id=$7::uuid AND project_id=$8::uuid AND status='planned'
          RETURNING id`,
         [values.title,values.description?.trim()||null,values.price??null,values.progressWeight,
          values.plannedStartDate||null,values.plannedEndDate||null,values.stageId,values.projectId]
@@ -109,8 +189,14 @@ export async function saveProjectStage(
   } catch(error){
     await client.query("ROLLBACK");
     console.error("Ошибка сохранения этапа:",error);
-    return {success:false,message:values.stageId?"Не удалось обновить этап":"Не удалось создать этап"};
+    return{success:false,message:values.stageId?"Не удалось обновить этап":"Не удалось создать этап"};
   } finally {client.release();}
+}
+
+function nullableNumber(value: unknown) {
+  if (value === null || value === undefined || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
 }
 
 function revalidateWorkspace(projectId:string){
