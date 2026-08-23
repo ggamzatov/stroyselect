@@ -18,6 +18,8 @@ export async function createStagePayment(projectId: string, stageId: string): Pr
   const activeUser = await requireActiveUser();
   if (!activeUser.success) return { success: false, message: activeUser.message };
   if (activeUser.profile.role !== "customer") return { success: false, message: "Оплатить этап может только заказчик" };
+  const enabled=String(process.env.PAYMENTS_ENABLED??"false").toLowerCase()==="true";
+  if(!enabled)return{success:false,message:"Онлайн-оплата пока отключена администратором"};
   if (!isYooKassaConfigured()) return { success: false, message: "Онлайн-оплата ещё не подключена администратором" };
 
   const contract = await requireActiveContract(projectId);
@@ -35,6 +37,10 @@ export async function createStagePayment(projectId: string, stageId: string): Pr
   const amount=Number(stage.price??0);
   if(!Number.isFinite(amount)||amount<=0)return{success:false,message:"Для этапа не указана стоимость"};
 
+  const feePercent=Math.max(0,Math.min(99.99,Number(process.env.YOOKASSA_PLATFORM_FEE_PERCENT??0)));
+  const platformFeeAmount=Math.round(amount*feePercent)/100;
+  const payoutAmount=Math.max(0.01,Math.round((amount-platformFeeAmount)*100)/100);
+
   const existing=await db.query<IntentRow>(`
     SELECT id,amount::text,provider_deal_id,provider_payment_id,status,confirmation_url
     FROM public.project_payment_intents WHERE project_id=$1::uuid AND stage_id=$2::uuid LIMIT 1
@@ -50,11 +56,13 @@ export async function createStagePayment(projectId: string, stageId: string): Pr
     await client.query("BEGIN");
     if(!intent){
       const created=await client.query<IntentRow>(`
-        INSERT INTO public.project_payment_intents(id,project_id,stage_id,amount,provider,provider_mode,status,metadata)
-        VALUES($1::uuid,$2::uuid,$3::uuid,$4,'yookassa','safe_deal','planned',$5::jsonb)
+        INSERT INTO public.project_payment_intents(id,project_id,stage_id,amount,payout_amount,platform_fee_amount,provider,provider_mode,status,metadata)
+        VALUES($1::uuid,$2::uuid,$3::uuid,$4,$5,$6,'yookassa','safe_deal','planned',$7::jsonb)
         RETURNING id,amount::text,provider_deal_id,provider_payment_id,status,confirmation_url
-      `,[randomUUID(),projectId,stageId,amount,JSON.stringify({contract_id:contract.contractId,contract_version:contract.versionNo})]);
+      `,[randomUUID(),projectId,stageId,amount,payoutAmount,platformFeeAmount,JSON.stringify({contract_id:contract.contractId,contract_version:contract.versionNo,fee_percent:feePercent})]);
       intent=created.rows[0];
+    }else{
+      await client.query(`UPDATE public.project_payment_intents SET payout_amount=$2,platform_fee_amount=$3,metadata=metadata||$4::jsonb,updated_at=now() WHERE id=$1::uuid`,[intent.id,payoutAmount,platformFeeAmount,JSON.stringify({fee_percent:feePercent})]);
     }
     await client.query("COMMIT");
   }catch(error){await client.query("ROLLBACK");console.error("Ошибка создания платёжного намерения:",error);return{success:false,message:"Не удалось подготовить оплату"};}finally{client.release();}
@@ -67,15 +75,13 @@ export async function createStagePayment(projectId: string, stageId: string): Pr
       dealId=deal.id;
       await db.query(`UPDATE public.project_payment_intents SET provider_deal_id=$2,provider_status=$3,updated_at=now() WHERE id=$1::uuid`,[intent.id,deal.id,deal.status]);
     }
-    const feePercent=Math.max(0,Math.min(100,Number(process.env.YOOKASSA_PLATFORM_FEE_PERCENT??0)));
-    const payoutAmount=Math.max(0.01,Math.round(amount*(1-feePercent/100)*100)/100);
     const baseUrl=getAppBaseUrl();
     const payment=await createSafeDealPayment({projectId,stageId,paymentIntentId:intent.id,dealId,amount,payoutAmount,returnUrl:`${baseUrl}/customer/work/${projectId}/changes?payment=return`,description:`Оплата этапа «${stage.title}»`});
     const confirmationUrl=payment.confirmation?.confirmation_url;
     if(!confirmationUrl)throw new Error("ЮKassa не вернула ссылку подтверждения платежа");
     await db.query(`
       UPDATE public.project_payment_intents
-      SET provider_payment_id=$2,provider_status=$3,confirmation_url=$4,status='awaiting_payment',updated_at=now()
+      SET provider_payment_id=$2,provider_status=$3,confirmation_url=$4,status='awaiting_payment',failure_reason=NULL,updated_at=now()
       WHERE id=$1::uuid
     `,[intent.id,payment.id,payment.status,confirmationUrl]);
     revalidatePath(`/customer/work/${projectId}/changes`);
