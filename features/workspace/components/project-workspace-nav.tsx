@@ -9,25 +9,27 @@ import {
   FileText,
   FolderOpen,
   ListChecks,
+  LockKeyhole,
   ShieldAlert,
 } from "lucide-react";
 
 type Props = {
   projectId: string;
   role: "customer" | "contractor";
+  executionUnlocked?: boolean;
 };
 
 const items = [
-  { suffix: "", label: "Обзор", icon: FolderOpen },
-  { suffix: "/appointments", label: "Встречи", icon: CalendarClock },
-  { suffix: "/contract", label: "Договор", icon: FileSignature },
-  { suffix: "/changes", label: "Бюджет и платежи", icon: Banknote },
-  { suffix: "/documents", label: "Документы", icon: FileText },
-  { suffix: "/issues", label: "Замечания", icon: ListChecks },
-  { suffix: "/disputes", label: "Споры", icon: ShieldAlert },
+  { suffix: "", label: "Обзор", icon: FolderOpen, requiresContract: false },
+  { suffix: "/appointments", label: "Встречи", icon: CalendarClock, requiresContract: false },
+  { suffix: "/contract", label: "Договор", icon: FileSignature, requiresContract: false },
+  { suffix: "/changes", label: "Бюджет и платежи", icon: Banknote, requiresContract: true },
+  { suffix: "/documents", label: "Документы", icon: FileText, requiresContract: true },
+  { suffix: "/issues", label: "Замечания", icon: ListChecks, requiresContract: true },
+  { suffix: "/disputes", label: "Споры", icon: ShieldAlert, requiresContract: true },
 ] as const;
 
-export function ProjectWorkspaceNav({ projectId, role }: Props) {
+export function ProjectWorkspaceNav({ projectId, role, executionUnlocked = false }: Props) {
   const pathname = usePathname();
   const base = `/${role}/work/${projectId}`;
 
@@ -38,7 +40,24 @@ export function ProjectWorkspaceNav({ projectId, role }: Props) {
           {items.map((item) => {
             const href = `${base}${item.suffix}`;
             const active = item.suffix ? pathname === href || pathname.startsWith(`${href}/`) : pathname === base;
+            const locked = item.requiresContract && !executionUnlocked;
             const Icon = item.icon;
+
+            if (locked) {
+              return (
+                <span
+                  key={item.suffix || "overview"}
+                  title="Раздел откроется после подписания договора обеими сторонами"
+                  aria-disabled="true"
+                  className="inline-flex min-h-10 cursor-not-allowed items-center gap-2 rounded-xl border border-border bg-muted/50 px-4 text-sm font-semibold text-muted-foreground opacity-70"
+                >
+                  <LockKeyhole className="h-3.5 w-3.5" />
+                  <Icon className="h-4 w-4" />
+                  {item.label}
+                </span>
+              );
+            }
+
             return (
               <Link
                 key={item.suffix || "overview"}
