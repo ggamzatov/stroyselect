@@ -6,8 +6,14 @@ import { cookies, headers } from "next/headers";
 
 import { db } from "@/lib/db/pool";
 
+const INSECURE_E2E_SESSION =
+  process.env.E2E_ALLOW_INSECURE_SESSION === "1" &&
+  /^http:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?$/i.test(
+    (process.env.PLAYWRIGHT_BASE_URL ?? process.env.APP_BASE_URL ?? "").replace(/\/$/, "")
+  );
+
 const SESSION_COOKIE =
-  process.env.NODE_ENV === "production"
+  process.env.NODE_ENV === "production" && !INSECURE_E2E_SESSION
     ? "__Host-stroyselect_session"
     : "stroyselect_session";
 
@@ -116,7 +122,7 @@ export async function createUserSession(userId: string) {
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE, token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: process.env.NODE_ENV === "production" && !INSECURE_E2E_SESSION,
     sameSite: "lax",
     path: "/",
     expires: expiresAt,
