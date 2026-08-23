@@ -90,29 +90,28 @@ test.describe("marketplace journey", () => {
     }
 
     await page.getByRole("button", { name: "Сохранить и продолжить" }).click();
+    await expect(page.getByText("Шаг 3 из 4")).toBeVisible();
 
     const address = page.locator('input[name="address"]');
-    if (await address.isVisible().catch(() => false)) {
-      const permitReadiness = page.locator('select[name="permitReadiness"]');
-      if (await permitReadiness.isVisible().catch(() => false)) {
-        await permitReadiness.selectOption("not_needed");
-      }
-
-      const designReadiness = page.locator('select[name="designReadiness"]');
-      if (await designReadiness.isVisible().catch(() => false)) {
-        await designReadiness.selectOption("ready");
-      }
-
-      await address.fill("E2E тестовый объект");
-
-      const travelConstraints = page.locator('textarea[name="travelConstraints"]');
-      if (await travelConstraints.isVisible().catch(() => false)) {
-        await travelConstraints.fill("Свободный доступ в рабочее время");
-      }
-
-      await page.getByRole("button", { name: "Сохранить и продолжить" }).click();
+    const permitReadiness = page.locator('select[name="permitReadiness"]');
+    if (await permitReadiness.isVisible().catch(() => false)) {
+      await permitReadiness.selectOption("not_needed");
     }
 
+    const designReadiness = page.locator('select[name="designReadiness"]');
+    if (await designReadiness.isVisible().catch(() => false)) {
+      await designReadiness.selectOption("ready");
+    }
+
+    await address.fill("E2E тестовый объект");
+
+    const travelConstraints = page.locator('textarea[name="travelConstraints"]');
+    if (await travelConstraints.isVisible().catch(() => false)) {
+      await travelConstraints.fill("Свободный доступ в рабочее время");
+    }
+
+    await page.getByRole("button", { name: "Сохранить и продолжить" }).click();
+    await expect(page.getByText("Шаг 4 из 4")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Бюджет и сроки" })).toBeVisible();
     await page.getByLabel("Бюджет от, ₽").fill("500000");
     await page.getByLabel("Бюджет до, ₽").fill("900000");
