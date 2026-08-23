@@ -45,7 +45,7 @@ test.describe("Public V1 product surfaces", () => {
     await expect(page.getByRole("link", { name: "Договор" })).toBeVisible();
     await page.getByRole("link", { name: "Договор" }).click();
     await expect(page).toHaveURL(new RegExp(`/customer/work/${workspaceProjectId}/contract`));
-    await expect(page.locator("body")).toContainText(/Договор и (?:электронное )?согласование|Сформировать договор|Создать договор/i);
+    await expect(page.locator("body")).toContainText(/Конструктор договора и электронное согласование|Сформировать договор/i);
 
     await logout(page);
     await login(page, contractor!);
@@ -57,7 +57,7 @@ test.describe("Public V1 product surfaces", () => {
     await login(page, contractor!);
     await page.goto("/contractor/company/trust");
     await expect(page.getByRole("heading", { name: "Проверка и документы" })).toBeVisible();
-    await expect(page.locator("body")).toContainText(/Trust Center|Страхование и лицензии/i);
+    await expect(page.locator("body")).toContainText(/Центр доверия|Страхование и лицензии/i);
   });
 
   test("admin operations dashboard reports marketplace KPIs", async ({ page }) => {
