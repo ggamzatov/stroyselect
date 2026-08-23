@@ -13,6 +13,7 @@ import {
   History,
   LayoutDashboard,
   MessageSquareText,
+  Rocket,
   ShieldAlert,
   UsersRound,
 } from "lucide-react";
@@ -21,6 +22,7 @@ const navigation = [
   { href: "/admin/dashboard", label: "Обзор", icon: LayoutDashboard },
   { href: "/admin/analytics", label: "Аналитика", icon: BarChart3 },
   { href: "/admin/operations", label: "Операции", icon: Activity },
+  { href: "/admin/release", label: "Готовность к запуску", icon: Rocket },
   { href: "/admin/contractors", label: "Подрядчики", icon: Building2 },
   { href: "/admin/projects", label: "Проекты", icon: FolderKanban },
   { href: "/admin/disputes", label: "Споры и риски", icon: ShieldAlert },
@@ -48,8 +50,8 @@ export function AdminSidebar() {
               return (
                 <Link key={item.href} href={item.href} className={["group flex min-h-12 items-center gap-3 rounded-2xl px-4 text-sm font-semibold transition", active ? "bg-primary text-primary-foreground shadow-[0_10px_24px_rgba(107,70,50,0.16)]" : "text-muted-foreground hover:bg-secondary hover:text-foreground"].join(" ")}>
                   <Icon className={["h-4.5 w-4.5 shrink-0", active ? "text-primary-foreground" : "text-primary"].join(" ")} />
-                  <span>{item.label}</span>
-                  {active && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-primary-foreground/80" />}
+                  <span className="min-w-0 break-words">{item.label}</span>
+                  {active && <span className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-primary-foreground/80" />}
                 </Link>
               );
             })}
