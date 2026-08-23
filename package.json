@@ -15,6 +15,7 @@
     "production:audit": "node scripts/production-readiness-audit.mjs",
     "production:env:check": "node --env-file=.env.local scripts/production-readiness-audit.mjs --env",
     "production:smoke": "node scripts/production-smoke.mjs",
+    "production:launch:check": "node scripts/production-launch-check.mjs",
     "production:image:build": "docker build -t stroyselect-app:${APP_IMAGE_TAG:-local} .",
     "production:compose:prepare-local": "node scripts/prepare-local-production-env.mjs",
     "production:compose:local": "npm run production:compose:prepare-local && APP_ENV_FILE=.env.production.local docker compose -f docker-compose.production.yml up -d --build",
