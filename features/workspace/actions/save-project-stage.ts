@@ -37,14 +37,19 @@ export async function saveProjectStage(
 ): Promise<SaveProjectStageResult> {
   const parsed = projectStageSchema.safeParse(input);
   if (!parsed.success) {
-    return { success: false, message: parsed.error.issues[0]?.message ?? "Проверьте данные этапа" };
+    return {
+      success: false,
+      message: parsed.error.issues[0]?.message ?? "Проверьте данные этапа",
+    };
   }
 
   const values = parsed.data;
   const activeUser = await requireActiveUser();
   if (!activeUser.success) return { success: false, message: activeUser.message };
   const { user, profile } = activeUser;
-  if (profile.role !== "contractor") return { success: false, message: "Управлять этапами может только подрядчик" };
+  if (profile.role !== "contractor") {
+    return { success: false, message: "Управлять этапами может только подрядчик" };
+  }
 
   const activeProject = await requireActiveProject(values.projectId);
   if (!activeProject.success) return { success: false, message: activeProject.message };
@@ -105,7 +110,7 @@ export async function saveProjectStage(
       await client.query("ROLLBACK");
       return {
         success: false,
-        message: `Доли этапов не могут превышать 100%. Уже распределено ${otherWeight}%, для этого этапа доступно максимум ${Math.max(0, 100-otherWeight)}%.`,
+        message: `Доли этапов не могут превышать 100%. Уже распределено ${otherWeight}%, для этого этапа доступно максимум ${Math.max(0, 100 - otherWeight)}%.`,
       };
     }
 
@@ -127,7 +132,10 @@ export async function saveProjectStage(
       }
       if (existing.status !== "planned") {
         await client.query("ROLLBACK");
-        return { success: false, message: "После начала этапа его объём, стоимость и долю изменять нельзя" };
+        return {
+          success: false,
+          message: "После начала этапа его объём, стоимость и долю изменять нельзя",
+        };
       }
 
       if (lockedProject.status === "in_progress") {
@@ -140,57 +148,109 @@ export async function saveProjectStage(
           await client.query("ROLLBACK");
           return {
             success: false,
-            message: "После начала проекта объём, стоимость и доля этапа меняются только через согласованное изменение проекта. Здесь можно скорректировать только плановые даты.",
+            message:
+              "После начала проекта объём, стоимость и доля этапа меняются только через согласованное изменение проекта. Здесь можно скорректировать только плановые даты.",
           };
         }
       }
 
       const result = await client.query<{ id: string }>(
-        `UPDATE public.project_stages
-         SET title=$1,description=$2,price=$3,progress_weight=$4,
-             planned_start_date=$5,planned_end_date=$6,updated_at=now()
-         WHERE id=$7::uuid AND project_id=$8::uuid AND status='planned'
-         RETURNING id`,
-        [values.title,values.description?.trim()||null,values.price??null,values.progressWeight,
-         values.plannedStartDate||null,values.plannedEndDate||null,values.stageId,values.projectId]
+        `
+          UPDATE public.project_stages
+          SET title=$1,description=$2,price=$3,progress_weight=$4,
+              planned_start_date=$5,planned_end_date=$6,updated_at=now()
+          WHERE id=$7::uuid AND project_id=$8::uuid AND status='planned'
+          RETURNING id
+        `,
+        [
+          values.title,
+          values.description?.trim() || null,
+          values.price ?? null,
+          values.progressWeight,
+          values.plannedStartDate || null,
+          values.plannedEndDate || null,
+          values.stageId,
+          values.projectId,
+        ]
       );
-      const updatedStage=result.rows[0];
-      if(!updatedStage){await client.query("ROLLBACK");return{success:false,message:"Не удалось обновить этап"};}
+      const updatedStage = result.rows[0];
+      if (!updatedStage) {
+        await client.query("ROLLBACK");
+        return { success: false, message: "Не удалось обновить этап" };
+      }
       await client.query("COMMIT");
       revalidateWorkspace(values.projectId);
-      return {success:true,message:"Этап обновлён",stageId:updatedStage.id};
+      return { success: true, message: "Этап обновлён", stageId: updatedStage.id };
+    }
+
+    if (lockedProject.status !== "contractor_selected") {
+      await client.query("ROLLBACK");
+      return {
+        success: false,
+        message:
+          "После начала работ новые этапы нельзя добавлять напрямую. Изменение объёма работ сначала должно быть согласовано как изменение проекта.",
+      };
     }
 
     const orderResult = await client.query<{ next_sort_order: number }>(
       `SELECT COALESCE(MAX(sort_order),-1)+1 AS next_sort_order FROM public.project_stages WHERE project_id=$1`,
       [values.projectId]
     );
-    const nextSortOrder=Number(orderResult.rows[0]?.next_sort_order??0);
-    const result=await client.query<{id:string}>(
-      `INSERT INTO public.project_stages(
-         project_id,created_by,title,description,price,progress_weight,sort_order,status,planned_start_date,planned_end_date
-       ) VALUES($1,$2,$3,$4,$5,$6,$7,'planned',$8,$9) RETURNING id`,
-      [values.projectId,user.id,values.title,values.description?.trim()||null,values.price??null,
-       values.progressWeight,nextSortOrder,values.plannedStartDate||null,values.plannedEndDate||null]
+    const nextSortOrder = Number(orderResult.rows[0]?.next_sort_order ?? 0);
+    const result = await client.query<{ id: string }>(
+      `
+        INSERT INTO public.project_stages(
+          project_id,created_by,title,description,price,progress_weight,sort_order,status,
+          planned_start_date,planned_end_date
+        ) VALUES($1,$2,$3,$4,$5,$6,$7,'planned',$8,$9)
+        RETURNING id
+      `,
+      [
+        values.projectId,
+        user.id,
+        values.title,
+        values.description?.trim() || null,
+        values.price ?? null,
+        values.progressWeight,
+        nextSortOrder,
+        values.plannedStartDate || null,
+        values.plannedEndDate || null,
+      ]
     );
-    const createdStage=result.rows[0];
-    if(!createdStage)throw new Error("Этап не был создан");
+    const createdStage = result.rows[0];
+    if (!createdStage) throw new Error("Этап не был создан");
 
     await client.query(
-      `INSERT INTO public.project_events(project_id,author_id,event_type,title,description,metadata)
-       VALUES($1,$2,'stage_created',$3,$4,$5::jsonb)`,
-      [values.projectId,user.id,"Добавлен этап работ",values.title,
-       JSON.stringify({stage_id:createdStage.id,contract_id:contract.contractId,contract_version:contract.versionNo})]
+      `
+        INSERT INTO public.project_events(project_id,author_id,event_type,title,description,metadata)
+        VALUES($1,$2,'stage_created',$3,$4,$5::jsonb)
+      `,
+      [
+        values.projectId,
+        user.id,
+        "Добавлен этап работ",
+        values.title,
+        JSON.stringify({
+          stage_id: createdStage.id,
+          contract_id: contract.contractId,
+          contract_version: contract.versionNo,
+        }),
+      ]
     );
 
     await client.query("COMMIT");
     revalidateWorkspace(values.projectId);
-    return {success:true,message:"Этап добавлен",stageId:createdStage.id};
-  } catch(error){
+    return { success: true, message: "Этап добавлен", stageId: createdStage.id };
+  } catch (error) {
     await client.query("ROLLBACK");
-    console.error("Ошибка сохранения этапа:",error);
-    return{success:false,message:values.stageId?"Не удалось обновить этап":"Не удалось создать этап"};
-  } finally {client.release();}
+    console.error("Ошибка сохранения этапа:", error);
+    return {
+      success: false,
+      message: values.stageId ? "Не удалось обновить этап" : "Не удалось создать этап",
+    };
+  } finally {
+    client.release();
+  }
 }
 
 function nullableNumber(value: unknown) {
@@ -199,7 +259,7 @@ function nullableNumber(value: unknown) {
   return Number.isFinite(number) ? number : null;
 }
 
-function revalidateWorkspace(projectId:string){
+function revalidateWorkspace(projectId: string) {
   revalidatePath(`/customer/work/${projectId}`);
   revalidatePath(`/contractor/work/${projectId}`);
   revalidatePath(`/customer/projects/${projectId}`);
