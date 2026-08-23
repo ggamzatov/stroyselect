@@ -4,7 +4,12 @@ import { db } from "@/lib/db/pool";
 
 type ScoreRow = {
   contractor_id: string;
+  raw_score: number | string;
   stroyselect_score: number | string;
+  confidence_percent: number | string;
+  confidence_level: "low" | "medium" | "high";
+  confidence_explanation: string;
+  score_cap: number;
   verification_points: number;
   reviews_points: number;
   projects_points: number;
@@ -24,6 +29,12 @@ type ScoreRow = {
 
 export type ContractorScore = {
   score: number;
+  rawScore: number;
+  confidencePercent: number;
+  confidenceLevel: "low" | "medium" | "high";
+  confidenceLabel: string;
+  confidenceExplanation: string;
+  isConfidenceLimited: boolean;
   level: "excellent" | "strong" | "developing" | "new";
   label: string;
   factors: Array<{
@@ -43,7 +54,12 @@ export async function getContractorScore(
     `
       SELECT
         contractor_id,
+        raw_score,
         stroyselect_score,
+        confidence_percent,
+        confidence_level,
+        confidence_explanation,
+        score_cap,
         verification_points,
         reviews_points,
         projects_points,
@@ -59,8 +75,8 @@ export async function getContractorScore(
         portfolio_count,
         bid_count,
         avg_bid_completeness
-      FROM public.contractor_score_components
-      WHERE contractor_id = $1
+      FROM public.contractor_score_maturity
+      WHERE contractor_id = $1::uuid
       LIMIT 1
     `,
     [contractorId]
@@ -93,10 +109,18 @@ export async function getContractorScore(
     .map((item) => getImprovementText(item.key));
 
   const score = clampScore(row.stroyselect_score);
+  const rawScore = clampScore(row.raw_score);
+  const confidencePercent = clampScore(row.confidence_percent);
   const level = getLevel(score);
 
   return {
     score,
+    rawScore,
+    confidencePercent,
+    confidenceLevel: row.confidence_level,
+    confidenceLabel: getConfidenceLabel(row.confidence_level),
+    confidenceExplanation: row.confidence_explanation,
+    isConfidenceLimited: score < rawScore || Number(row.score_cap) < 100,
     level,
     label: getLevelLabel(level),
     factors,
@@ -138,6 +162,17 @@ function getLevelLabel(level: ContractorScore["level"]) {
       return "Развивающийся профиль";
     default:
       return "Новый подрядчик";
+  }
+}
+
+function getConfidenceLabel(level: ContractorScore["confidenceLevel"]) {
+  switch (level) {
+    case "high":
+      return "Высокая достоверность";
+    case "medium":
+      return "Средняя достоверность";
+    default:
+      return "Мало данных";
   }
 }
 
