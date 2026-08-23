@@ -57,21 +57,23 @@ function auditUiLanguage(file, text) {
 }
 
 function auditSqlParameterTyping(file, text) {
-  // Catch the PostgreSQL 42P08 class we have already hit in production:
-  // one uncast placeholder is assigned to a typed column and also compared
-  // with a string literal in CASE/conditions. Explicit casts make inference deterministic.
+  // Catch the PostgreSQL 42P08 class already seen in production. We only treat
+  // placeholders in an UPDATE SET clause as assignments; ordinary predicates
+  // such as column::text=$9 must not be reported as writes.
   const sqlBlocks = text.matchAll(/`([\s\S]*?(?:SELECT|INSERT|UPDATE|DELETE)[\s\S]*?)`/gi);
   for (const match of sqlBlocks) {
     const sql = match[1];
     const blockOffset = (match.index ?? 0) + 1;
+    const updateSetMatch = /\bUPDATE\b[\s\S]*?\bSET\b([\s\S]*?)(?:\bWHERE\b|\bRETURNING\b|$)/i.exec(sql);
+    if (!updateSetMatch) continue;
+    const setClause = updateSetMatch[1];
     const numbers = new Set([...sql.matchAll(/\$(\d+)/g)].map((m) => m[1]));
     for (const number of numbers) {
-      // (?!\\d) is essential: $1 must never match the prefix of $10/$19.
       const token = `\\$${number}(?!\\d)`;
-      const uncastAssignment = new RegExp(`\\b[a-zA-Z_][a-zA-Z0-9_]*\\s*=\\s*${token}(?!\\s*::)`, "i");
+      const uncastAssignment = new RegExp(`(?:^|,)\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s*=\\s*${token}(?!\\s*::)`, "i");
       const stringComparison = new RegExp(`${token}(?!\\s*::)\\s*(?:=|<>|!=)\\s*'`, "i");
       const caseComparison = new RegExp(`CASE\\s+WHEN\\s+${token}(?!\\s*::)`, "i");
-      if (uncastAssignment.test(sql) && (stringComparison.test(sql) || caseComparison.test(sql))) {
+      if (uncastAssignment.test(setClause) && (stringComparison.test(sql) || caseComparison.test(sql))) {
         const localIndex = sql.search(new RegExp(token));
         report(file, text, blockOffset + Math.max(0, localIndex), `PostgreSQL parameter $${number} is used in mixed typed contexts without an explicit cast`);
       }
