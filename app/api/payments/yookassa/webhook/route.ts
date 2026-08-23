@@ -26,7 +26,7 @@ export async function POST(request: Request) {
     const eventId=`${event}:${objectId}:${incomingStatus??verified.status??"unknown"}`;
     const inserted=await db.query<{id:string}>(`
       INSERT INTO public.payment_provider_events(provider,provider_event_id,event_type,object_type,object_id,payload)
-      VALUES('yookassa',$1,$2,$3,$4,$5::jsonb)
+      VALUES('yookassa',$1::text,$2::text,$3::text,$4::text,$5::jsonb)
       ON CONFLICT(provider,provider_event_id) DO NOTHING RETURNING id
     `,[eventId,event,kind,objectId,JSON.stringify(payload)]);
     if(!inserted.rows[0])return Response.json({ok:true});
@@ -37,24 +37,24 @@ export async function POST(request: Request) {
       const intentId=typeof metadata.payment_intent_id==="string"?metadata.payment_intent_id:null;
       if(intentId){
         const next=verified.status==="succeeded"?"funded":verified.status==="canceled"?"cancelled":null;
-        await db.query(`UPDATE public.project_payment_intents SET provider_status=$2,last_provider_event_at=now(),status=COALESCE($3,status),funded_at=CASE WHEN $3='funded' THEN COALESCE(funded_at,now()) ELSE funded_at END,updated_at=now() WHERE id=$1::uuid`,[intentId,verified.status??incomingStatus,next]);
+        await db.query(`UPDATE public.project_payment_intents SET provider_status=$2::varchar,last_provider_event_at=now(),status=COALESCE($3::varchar,status),funded_at=CASE WHEN $3::varchar='funded' THEN COALESCE(funded_at,now()) ELSE funded_at END,updated_at=now() WHERE id=$1::uuid`,[intentId,verified.status??incomingStatus,next]);
       }else{
-        await db.query(`UPDATE public.project_payment_intents SET provider_status=$2,last_provider_event_at=now(),status=CASE WHEN $2='succeeded' THEN 'funded' WHEN $2='canceled' THEN 'cancelled' ELSE status END,funded_at=CASE WHEN $2='succeeded' THEN COALESCE(funded_at,now()) ELSE funded_at END,updated_at=now() WHERE provider_payment_id=$1`,[objectId,verified.status??incomingStatus]);
+        await db.query(`UPDATE public.project_payment_intents SET provider_status=$2::varchar,last_provider_event_at=now(),status=CASE WHEN $2::varchar='succeeded' THEN 'funded' WHEN $2::varchar='canceled' THEN 'cancelled' ELSE status END,funded_at=CASE WHEN $2::varchar='succeeded' THEN COALESCE(funded_at,now()) ELSE funded_at END,updated_at=now() WHERE provider_payment_id=$1::text`,[objectId,verified.status??incomingStatus]);
       }
     }else if(kind==="payout"){
       const status=verified.status??incomingStatus;
-      await db.query(`UPDATE public.project_payment_intents SET provider_status=$2,last_provider_event_at=now(),status=CASE WHEN $2='succeeded' THEN 'paid' WHEN $2='canceled' THEN 'release_ready' ELSE status END,failure_reason=CASE WHEN $2='canceled' THEN 'Выплата отменена платёжным провайдером' ELSE failure_reason END,updated_at=now() WHERE provider_payout_id=$1`,[objectId,status]);
+      await db.query(`UPDATE public.project_payment_intents SET provider_status=$2::varchar,last_provider_event_at=now(),status=CASE WHEN $2::varchar='succeeded' THEN 'paid' WHEN $2::varchar='canceled' THEN 'release_ready' ELSE status END,failure_reason=CASE WHEN $2::varchar='canceled' THEN 'Выплата отменена платёжным провайдером' ELSE failure_reason END,updated_at=now() WHERE provider_payout_id=$1::text`,[objectId,status]);
     }else if(kind==="refund"){
       const status=verified.status??incomingStatus;
       const paymentId=typeof verified.payment_id==="string"?verified.payment_id:typeof object?.payment_id==="string"?object.payment_id:null;
       if(paymentId){
-        await db.query(`UPDATE public.project_payment_intents SET provider_status=$2,last_provider_event_at=now(),status=CASE WHEN $2='succeeded' THEN 'refunded' ELSE status END,provider_refund_id=$3,updated_at=now() WHERE provider_payment_id=$1`,[paymentId,status,objectId]);
+        await db.query(`UPDATE public.project_payment_intents SET provider_status=$2::varchar,last_provider_event_at=now(),status=CASE WHEN $2::varchar='succeeded' THEN 'refunded' ELSE status END,provider_refund_id=$3::text,updated_at=now() WHERE provider_payment_id=$1::text`,[paymentId,status,objectId]);
       }
     }else if(kind==="deal"){
-      await db.query(`UPDATE public.project_payment_intents SET provider_status=$2,last_provider_event_at=now(),updated_at=now() WHERE provider_deal_id=$1`,[objectId,verified.status??incomingStatus]);
+      await db.query(`UPDATE public.project_payment_intents SET provider_status=$2::varchar,last_provider_event_at=now(),updated_at=now() WHERE provider_deal_id=$1::text`,[objectId,verified.status??incomingStatus]);
     }
 
-    await db.query(`UPDATE public.payment_provider_events SET processed_at=now() WHERE provider='yookassa' AND provider_event_id=$1`,[eventId]);
+    await db.query(`UPDATE public.payment_provider_events SET processed_at=now() WHERE provider='yookassa' AND provider_event_id=$1::text`,[eventId]);
     return Response.json({ok:true});
   }catch(error){
     console.error("YooKassa webhook processing failed",error);
