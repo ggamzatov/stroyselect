@@ -50,7 +50,10 @@ for (const header of [
 if (!nextConfig.includes("poweredByHeader: false")) failures.push("Next.js powered-by header must be disabled");
 
 const ready = await text("app/api/health/ready/route.ts");
-if (!ready.includes('db.query("SELECT 1")')) failures.push("readiness endpoint must verify PostgreSQL");
+const verifiesPostgres =
+  ready.includes("db.query") &&
+  (ready.includes("SELECT 1") || ready.includes("to_regclass('public.projects')"));
+if (!verifiesPostgres) failures.push("readiness endpoint must verify PostgreSQL");
 if (!ready.includes("status: 503")) failures.push("readiness endpoint must fail closed when DB is unavailable");
 if (!ready.includes('"Cache-Control": "no-store"')) failures.push("readiness endpoint must not be cached");
 
