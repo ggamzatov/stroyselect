@@ -31,7 +31,8 @@
     "test:e2e": "playwright test",
     "test:e2e:marketplace": "playwright test tests/e2e/marketplace-flow.spec.ts",
     "test:e2e:marketplace:seeded": "npm run build && npm run e2e:seed && node --env-file=.env.e2e.local ./node_modules/@playwright/test/cli.js test tests/e2e/marketplace-flow.spec.ts",
-    "test:e2e:production:seeded": "npm run build && npm run e2e:seed && node --env-file=.env.e2e.local ./node_modules/@playwright/test/cli.js test tests/e2e/marketplace-flow.spec.ts tests/e2e/production-hardening.spec.ts tests/e2e/public-v1.spec.ts tests/e2e/communication-scheduling.spec.ts tests/e2e/ui-regression.spec.ts"
+    "test:e2e:prelaunch:seeded": "npm run build && npm run e2e:seed && node --env-file=.env.e2e.local ./node_modules/@playwright/test/cli.js test tests/e2e/pre-launch-quality.spec.ts",
+    "test:e2e:production:seeded": "npm run build && npm run e2e:seed && node --env-file=.env.e2e.local ./node_modules/@playwright/test/cli.js test tests/e2e/marketplace-flow.spec.ts tests/e2e/production-hardening.spec.ts tests/e2e/public-v1.spec.ts tests/e2e/communication-scheduling.spec.ts tests/e2e/ui-regression.spec.ts tests/e2e/pre-launch-quality.spec.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1110.0",
