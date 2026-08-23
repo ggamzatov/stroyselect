@@ -17,12 +17,14 @@ import {
   MousePointerClick,
   Rocket,
   ShieldAlert,
+  Target,
   UsersRound,
 } from "lucide-react";
 
 const navigation = [
   { href: "/admin/dashboard", label: "Обзор", icon: LayoutDashboard },
   { href: "/admin/analytics", label: "Аналитика", icon: BarChart3 },
+  { href: "/admin/analytics/matching", label: "Качество подбора", icon: Target },
   { href: "/admin/analytics/discovery", label: "Публичный спрос", icon: MousePointerClick },
   { href: "/admin/data-quality", label: "Качество данных", icon: Database },
   { href: "/admin/operations", label: "Операции", icon: Activity },
