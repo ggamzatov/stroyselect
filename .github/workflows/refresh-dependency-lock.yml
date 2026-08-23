@@ -1,0 +1,42 @@
+name: Refresh dependency lock
+
+on:
+  push:
+    branches:
+      - legal/russian-compliance-contracts
+    paths:
+      - .github/workflows/refresh-dependency-lock.yml
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Refresh lockfile and patched framework
+        run: |
+          npm install --package-lock-only next@16.3.2 eslint-config-next@16.3.2
+          npm audit fix --package-lock-only
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+        continue-on-error: true
+
+      - name: Upload refreshed manifests
+        uses: actions/upload-artifact@v4
+        with:
+          name: refreshed-dependency-lock
+          path: |
+            package.json
+            package-lock.json
+          if-no-files-found: error
