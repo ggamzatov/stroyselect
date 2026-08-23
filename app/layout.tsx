@@ -18,6 +18,26 @@ export default function RootLayout({
   return (
     <html lang="ru">
       <body className="antialiased">
+        <style>{`
+          :where(h1, h2, h3, h4, h5, h6, p, li, dd, dt, a, span, strong, button) {
+            overflow-wrap: anywhere;
+            word-break: normal;
+          }
+          :where(section, article, main, aside, header, footer, nav, div) {
+            min-width: 0;
+          }
+          :where(pre, table) {
+            max-width: 100%;
+            overflow-x: auto;
+          }
+          :where(img, video, iframe, canvas, svg) {
+            max-width: 100%;
+          }
+          :where(input, textarea, select) {
+            max-width: 100%;
+            min-width: 0;
+          }
+        `}</style>
         <ClientErrorReporter />
         {children}
       </body>
