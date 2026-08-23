@@ -46,7 +46,10 @@ export async function POST(request: Request) {
       await db.query(`UPDATE public.project_payment_intents SET provider_status=$2,last_provider_event_at=now(),status=CASE WHEN $2='succeeded' THEN 'paid' WHEN $2='canceled' THEN 'release_ready' ELSE status END,failure_reason=CASE WHEN $2='canceled' THEN 'Выплата отменена платёжным провайдером' ELSE failure_reason END,updated_at=now() WHERE provider_payout_id=$1`,[objectId,status]);
     }else if(kind==="refund"){
       const status=verified.status??incomingStatus;
-      await db.query(`UPDATE public.project_payment_intents SET provider_status=$2,last_provider_event_at=now(),status=CASE WHEN $2='succeeded' THEN 'refunded' ELSE status END,provider_refund_id=$1,updated_at=now() WHERE provider_payment_id=(SELECT payment_id FROM public.project_payment_intents WHERE provider_refund_id=$1 LIMIT 1) OR provider_refund_id=$1`,[objectId,status]);
+      const paymentId=typeof verified.payment_id==="string"?verified.payment_id:typeof object?.payment_id==="string"?object.payment_id:null;
+      if(paymentId){
+        await db.query(`UPDATE public.project_payment_intents SET provider_status=$2,last_provider_event_at=now(),status=CASE WHEN $2='succeeded' THEN 'refunded' ELSE status END,provider_refund_id=$3,updated_at=now() WHERE provider_payment_id=$1`,[paymentId,status,objectId]);
+      }
     }else if(kind==="deal"){
       await db.query(`UPDATE public.project_payment_intents SET provider_status=$2,last_provider_event_at=now(),updated_at=now() WHERE provider_deal_id=$1`,[objectId,verified.status??incomingStatus]);
     }
