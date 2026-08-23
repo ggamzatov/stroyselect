@@ -26,10 +26,14 @@ export default defineConfig({
   webServer: process.env.PLAYWRIGHT_SKIP_WEBSERVER
     ? undefined
     : {
-        command: "npm run start",
+        command: "node .next/standalone/server.js",
         url: "http://127.0.0.1:3000/api/health/live",
         reuseExistingServer,
         timeout: 120_000,
-        env: { PORT: "3000" },
+        env: {
+          ...process.env,
+          PORT: "3000",
+          HOSTNAME: "127.0.0.1",
+        },
       },
 });
