@@ -17,7 +17,7 @@ export function CompanyStatusBlock({ status, comment }: Props) {
   }
 
   if (status === "verified") {
-    return <StatusCard icon={<ShieldCheck className="h-5 w-5" />} title="Профиль подтверждён" description="Компания прошла проверку и доступна заказчикам. Следите за сроками лицензий, сертификатов и страхования в Центре доверия." className="border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-200" />;
+    return <StatusCard icon={<ShieldCheck className="h-5 w-5" />} title="Документы и разрешения" description="Статус подтверждения указан в верхнем блоке. Здесь можно следить за сроками лицензий, сертификатов, СРО и страхования." className="border-border bg-secondary/35 text-foreground" />;
   }
 
   if (status === "rejected") {
