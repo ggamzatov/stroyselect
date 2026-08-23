@@ -11,6 +11,7 @@
     "migrations:apply": "node scripts/apply-migrations.mjs",
     "legacy:audit": "node scripts/audit-legacy-dependencies.mjs",
     "security:audit": "node scripts/security-audit.mjs",
+    "dependency:audit": "npm audit --omit=dev --audit-level=high",
     "authorization:audit": "node scripts/authorization-audit.mjs",
     "production:audit": "node scripts/production-readiness-audit.mjs",
     "source:audit": "node scripts/source-consistency-audit.mjs",
