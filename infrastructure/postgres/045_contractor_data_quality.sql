@@ -101,25 +101,38 @@ CREATE OR REPLACE FUNCTION public.refresh_contractor_entity_matches(target_id uu
 RETURNS void LANGUAGE plpgsql AS $$
 DECLARE
   target public.contractor_companies%ROWTYPE;
+  normalized_inn text;
+  normalized_ogrn text;
 BEGIN
   SELECT * INTO target FROM public.contractor_companies WHERE id=target_id;
   IF NOT FOUND THEN RETURN; END IF;
 
-  IF NULLIF(regexp_replace(COALESCE(target.inn,''),'\D','','g'),'') IS NOT NULL THEN
+  normalized_inn := NULLIF(regexp_replace(COALESCE(target.inn,''),'\D','','g'),'');
+  normalized_ogrn := NULLIF(regexp_replace(COALESCE(target.ogrn,''),'\D','','g'),'');
+
+  DELETE FROM public.contractor_entity_matches
+  WHERE status='open'
+    AND (contractor_a_id=target.id OR contractor_b_id=target.id)
+    AND (
+      (match_type='inn' AND match_value IS DISTINCT FROM normalized_inn)
+      OR (match_type='ogrn' AND match_value IS DISTINCT FROM normalized_ogrn)
+    );
+
+  IF normalized_inn IS NOT NULL THEN
     INSERT INTO public.contractor_entity_matches(contractor_a_id,contractor_b_id,match_type,match_value)
-    SELECT LEAST(target.id,c.id),GREATEST(target.id,c.id),'inn',regexp_replace(target.inn,'\D','','g')
+    SELECT LEAST(target.id,c.id),GREATEST(target.id,c.id),'inn',normalized_inn
     FROM public.contractor_companies c
     WHERE c.id<>target.id
-      AND regexp_replace(COALESCE(c.inn,''),'\D','','g')=regexp_replace(target.inn,'\D','','g')
+      AND regexp_replace(COALESCE(c.inn,''),'\D','','g')=normalized_inn
     ON CONFLICT DO NOTHING;
   END IF;
 
-  IF NULLIF(regexp_replace(COALESCE(target.ogrn,''),'\D','','g'),'') IS NOT NULL THEN
+  IF normalized_ogrn IS NOT NULL THEN
     INSERT INTO public.contractor_entity_matches(contractor_a_id,contractor_b_id,match_type,match_value)
-    SELECT LEAST(target.id,c.id),GREATEST(target.id,c.id),'ogrn',regexp_replace(target.ogrn,'\D','','g')
+    SELECT LEAST(target.id,c.id),GREATEST(target.id,c.id),'ogrn',normalized_ogrn
     FROM public.contractor_companies c
     WHERE c.id<>target.id
-      AND regexp_replace(COALESCE(c.ogrn,''),'\D','','g')=regexp_replace(target.ogrn,'\D','','g')
+      AND regexp_replace(COALESCE(c.ogrn,''),'\D','','g')=normalized_ogrn
     ON CONFLICT DO NOTHING;
   END IF;
 END;
