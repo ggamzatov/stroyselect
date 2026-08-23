@@ -3,7 +3,7 @@ import { db } from "@/lib/db/pool";
 
 export const dynamic="force-dynamic";
 
-type ContractorRow={id:string;updated_at:Date|string};
+type ContractorRow={id:string;updated_at:Date|string;review_count:string|number};
 type LandingRow={category_slug:string;city:string};
 
 export default async function sitemap():Promise<MetadataRoute.Sitemap>{
@@ -11,7 +11,14 @@ export default async function sitemap():Promise<MetadataRoute.Sitemap>{
   const staticPages=["","/contractors","/legal/terms","/legal/privacy","/legal/personal-data-consent"].map(path=>({url:`${base}${path}`,lastModified:new Date(),changeFrequency:path==="/contractors"?"daily" as const:"monthly" as const,priority:path===""?1:path==="/contractors"?0.9:0.4}));
   try{
     const [contractors,landings]=await Promise.all([
-      db.query<ContractorRow>(`SELECT id,updated_at FROM public.contractor_companies WHERE verification_status='verified' ORDER BY updated_at DESC LIMIT 5000`),
+      db.query<ContractorRow>(`
+        SELECT cc.id,cc.updated_at,
+          (SELECT COUNT(*) FROM public.contractor_reviews cr WHERE cr.contractor_id=cc.id AND COALESCE(cr.moderation_status,'published')='published') AS review_count
+        FROM public.contractor_companies cc
+        WHERE cc.verification_status='verified'
+        ORDER BY cc.updated_at DESC
+        LIMIT 5000
+      `),
       db.query<LandingRow>(`
         SELECT DISTINCT sc.slug AS category_slug,csa.city
         FROM public.contractor_services cs
@@ -25,6 +32,7 @@ export default async function sitemap():Promise<MetadataRoute.Sitemap>{
     return [
       ...staticPages,
       ...contractors.rows.map(row=>({url:`${base}/contractors/${row.id}`,lastModified:new Date(row.updated_at),changeFrequency:"weekly" as const,priority:0.7})),
+      ...contractors.rows.filter(row=>Number(row.review_count)>0).map(row=>({url:`${base}/contractors/${row.id}/reviews`,lastModified:new Date(row.updated_at),changeFrequency:"weekly" as const,priority:0.6})),
       ...landings.rows.map(row=>({url:`${base}/services/${encodeURIComponent(row.category_slug)}/${encodeURIComponent(row.city)}`,changeFrequency:"weekly" as const,priority:0.65})),
     ];
   }catch(error){console.error("Не удалось построить динамическую часть sitemap:",error);return staticPages;}
