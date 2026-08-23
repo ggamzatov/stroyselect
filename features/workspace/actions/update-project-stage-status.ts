@@ -62,6 +62,19 @@ export async function updateProjectStageStatus(stageId:string,projectId:string,a
 
     if(action==="start"){
       if(stage.status!=="planned"){await client.query("ROLLBACK");return{success:false,message:"Начать можно только запланированный этап"};}
+
+      if(project.status==="contractor_selected"){
+        const planResult=await client.query<{stage_count:string|number;total_weight:string|number}>(`
+          SELECT COUNT(*) AS stage_count,COALESCE(SUM(progress_weight),0) AS total_weight
+          FROM public.project_stages WHERE project_id=$1::uuid`,[projectId]);
+        const stageCount=Number(planResult.rows[0]?.stage_count??0);
+        const totalWeight=Number(planResult.rows[0]?.total_weight??0);
+        if(stageCount===0||totalWeight!==100){
+          await client.query("ROLLBACK");
+          return{success:false,message:`До начала первого этапа план проекта должен быть распределён на 100%. Сейчас распределено ${totalWeight}%.`};
+        }
+      }
+
       await client.query(`
         UPDATE public.project_stages SET status='in_progress',actual_started_at=now(),actual_completed_at=NULL,
           submitted_for_review_at=NULL,reviewed_at=NULL,reviewed_by=NULL,customer_review_comment=NULL,updated_at=now()
