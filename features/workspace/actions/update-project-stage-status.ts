@@ -8,6 +8,7 @@ import { getProjectNotificationRecipient } from "@/features/notifications/server
 import { db } from "@/lib/db/pool";
 import { requireActiveUser } from "@/lib/auth/require-active-user";
 import { requireActiveProject } from "@/lib/projects/require-active-project";
+import { requireActiveContract } from "@/lib/projects/require-active-contract";
 
 type StageAction = "start" | "submit" | "resume";
 
@@ -75,14 +76,15 @@ export async function updateProjectStageStatus(
     };
   }
 
-  if (
-    !["contractor_selected", "in_progress"].includes(
-      activeProject.project.status
-    )
-  ) {
+  const contract=await requireActiveContract(projectId);
+  if(!contract.success){
+    return {success:false,message:contract.message};
+  }
+
+  if (activeProject.project.status !== "in_progress") {
     return {
       success: false,
-      message: "На текущем статусе проекта нельзя управлять этапами",
+      message: "Работы можно начать только после подписания договора обеими сторонами",
     };
   }
 
@@ -108,6 +110,7 @@ export async function updateProjectStageStatus(
         FROM public.projects
         WHERE id = $1
           AND selected_contractor_id = $2
+          AND status = 'in_progress'
           AND is_admin_blocked = false
         LIMIT 1
         FOR UPDATE
@@ -121,7 +124,7 @@ export async function updateProjectStageStatus(
       await client.query("ROLLBACK");
       return {
         success: false,
-        message: "Проект не найден или не назначен вашей компании",
+        message: "Проект ещё не открыт для выполнения работ",
       };
     }
 
@@ -177,22 +180,6 @@ export async function updateProjectStageStatus(
         [stageId, projectId]
       );
 
-      if (project.status === "contractor_selected") {
-        await client.query(
-          `
-            UPDATE public.projects
-            SET
-              status = 'in_progress',
-              work_started_at = now(),
-              updated_at = now()
-            WHERE id = $1
-              AND selected_contractor_id = $2
-              AND status = 'contractor_selected'
-          `,
-          [projectId, company.id]
-        );
-      }
-
       await insertStageEvent(client, {
         projectId,
         authorId: user.id,
@@ -234,6 +221,13 @@ export async function updateProjectStageStatus(
         [stageId, projectId]
       );
 
+      await client.query(
+        `UPDATE public.project_payment_intents
+         SET status='stage_submitted',updated_at=now()
+         WHERE project_id=$1::uuid AND stage_id=$2::uuid AND status='funded'`,
+        [projectId,stageId]
+      );
+
       await insertStageEvent(client, {
         projectId,
         authorId: user.id,
@@ -246,7 +240,7 @@ export async function updateProjectStageStatus(
       notification = {
         type: "stage_submitted",
         title: "Этап готов к приёмке",
-        body: `Подрядчик завершил этап «${stage.title}» и отправил его на проверку.`,
+        body: `Подрядчик завершил этап «${stage.title}» и отправил его на проверку. Деньги подрядчику не будут доступны до вашего подтверждения.`,
       };
       successMessage = "Этап отправлен заказчику на проверку";
     } else {
