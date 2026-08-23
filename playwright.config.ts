@@ -15,6 +15,11 @@ export default defineConfig({
   },
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+    {
+      name: "mobile-chromium",
+      testMatch: /pre-launch-quality\.spec\.ts/,
+      use: { ...devices["Pixel 7"] },
+    },
   ],
   webServer: process.env.PLAYWRIGHT_SKIP_WEBSERVER
     ? undefined
