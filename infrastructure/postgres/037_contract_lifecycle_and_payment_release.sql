@@ -98,6 +98,43 @@ CREATE TRIGGER trg_release_payment_after_stage_acceptance
 AFTER UPDATE OF status ON public.project_stages
 FOR EACH ROW EXECUTE FUNCTION public.release_payment_after_stage_acceptance();
 
+CREATE OR REPLACE FUNCTION public.enforce_legacy_payment_after_stage_acceptance()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  contract_status text;
+  stage_status text;
+BEGIN
+  SELECT pc.status INTO contract_status
+  FROM public.project_contracts pc
+  WHERE pc.project_id=NEW.project_id;
+
+  IF contract_status IS DISTINCT FROM 'active' THEN
+    RAISE EXCEPTION 'Расчёты доступны только после подписания договора обеими сторонами';
+  END IF;
+
+  IF NEW.stage_id IS NULL THEN
+    RAISE EXCEPTION 'Выплата подрядчику должна быть привязана к этапу работ';
+  END IF;
+
+  SELECT ps.status::text INTO stage_status
+  FROM public.project_stages ps
+  WHERE ps.id=NEW.stage_id AND ps.project_id=NEW.project_id;
+
+  IF stage_status IS DISTINCT FROM 'completed' THEN
+    RAISE EXCEPTION 'Нельзя зафиксировать выплату подрядчику до принятия этапа заказчиком';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_enforce_legacy_payment_after_stage_acceptance ON public.project_payments;
+CREATE TRIGGER trg_enforce_legacy_payment_after_stage_acceptance
+BEFORE INSERT ON public.project_payments
+FOR EACH ROW EXECUTE FUNCTION public.enforce_legacy_payment_after_stage_acceptance();
+
 CREATE OR REPLACE FUNCTION public.activate_project_after_contract_signing()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -143,7 +180,7 @@ BEGIN
   INSERT INTO public.project_events(project_id,author_id,event_type,title,description,metadata)
   VALUES(
     contract_row.project_id,
-    NULL,
+    customer_user,
     'project_started',
     'Договор подписан обеими сторонами',
     'Рабочий этап проекта открыт после подписания текущей версии договора.',
