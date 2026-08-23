@@ -27,6 +27,45 @@ SELECT
 FROM public.project_match_snapshots
 ON CONFLICT (project_id, contractor_id, source_version) DO NOTHING;
 
+CREATE OR REPLACE FUNCTION public.capture_project_match_observation()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  INSERT INTO public.project_match_observations (
+    project_id,
+    contractor_id,
+    customer_id,
+    match_score,
+    components,
+    reasons,
+    source_version,
+    generated_at
+  ) VALUES (
+    NEW.project_id,
+    NEW.contractor_id,
+    NEW.customer_id,
+    NEW.match_score,
+    NEW.components,
+    NEW.reasons,
+    NEW.source_version,
+    NEW.generated_at
+  )
+  ON CONFLICT (project_id, contractor_id, source_version) DO NOTHING;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS project_match_snapshots_capture_observation
+  ON public.project_match_snapshots;
+
+CREATE TRIGGER project_match_snapshots_capture_observation
+AFTER INSERT OR UPDATE OF match_score, components, reasons, source_version
+ON public.project_match_snapshots
+FOR EACH ROW
+EXECUTE FUNCTION public.capture_project_match_observation();
+
 CREATE OR REPLACE VIEW public.matching_feedback_outcomes AS
 SELECT
   o.id AS observation_id,
