@@ -234,12 +234,22 @@ BEGIN
     END IF;
   END IF;
 
-  IF TG_OP = 'INSERT' OR NEW.progress_weight IS DISTINCT FROM OLD.progress_weight THEN
+  IF TG_OP = 'INSERT' THEN
+    SELECT COALESCE(SUM(ps.progress_weight), 0)
+      INTO other_weight
+    FROM public.project_stages ps
+    WHERE ps.project_id = NEW.project_id;
+
+    IF other_weight + COALESCE(NEW.progress_weight, 0) > 100 THEN
+      RAISE EXCEPTION 'project stage weights cannot exceed 100 percent'
+        USING ERRCODE = '23514';
+    END IF;
+  ELSIF NEW.progress_weight IS DISTINCT FROM OLD.progress_weight THEN
     SELECT COALESCE(SUM(ps.progress_weight), 0)
       INTO other_weight
     FROM public.project_stages ps
     WHERE ps.project_id = NEW.project_id
-      AND (TG_OP = 'INSERT' OR ps.id <> OLD.id);
+      AND ps.id <> NEW.id;
 
     IF other_weight + COALESCE(NEW.progress_weight, 0) > 100 THEN
       RAISE EXCEPTION 'project stage weights cannot exceed 100 percent'
