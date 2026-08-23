@@ -26,7 +26,7 @@ type Props = {
   otherUserLastReadAt: string | null;
 };
 
-const POLL_INTERVAL_MS = 2000;
+const FALLBACK_POLL_INTERVAL_MS = 30_000;
 
 export function useProjectChat({
   projectId,
@@ -41,7 +41,7 @@ export function useProjectChat({
   const messageRefs = useRef<Map<string, HTMLElement>>(new Map());
   const lastMarkedMessageIdRef = useRef<string | null>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pollInFlightRef = useRef(false);
+  const refreshInFlightRef = useRef(false);
 
   const [messages, setMessages] = useState<ChatMessageData[]>(initialMessages);
   const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
@@ -55,9 +55,9 @@ export function useProjectChat({
   const [isPending, startTransition] = useTransition();
 
   const refreshChat = useCallback(async () => {
-    if (pollInFlightRef.current || document.visibilityState !== "visible") return;
+    if (refreshInFlightRef.current || document.visibilityState !== "visible") return;
 
-    pollInFlightRef.current = true;
+    refreshInFlightRef.current = true;
     try {
       const result = await getProjectChatState(projectId);
       if (!result.success) return;
@@ -69,26 +69,50 @@ export function useProjectChat({
     } catch (error) {
       console.error("Ошибка обновления чата:", error);
     } finally {
-      pollInFlightRef.current = false;
+      refreshInFlightRef.current = false;
     }
   }, [projectId]);
 
   useEffect(() => {
-    const timer = window.setInterval(() => {
-      void refreshChat();
-    }, POLL_INTERVAL_MS);
+    let source: EventSource | null = null;
+    let fallbackTimer: number | null = null;
+    let disposed = false;
 
-    function handleVisibilityChange() {
-      if (document.visibilityState === "visible") void refreshChat();
+    const startFallback = () => {
+      if (fallbackTimer !== null) return;
+      fallbackTimer = window.setInterval(() => void refreshChat(), FALLBACK_POLL_INTERVAL_MS);
+    };
+    const stopFallback = () => {
+      if (fallbackTimer !== null) window.clearInterval(fallbackTimer);
+      fallbackTimer = null;
+    };
+
+    if (typeof EventSource !== "undefined") {
+      source = new EventSource(`/api/projects/${projectId}/chat/events`);
+      source.addEventListener("ready", () => {
+        stopFallback();
+        void refreshChat();
+      });
+      source.addEventListener("change", () => void refreshChat());
+      source.onerror = () => {
+        if (!disposed) startFallback();
+      };
+    } else {
+      startFallback();
     }
 
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") void refreshChat();
+    };
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
-      window.clearInterval(timer);
+      disposed = true;
+      source?.close();
+      stopFallback();
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [refreshChat]);
+  }, [projectId, refreshChat]);
 
   const lastIncomingMessage = [...messages]
     .reverse()
