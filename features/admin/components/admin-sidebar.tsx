@@ -13,6 +13,7 @@ import {
   History,
   LayoutDashboard,
   MessageSquareText,
+  MousePointerClick,
   Rocket,
   ShieldAlert,
   UsersRound,
@@ -21,6 +22,7 @@ import {
 const navigation = [
   { href: "/admin/dashboard", label: "Обзор", icon: LayoutDashboard },
   { href: "/admin/analytics", label: "Аналитика", icon: BarChart3 },
+  { href: "/admin/analytics/discovery", label: "Публичный спрос", icon: MousePointerClick },
   { href: "/admin/operations", label: "Операции", icon: Activity },
   { href: "/admin/release", label: "Готовность к запуску", icon: Rocket },
   { href: "/admin/contractors", label: "Подрядчики", icon: Building2 },
@@ -46,7 +48,7 @@ export function AdminSidebar() {
           <nav className="space-y-1 p-3">
             {navigation.map((item) => {
               const Icon = item.icon;
-              const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+              const active = pathname === item.href || (item.href !== "/admin/analytics" && pathname.startsWith(`${item.href}/`));
               return (
                 <Link key={item.href} href={item.href} className={["group flex min-h-12 items-center gap-3 rounded-2xl px-4 text-sm font-semibold transition", active ? "bg-primary text-primary-foreground shadow-[0_10px_24px_rgba(107,70,50,0.16)]" : "text-muted-foreground hover:bg-secondary hover:text-foreground"].join(" ")}>
                   <Icon className={["h-4.5 w-4.5 shrink-0", active ? "text-primary-foreground" : "text-primary"].join(" ")} />
@@ -63,7 +65,7 @@ export function AdminSidebar() {
       <nav className="flex gap-2 overflow-x-auto pb-2 lg:hidden">
         {navigation.map((item) => {
           const Icon = item.icon;
-          const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+          const active = pathname === item.href || (item.href !== "/admin/analytics" && pathname.startsWith(`${item.href}/`));
           return <Link key={item.href} href={item.href} className={["inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-xs font-semibold transition", active ? "bg-primary text-primary-foreground" : "border border-border bg-card text-muted-foreground hover:bg-secondary hover:text-foreground"].join(" ")}><Icon className="h-4 w-4" />{item.label}</Link>;
         })}
       </nav>
