@@ -18,8 +18,6 @@ const IDS = {
   completedProject: "00000000-0000-4000-8000-000000000303",
   workspaceBid: "00000000-0000-4000-8000-000000000401",
   completedBid: "00000000-0000-4000-8000-000000000402",
-  workspaceStage: "00000000-0000-4000-8000-000000000501",
-  completedStage: "00000000-0000-4000-8000-000000000502",
 };
 
 const CUSTOMER_EMAIL = "e2e.customer@stroyselect.local";
@@ -105,24 +103,35 @@ try {
     selectedBidId: null,
   });
 
+  // Workspace fixtures deliberately stop at contractor_selected here. The ops seed
+  // then creates a signed contract, a 100% stage plan and starts work in exactly the
+  // same order as the product lifecycle.
   await upsertProject(client, {
     id: IDS.workspaceProject,
     customerId: IDS.customer,
     categoryId,
     title: "E2E Проект в работе",
     description: "Тестовый проект с выбранным подрядчиком для проверки рабочего пространства, бюджета, документов и замечаний.",
-    status: "in_progress",
-    selectedContractorId: IDS.company,
-    selectedBidId: IDS.workspaceBid,
-  }, false);
+    status: "published",
+    selectedContractorId: null,
+    selectedBidId: null,
+  });
 
   await upsertBid(client, IDS.workspaceBid, IDS.workspaceProject, IDS.company, "accepted", 1200000, 45);
   await client.query(
-    `UPDATE public.projects SET selected_contractor_id=$2::uuid,selected_bid_id=$3::uuid,status='in_progress',updated_at=now() WHERE id=$1::uuid`,
+    `
+      UPDATE public.projects
+      SET selected_contractor_id=$2::uuid,
+          selected_bid_id=$3::uuid,
+          status='contractor_selected',
+          contractor_selected_at=now(),
+          work_started_at=NULL,
+          completed_at=NULL,
+          updated_at=now()
+      WHERE id=$1::uuid
+    `,
     [IDS.workspaceProject, IDS.company, IDS.workspaceBid]
   );
-
-  await upsertStage(client, IDS.workspaceStage, IDS.workspaceProject, IDS.contractor, "Основной этап E2E", "in_progress", 100, 1200000);
 
   await upsertProject(client, {
     id: IDS.completedProject,
@@ -130,20 +139,25 @@ try {
     categoryId,
     title: "E2E Завершённый проект",
     description: "Тестовый завершённый проект для проверки финального отзыва и истории выполнения.",
-    status: "in_progress",
-    selectedContractorId: IDS.company,
-    selectedBidId: IDS.completedBid,
-  }, false);
+    status: "published",
+    selectedContractorId: null,
+    selectedBidId: null,
+  });
 
   await upsertBid(client, IDS.completedBid, IDS.completedProject, IDS.company, "accepted", 850000, 30);
   await client.query(
-    `UPDATE public.projects SET selected_contractor_id=$2::uuid,selected_bid_id=$3::uuid,status='in_progress',updated_at=now() WHERE id=$1::uuid`,
+    `
+      UPDATE public.projects
+      SET selected_contractor_id=$2::uuid,
+          selected_bid_id=$3::uuid,
+          status='contractor_selected',
+          contractor_selected_at=now(),
+          work_started_at=NULL,
+          completed_at=NULL,
+          updated_at=now()
+      WHERE id=$1::uuid
+    `,
     [IDS.completedProject, IDS.company, IDS.completedBid]
-  );
-  await upsertStage(client, IDS.completedStage, IDS.completedProject, IDS.contractor, "Завершённый этап E2E", "completed", 100, 850000);
-  await client.query(
-    `UPDATE public.projects SET status='completed',updated_at=now() WHERE id=$1::uuid`,
-    [IDS.completedProject]
   );
 
   await client.query("COMMIT");
@@ -215,7 +229,7 @@ async function upsertUser(client, id, email, passwordHash, role, firstName, last
   );
 }
 
-async function upsertProject(client, values, includeSelection = true) {
+async function upsertProject(client, values) {
   const params = [
     values.id,
     values.customerId,
@@ -238,21 +252,28 @@ async function upsertProject(client, values, includeSelection = true) {
         budget_min,budget_max,status,desired_start_date,desired_end_date,updated_at
       ) VALUES($1::uuid,$2::uuid,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,current_date+7,current_date+90,now())
       ON CONFLICT(id) DO UPDATE SET
-        customer_id=EXCLUDED.customer_id,category_id=EXCLUDED.category_id,title=EXCLUDED.title,
-        description=EXCLUDED.description,property_type=EXCLUDED.property_type,region=EXCLUDED.region,
-        city=EXCLUDED.city,address=EXCLUDED.address,budget_min=EXCLUDED.budget_min,budget_max=EXCLUDED.budget_max,
-        desired_start_date=EXCLUDED.desired_start_date,desired_end_date=EXCLUDED.desired_end_date,
-        status=EXCLUDED.status,updated_at=now()
+        customer_id=EXCLUDED.customer_id,
+        category_id=EXCLUDED.category_id,
+        title=EXCLUDED.title,
+        description=EXCLUDED.description,
+        property_type=EXCLUDED.property_type,
+        region=EXCLUDED.region,
+        city=EXCLUDED.city,
+        address=EXCLUDED.address,
+        budget_min=EXCLUDED.budget_min,
+        budget_max=EXCLUDED.budget_max,
+        desired_start_date=EXCLUDED.desired_start_date,
+        desired_end_date=EXCLUDED.desired_end_date,
+        status=EXCLUDED.status,
+        selected_contractor_id=NULL,
+        selected_bid_id=NULL,
+        contractor_selected_at=NULL,
+        work_started_at=NULL,
+        completed_at=NULL,
+        updated_at=now()
     `,
     params
   );
-
-  if (includeSelection) {
-    await client.query(
-      `UPDATE public.projects SET selected_contractor_id=$2::uuid,selected_bid_id=$3::uuid WHERE id=$1::uuid`,
-      [values.id, values.selectedContractorId, values.selectedBidId]
-    );
-  }
 }
 
 async function upsertBid(client, id, projectId, contractorId, status, price, durationDays) {
@@ -266,15 +287,28 @@ async function upsertBid(client, id, projectId, contractorId, status, price, dur
         $1::uuid,$2::uuid,$3::uuid,$4,$5,current_date+7,$6,$7,$8,$9,$10,24,true,100,$11,now()
       )
       ON CONFLICT(id) DO UPDATE SET
-        project_id=EXCLUDED.project_id,contractor_id=EXCLUDED.contractor_id,price=EXCLUDED.price,
-        duration_days=EXCLUDED.duration_days,proposed_start_date=EXCLUDED.proposed_start_date,
-        message=EXCLUDED.message,scope_summary=EXCLUDED.scope_summary,materials_summary=EXCLUDED.materials_summary,
-        exclusions=EXCLUDED.exclusions,payment_terms=EXCLUDED.payment_terms,warranty_months=EXCLUDED.warranty_months,
-        price_includes_materials=EXCLUDED.price_includes_materials,completeness_score=EXCLUDED.completeness_score,
-        status=EXCLUDED.status,updated_at=now()
+        project_id=EXCLUDED.project_id,
+        contractor_id=EXCLUDED.contractor_id,
+        price=EXCLUDED.price,
+        duration_days=EXCLUDED.duration_days,
+        proposed_start_date=EXCLUDED.proposed_start_date,
+        message=EXCLUDED.message,
+        scope_summary=EXCLUDED.scope_summary,
+        materials_summary=EXCLUDED.materials_summary,
+        exclusions=EXCLUDED.exclusions,
+        payment_terms=EXCLUDED.payment_terms,
+        warranty_months=EXCLUDED.warranty_months,
+        price_includes_materials=EXCLUDED.price_includes_materials,
+        completeness_score=EXCLUDED.completeness_score,
+        status=EXCLUDED.status,
+        updated_at=now()
     `,
     [
-      id, projectId, contractorId, price, durationDays,
+      id,
+      projectId,
+      contractorId,
+      price,
+      durationDays,
       "Автоматическое E2E предложение",
       "Полный комплекс работ по тестовому проекту.",
       "Основные материалы включены в стоимость.",
@@ -282,22 +316,5 @@ async function upsertBid(client, id, projectId, contractorId, status, price, dur
       "Оплата по этапам после приёмки.",
       status,
     ]
-  );
-}
-
-async function upsertStage(client, id, projectId, createdBy, title, status, weight, price) {
-  await client.query(
-    `
-      INSERT INTO public.project_stages(
-        id,project_id,created_by,title,description,price,progress_weight,sort_order,status,
-        planned_start_date,planned_end_date,updated_at
-      ) VALUES($1::uuid,$2::uuid,$3::uuid,$4,$5,$6,$7,0,$8,current_date-10,current_date+30,now())
-      ON CONFLICT(id) DO UPDATE SET
-        project_id=EXCLUDED.project_id,created_by=EXCLUDED.created_by,title=EXCLUDED.title,
-        description=EXCLUDED.description,price=EXCLUDED.price,progress_weight=EXCLUDED.progress_weight,
-        sort_order=0,status=EXCLUDED.status,planned_start_date=EXCLUDED.planned_start_date,
-        planned_end_date=EXCLUDED.planned_end_date,updated_at=now()
-    `,
-    [id, projectId, createdBy, title, "Автоматический этап для E2E проверки", price, weight, status]
   );
 }
