@@ -8,7 +8,7 @@ on:
       - .github/workflows/refresh-dependency-lock.yml
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   refresh:
@@ -16,6 +16,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: legal/russian-compliance-contracts
 
       - name: Use Node.js 22
         uses: actions/setup-node@v4
@@ -32,11 +34,14 @@ jobs:
         run: npm audit --omit=dev --audit-level=high
         continue-on-error: true
 
-      - name: Upload refreshed manifests
-        uses: actions/upload-artifact@v4
-        with:
-          name: refreshed-dependency-lock
-          path: |
-            package.json
-            package-lock.json
-          if-no-files-found: error
+      - name: Commit refreshed manifests
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          if git diff --cached --quiet; then
+            echo "No dependency manifest changes"
+            exit 0
+          fi
+          git commit -m "chore(deps): refresh patched dependency lock"
+          git push origin HEAD:legal/russian-compliance-contracts
