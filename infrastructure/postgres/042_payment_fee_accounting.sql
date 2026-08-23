@@ -10,9 +10,13 @@ SET payout_amount=COALESCE(payout_amount,amount),
 WHERE payout_amount IS NULL OR platform_fee_amount IS NULL;
 
 ALTER TABLE public.project_payment_intents
+  DROP CONSTRAINT IF EXISTS project_payment_intents_payout_amount_check;
+ALTER TABLE public.project_payment_intents
   ADD CONSTRAINT project_payment_intents_payout_amount_check
   CHECK (payout_amount IS NULL OR (payout_amount > 0 AND payout_amount <= amount)) NOT VALID;
 
+ALTER TABLE public.project_payment_intents
+  DROP CONSTRAINT IF EXISTS project_payment_intents_platform_fee_check;
 ALTER TABLE public.project_payment_intents
   ADD CONSTRAINT project_payment_intents_platform_fee_check
   CHECK (platform_fee_amount IS NULL OR platform_fee_amount >= 0) NOT VALID;
