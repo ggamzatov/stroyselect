@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BadgeCheck, BriefcaseBusiness, CircleCheck, MapPin, Search, Star } from "lucide-react";
+import { BadgeCheck, BriefcaseBusiness, CircleCheck, Info, MapPin, Search, Star } from "lucide-react";
 
 import { getContractorCatalog } from "@/features/contractors/catalog/queries/get-contractor-catalog";
 import { getContractorCatalogOptions } from "@/features/contractors/catalog/queries/get-contractor-catalog-options";
@@ -89,10 +89,19 @@ export default async function PublicContractorsPage({ searchParams }: Props) {
                   </div>
                   <h3 className="mt-3 break-words text-xl font-black">{contractor.public_name}</h3>
                 </div>
-                <div className="shrink-0 text-right"><p className="text-xl font-black text-primary">{Math.round(contractor.recommendation_score)}</p><p className="whitespace-nowrap text-[11px] text-muted-foreground">Рейтинг СтройВыбор</p></div>
+                <div className="shrink-0 text-right">
+                  <p className="text-xl font-black text-primary">{Math.round(contractor.recommendation_score)}</p>
+                  <p className="whitespace-nowrap text-[11px] text-muted-foreground">Рейтинг СтройВыбор</p>
+                  <p className="mt-1 whitespace-nowrap text-[11px] font-semibold text-muted-foreground">{confidenceLabel(contractor.score_confidence_level)} · {contractor.score_confidence_percent}%</p>
+                </div>
               </div>
 
               {contractor.description && <p className="mt-4 line-clamp-3 break-words text-sm leading-6 text-muted-foreground">{contractor.description}</p>}
+
+              <div className="mt-4 flex items-start gap-2 rounded-xl bg-secondary/45 p-3 text-xs leading-5 text-muted-foreground">
+                <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                <span className="break-words">{contractor.score_confidence_explanation}</span>
+              </div>
 
               <div className="mt-4 flex flex-wrap gap-3 text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-1"><Star className="h-4 w-4 text-amber-500" />{contractor.rating.toFixed(1)} · {contractor.rating_count} отзывов</span>
@@ -111,6 +120,10 @@ export default async function PublicContractorsPage({ searchParams }: Props) {
       </div>
     </main>
   );
+}
+
+function confidenceLabel(value: "low" | "medium" | "high") {
+  return value === "high" ? "Высокая достоверность" : value === "medium" ? "Средняя достоверность" : "Низкая достоверность";
 }
 
 function normalizeSort(value?: string): "recommended" | "rating" | "reviews" | "completed" | "newest" {
