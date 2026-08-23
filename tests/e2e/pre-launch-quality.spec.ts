@@ -20,6 +20,19 @@ const forbiddenEnglish = [
   "Something went wrong",
 ];
 
+function collectRuntimeErrors(page: Page) {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(`console.error: ${message.text()}`);
+  });
+  return errors;
+}
+
+async function expectNoRuntimeErrors(errors: string[]) {
+  expect(errors, `В браузере не должно быть runtime-ошибок:\n${errors.join("\n")}`).toEqual([]);
+}
+
 async function expectHealthyUi(page: Page) {
   await expect(page.locator("body")).toBeVisible();
   const bodyText = await page.locator("body").innerText();
@@ -58,18 +71,20 @@ async function expectNoBrokenInternalLinks(page: Page) {
 }
 
 test.describe("pre-launch quality gate", () => {
-  test.describe.configure({ mode: "serial" });
   test.beforeEach(() => test.skip(!fixtureAvailable, "Run npm run e2e:seed to provision fixtures"));
 
   test("public routes, 404 and internal links are production-safe", async ({ page }) => {
+    const runtimeErrors = collectRuntimeErrors(page);
     await page.context().clearCookies();
     for (const path of ["/", "/contractors", "/legal/privacy", "/legal/terms", "/legal/personal-data-consent"]) await openHealthy(page, path);
     await expectNotFound(page, "/e2e-route-that-must-not-exist");
     await openHealthy(page, "/contractors");
     await expectNoBrokenInternalLinks(page);
+    await expectNoRuntimeErrors(runtimeErrors);
   });
 
   test("customer critical journey has no 5xx, overflow or legacy English", async ({ page }) => {
+    const runtimeErrors = collectRuntimeErrors(page);
     await login(page, customer!);
     for (const path of [
       "/customer/dashboard",
@@ -83,9 +98,11 @@ test.describe("pre-launch quality gate", () => {
       `/customer/work/${workspaceProjectId}/issues`,
       `/customer/work/${workspaceProjectId}/disputes`,
     ]) await openHealthy(page, path);
+    await expectNoRuntimeErrors(runtimeErrors);
   });
 
   test("contractor critical journey has no 5xx, overflow or legacy English", async ({ page }) => {
+    const runtimeErrors = collectRuntimeErrors(page);
     await login(page, contractor!);
     for (const path of [
       "/contractor/dashboard",
@@ -100,9 +117,11 @@ test.describe("pre-launch quality gate", () => {
       `/contractor/work/${workspaceProjectId}/issues`,
       `/contractor/work/${workspaceProjectId}/disputes`,
     ]) await openHealthy(page, path);
+    await expectNoRuntimeErrors(runtimeErrors);
   });
 
   test("admin critical journey has no 5xx, overflow or legacy English", async ({ page }) => {
+    const runtimeErrors = collectRuntimeErrors(page);
     await login(page, { email: adminEmail!, password: adminPassword! });
     for (const path of [
       "/admin/dashboard",
@@ -119,5 +138,6 @@ test.describe("pre-launch quality gate", () => {
       "/admin/release",
       "/admin/errors",
     ]) await openHealthy(page, path);
+    await expectNoRuntimeErrors(runtimeErrors);
   });
 });
