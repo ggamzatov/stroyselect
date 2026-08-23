@@ -34,6 +34,8 @@ type ProjectRow = {
   region_match: boolean;
   budget_match: boolean;
   is_invited: boolean;
+  relevant_category_projects: number | string | null;
+  same_property_projects: number | string | null;
   match_score: string | number;
 };
 
@@ -96,8 +98,10 @@ export async function getAvailableProjects() {
                 AND pci.contractor_id = $1::uuid
                 AND pci.status <> 'cancelled'
             ) AS is_invited,
+            exp.relevant_category_projects,
+            exp.same_property_projects,
             round(
-              55
+              40
               + CASE WHEN cs.is_primary THEN 5 ELSE 0 END
               + CASE
                   WHEN EXISTS (
@@ -113,12 +117,14 @@ export async function getAvailableProjects() {
                   ) THEN 15 ELSE 0
                 END
               + CASE
-                  WHEN p.budget_min IS NULL AND p.budget_max IS NULL THEN 10
-                  WHEN cc.minimum_project_budget IS NULL AND cc.maximum_project_budget IS NULL THEN 8
+                  WHEN p.budget_min IS NULL AND p.budget_max IS NULL THEN 12
+                  WHEN cc.minimum_project_budget IS NULL AND cc.maximum_project_budget IS NULL THEN 10
                   WHEN coalesce(cc.minimum_project_budget, 0) <= coalesce(p.budget_max, p.budget_min, 999999999999)
                     AND coalesce(cc.maximum_project_budget, 999999999999) >= coalesce(p.budget_min, p.budget_max, 0)
-                  THEN 15 ELSE 0
+                  THEN 20 ELSE 0
                 END
+              + least(exp.relevant_category_projects, 4) * 2
+              + least(exp.same_property_projects, 2)
             , 1) AS match_score
           FROM public.projects p
           JOIN public.contractor_services cs
@@ -126,6 +132,19 @@ export async function getAvailableProjects() {
            AND cs.category_id = p.category_id
           JOIN public.contractor_companies cc ON cc.id = $1::uuid
           LEFT JOIN public.service_categories sc ON sc.id = p.category_id
+          LEFT JOIN LATERAL (
+            SELECT
+              COUNT(*) FILTER (
+                WHERE hp.status::text='completed' AND hp.category_id=p.category_id
+              )::int AS relevant_category_projects,
+              COUNT(*) FILTER (
+                WHERE hp.status::text='completed'
+                  AND coalesce(p.property_type::text,'') <> ''
+                  AND hp.property_type::text=p.property_type::text
+              )::int AS same_property_projects
+            FROM public.projects hp
+            WHERE hp.selected_contractor_id=$1::uuid
+          ) exp ON true
           WHERE p.status IN ('published', 'collecting_bids')
             AND (
               EXISTS (
@@ -164,11 +183,15 @@ export async function getAvailableProjects() {
     }
 
     const projects = projectsResult.rows.map((row) => {
+      const relevantCategoryProjects = Math.max(0, Number(row.relevant_category_projects) || 0);
+      const samePropertyProjects = Math.max(0, Number(row.same_property_projects) || 0);
       const reasons = ["Подходит специализация"];
       if (row.is_primary_service) reasons.push("Основная специализация");
       if (row.exact_city_match) reasons.push("Ваш город");
       else if (row.region_match) reasons.push("Ваш регион");
       if (row.budget_match) reasons.push("Подходит бюджет");
+      if (relevantCategoryProjects > 0) reasons.push(`Есть опыт: ${relevantCategoryProjects} завершённых проектов по этой услуге`);
+      if (samePropertyProjects > 0) reasons.push("Есть опыт на таком типе объекта");
 
       return {
         id: row.id,
@@ -186,7 +209,7 @@ export async function getAvailableProjects() {
         published_at: row.published_at ? toIsoString(row.published_at) : null,
         created_at: toIsoString(row.created_at),
         match_score: Math.min(100, Math.max(0, Number(row.match_score) || 0)),
-        match_reasons: reasons,
+        match_reasons: reasons.slice(0, 6),
         is_invited: Boolean(row.is_invited),
         service_categories: row.category_id && row.category_name
           ? { id: Number(row.category_id), name: row.category_name }
