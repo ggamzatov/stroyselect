@@ -53,7 +53,7 @@ export function WorkspacePageNavigator() {
       });
 
       setItems(next);
-      if (next.length) setActiveId((current) => current || next[0].id);
+      setActiveId((current) => next.some((item) => item.id === current) ? current : (next[0]?.id ?? ""));
 
       observer = new IntersectionObserver(
         (entries) => {
@@ -75,7 +75,6 @@ export function WorkspacePageNavigator() {
       timer = setTimeout(collect, 80);
     };
 
-    setActiveId("");
     collect();
     mutationObserver = new MutationObserver(scheduleCollect);
     mutationObserver.observe(document.body, { childList: true, subtree: true });
