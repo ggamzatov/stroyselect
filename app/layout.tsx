@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 import { ClientErrorReporter } from "@/features/observability/components/client-error-reporter";
+import { GlobalMarketplaceTracking } from "@/features/marketplace/components/marketplace-tracking";
 
 export const metadata: Metadata = {
   title: "StroySelect",
@@ -39,6 +40,7 @@ export default function RootLayout({
           }
         `}</style>
         <ClientErrorReporter />
+        <GlobalMarketplaceTracking />
         {children}
       </body>
     </html>
