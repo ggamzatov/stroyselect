@@ -98,8 +98,8 @@ SELECT
       AND pb.contractor_id = o.contractor_id
       AND pb.status::text <> 'withdrawn'
   ) AS submitted_bid,
-  (p.selected_contractor_id = o.contractor_id) AS was_selected,
-  (p.selected_contractor_id = o.contractor_id AND p.status::text = 'completed') AS project_completed,
+  COALESCE(p.selected_contractor_id = o.contractor_id, false) AS was_selected,
+  COALESCE(p.selected_contractor_id = o.contractor_id AND p.status::text = 'completed', false) AS project_completed,
   EXISTS (
     SELECT 1
     FROM public.contractor_reviews cr
