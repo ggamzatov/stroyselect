@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db/pool";
 import { requireActiveUser } from "@/lib/auth/require-active-user";
 import { requireActiveProject } from "@/lib/projects/require-active-project";
+import { requireActiveContract } from "@/lib/projects/require-active-contract";
 
 import {
   projectStageSchema,
@@ -74,14 +75,15 @@ export async function saveProjectStage(
     };
   }
 
-  if (
-    !["contractor_selected", "in_progress"].includes(
-      activeProject.project.status
-    )
-  ) {
+  const contract = await requireActiveContract(values.projectId);
+  if (!contract.success) {
+    return { success: false, message: contract.message };
+  }
+
+  if (activeProject.project.status !== "in_progress") {
     return {
       success: false,
-      message: "На текущем статусе проекта нельзя менять этапы",
+      message: "Этапы работ доступны после подписания договора обеими сторонами",
     };
   }
 
@@ -96,6 +98,7 @@ export async function saveProjectStage(
         FROM public.projects
         WHERE id = $1
           AND selected_contractor_id = $2
+          AND status = 'in_progress'
           AND is_admin_blocked = false
         FOR UPDATE
       `,
@@ -211,7 +214,7 @@ export async function saveProjectStage(
         user.id,
         "Добавлен этап работ",
         values.title,
-        JSON.stringify({ stage_id: createdStage.id }),
+        JSON.stringify({ stage_id: createdStage.id, contract_id: contract.contractId, contract_version: contract.versionNo }),
       ]
     );
 
