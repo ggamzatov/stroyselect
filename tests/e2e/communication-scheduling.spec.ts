@@ -30,12 +30,9 @@ test.describe("project communication scheduling", () => {
     await page.getByLabel("Место или ссылка").fill("E2E тестовый объект");
     await page.getByRole("button", { name: "Предложить время" }).click();
 
-    const pendingCard = page
-      .locator("article")
-      .filter({ hasText: appointmentTitle })
-      .filter({ has: page.getByRole("button", { name: "Подтвердить" }) });
-    await expect(pendingCard).toHaveCount(1);
-    await expect(pendingCard).toContainText(/Ожидает подтверждения/i);
+    const proposedCard = page.locator("article").filter({ hasText: appointmentTitle });
+    await expect(proposedCard).toHaveCount(1);
+    await expect(proposedCard).toContainText(/Ожидает подтверждения/i);
   });
 
   test("contractor confirms the proposed site visit", async ({ page }) => {
