@@ -61,13 +61,14 @@ test.describe("production hardening", () => {
     await expect(errorCard).toContainText(customer!.email);
   });
 
-  test("payment requires confirmation by both participants", async ({ page }) => {
+  test("manual payment archive keeps two-party confirmation while online payments are disabled", async ({ page }) => {
     await login(page, customer!);
     await page.goto(`/customer/work/${workspaceProjectId}/changes`);
+    await expect(page.getByText("Ручной учёт принятого этапа")).toBeVisible();
 
     const customerCard = page.getByText("E2E платёж для подтверждения").locator("xpath=ancestor::article");
     await expect(customerCard).toBeVisible();
-    await customerCard.getByRole("button", { name: "Подтвердить платёж" }).click();
+    await customerCard.getByRole("button", { name: "Подтвердить запись" }).click();
     await expect(customerCard).toContainText("Заказчик: подтверждено");
 
     await logout(page);
@@ -77,8 +78,8 @@ test.describe("production hardening", () => {
     const contractorCard = page.getByText("E2E платёж для подтверждения").locator("xpath=ancestor::article");
     await expect(contractorCard).toBeVisible();
     await expect(contractorCard).toContainText("Заказчик: подтверждено");
-    await contractorCard.getByRole("button", { name: "Подтвердить платёж" }).click();
-    await expect(contractorCard).toContainText("Подтверждён обеими сторонами");
+    await contractorCard.getByRole("button", { name: "Подтвердить запись" }).click();
+    await expect(contractorCard).toContainText("Подтверждено обеими сторонами");
     await expect(contractorCard).toContainText("Подрядчик: подтверждено");
   });
 });
