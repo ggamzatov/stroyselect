@@ -31,6 +31,25 @@ test.describe("marketplace journey", () => {
     await page.goto("/customer/projects/new");
 
     await expect(page.getByText("Шаг 1 из 4")).toBeVisible();
+
+    const categorySelect = page.getByLabel("Категория работ");
+    const categoryOptions = await categorySelect.locator("option").evaluateAll((options) =>
+      options.map((option) => ({
+        value: (option as HTMLOptionElement).value,
+        label: (option.textContent ?? "").trim(),
+      }))
+    );
+    const constructionCategory = categoryOptions.find((option) =>
+      /строит|общестро/i.test(option.label)
+    );
+    expect(
+      constructionCategory,
+      `В E2E-справочнике должна быть строительная категория. Доступно: ${categoryOptions
+        .map((option) => option.label)
+        .join(", ")}`
+    ).toBeTruthy();
+    await categorySelect.selectOption(constructionCategory!.value);
+
     await page.getByLabel("Название проекта").fill("E2E Новый структурированный проект");
     await page
       .getByLabel("Что нужно сделать")
