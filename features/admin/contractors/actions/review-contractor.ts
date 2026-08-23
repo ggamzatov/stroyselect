@@ -95,6 +95,25 @@ export async function reviewContractor(
       return { success: false, message: "Укажите причину решения" };
     }
 
+    if (newStatus === "verified") {
+      const duplicateResult = await client.query<{ count: string }>(
+        `
+          SELECT COUNT(*)::text AS count
+          FROM public.contractor_entity_matches
+          WHERE status = 'open'
+            AND (contractor_a_id = $1::uuid OR contractor_b_id = $1::uuid)
+        `,
+        [contractorId]
+      );
+      if (Number(duplicateResult.rows[0]?.count ?? 0) > 0) {
+        await client.query("ROLLBACK");
+        return {
+          success: false,
+          message: "Подтверждение заблокировано: сначала разберите совпадения по ИНН/ОГРН в разделе «Качество данных».",
+        };
+      }
+    }
+
     const verificationComment = newStatus === "verified" ? null : comment || null;
 
     const updateResult = await client.query<{ id: string }>(
@@ -149,11 +168,7 @@ export async function reviewContractor(
   });
 
   try {
-    const notification = getVerificationNotification({
-      companyName: company.public_name,
-      newStatus,
-      comment,
-    });
+    const notification = getVerificationNotification({ companyName: company.public_name, newStatus, comment });
     const result = await createNotification({
       userId: company.owner_id,
       actorId: activeUser.user.id,
@@ -203,16 +218,11 @@ function getInvalidTransitionMessage(from: ContractorStatus, to: ContractorStatu
 
 function getVerificationNotification({ companyName, newStatus, comment }: { companyName: string; newStatus: ContractorStatus; comment: string }) {
   switch (newStatus) {
-    case "verified":
-      return { type: "company_verified", title: "Профиль подрядчика подтверждён", body: `Компания «${companyName}» прошла проверку. Теперь вы можете получать проекты и отправлять предложения.` };
-    case "rejected":
-      return { type: "company_rejected", title: "Профиль подрядчика отклонён", body: comment ? `Компания «${companyName}» не прошла проверку. Комментарий администратора: ${getPreview(comment)}` : `Компания «${companyName}» не прошла проверку.` };
-    case "suspended":
-      return { type: "company_suspended", title: "Работа подрядчика приостановлена", body: comment ? `Доступ компании «${companyName}» временно приостановлен. Причина: ${getPreview(comment)}` : `Доступ компании «${companyName}» временно приостановлен.` };
-    case "draft":
-      return { type: "company_returned_to_draft", title: "Профиль возвращён на редактирование", body: comment ? `Профиль компании «${companyName}» необходимо доработать. Комментарий: ${getPreview(comment)}` : `Профиль компании «${companyName}» возвращён на редактирование.` };
-    default:
-      return { type: "company_status_changed", title: "Статус профиля изменён", body: `Статус компании «${companyName}» изменён.` };
+    case "verified": return { type: "company_verified", title: "Профиль подрядчика подтверждён", body: `Компания «${companyName}» прошла проверку. Теперь вы можете получать проекты и отправлять предложения.` };
+    case "rejected": return { type: "company_rejected", title: "Профиль подрядчика отклонён", body: comment ? `Компания «${companyName}» не прошла проверку. Комментарий администратора: ${getPreview(comment)}` : `Компания «${companyName}» не прошла проверку.` };
+    case "suspended": return { type: "company_suspended", title: "Работа подрядчика приостановлена", body: comment ? `Доступ компании «${companyName}» временно приостановлен. Причина: ${getPreview(comment)}` : `Доступ компании «${companyName}» временно приостановлен.` };
+    case "draft": return { type: "company_returned_to_draft", title: "Профиль возвращён на редактирование", body: comment ? `Профиль компании «${companyName}» необходимо доработать. Комментарий: ${getPreview(comment)}` : `Профиль компании «${companyName}» возвращён на редактирование.` };
+    default: return { type: "company_status_changed", title: "Статус профиля изменён", body: `Статус компании «${companyName}» изменён.` };
   }
 }
 
@@ -234,6 +244,7 @@ function getSuccessMessage(status: ContractorStatus) {
 function revalidateContractorPages(contractorId: string) {
   revalidatePath("/admin/contractors");
   revalidatePath(`/admin/contractors/${contractorId}`);
+  revalidatePath("/admin/data-quality");
   revalidatePath("/admin/dashboard");
   revalidatePath("/contractor/dashboard");
   revalidatePath("/contractor/company");
