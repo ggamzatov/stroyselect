@@ -42,8 +42,8 @@ async function openHealthy(page: Page, path: string) {
 async function expectNotFound(page: Page, path: string) {
   const response = await page.goto(path);
   expect(response?.status(), `${path} должен возвращать HTTP 404`).toBe(404);
-  await expect(page.locator("html")).toHaveAttribute("lang", "ru");
-  await expect(page.locator("body")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Страница не найдена" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "На главную" })).toBeVisible();
   await expectHealthyUi(page);
 }
 
