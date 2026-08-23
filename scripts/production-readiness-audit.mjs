@@ -7,6 +7,8 @@ const requiredFiles = [
   "scripts/db-restore.sh",
   "scripts/db-restore-drill.sh",
   "scripts/production-launch-check.mjs",
+  "scripts/prepare-e2e-standalone.mjs",
+  "scripts/source-consistency-audit.mjs",
   "app/api/health/live/route.ts",
   "app/api/health/ready/route.ts",
   "app/api/internal/maintenance/route.ts",
@@ -41,6 +43,7 @@ for (const header of ["X-Content-Type-Options","X-Frame-Options","Referrer-Polic
   if (!nextConfig.includes(header)) failures.push(`next.config.ts missing ${header}`);
 }
 if (!nextConfig.includes("poweredByHeader: false")) failures.push("Next.js powered-by header must be disabled");
+if (!nextConfig.includes('output: "standalone"')) failures.push("Next.js production output must remain standalone");
 
 const ready = await text("app/api/health/ready/route.ts");
 const verifiesPostgres = ready.includes("db.query") && (ready.includes("SELECT 1") || ready.includes("to_regclass('public.projects')"));
@@ -61,10 +64,13 @@ const s3 = await text("lib/storage/s3.ts");
 for (const envName of ["S3_ENDPOINT", "S3_ACCESS_KEY", "S3_SECRET_KEY"]) if (!s3.includes(envName)) failures.push(`S3 configuration missing ${envName}`);
 
 const ci = await text(".github/workflows/ci.yml");
-for (const gate of ["migrations:apply", "security:audit", "authorization:audit", "production:audit", "test:e2e:production:seeded"]) if (!ci.includes(gate)) failures.push(`CI missing production gate: ${gate}`);
+for (const gate of ["dependency:audit", "migrations:apply", "security:audit", "authorization:audit", "production:audit", "source:audit", "test:e2e:production:seeded"]) if (!ci.includes(gate)) failures.push(`CI missing production gate: ${gate}`);
 
 const packageJson = JSON.parse(await text("package.json"));
-for (const script of ["verify", "db:backup", "db:restore-drill", "test:e2e:production:seeded", "production:launch:check"]) if (!packageJson.scripts?.[script]) failures.push(`package.json missing script: ${script}`);
+for (const script of ["verify", "dependency:audit", "source:audit", "db:backup", "db:restore-drill", "test:e2e:production:seeded", "production:launch:check"]) if (!packageJson.scripts?.[script]) failures.push(`package.json missing script: ${script}`);
+const startScript=String(packageJson.scripts?.start??"");
+if(!startScript.includes(".next/standalone/server.js"))failures.push("npm start must launch the standalone server");
+if(!startScript.includes("prepare-e2e-standalone.mjs"))failures.push("npm start must prepare standalone static/public assets");
 const productionE2e=String(packageJson.scripts?.["test:e2e:production:seeded"]??"");
 if(!productionE2e.includes("ui-regression.spec.ts"))failures.push("production E2E gate must include UI regression");
 if(!productionE2e.includes("pre-launch-quality.spec.ts"))failures.push("production E2E gate must include pre-launch quality regression");
@@ -85,10 +91,10 @@ if (process.argv.includes("--env")) {
   const requiredEnv = ["DATABASE_URL","APP_BASE_URL","NEXT_PUBLIC_APP_URL","CRON_SECRET","S3_ENDPOINT","S3_ACCESS_KEY","S3_SECRET_KEY","RESEND_API_KEY","EMAIL_FROM"];
   for (const name of requiredEnv) if (!process.env[name]?.trim()) failures.push(`production environment missing ${name}`);
 
-  if (process.env.E2E_ALLOW_INSECURE_SESSION === "1") failures.push("E2E_ALLOW_INSECURE_SESSION must never be enabled in deployed production");
-
   const legalEnv=["LEGAL_OPERATOR_NAME","LEGAL_OPERATOR_INN","LEGAL_OPERATOR_OGRN","LEGAL_OPERATOR_ADDRESS","LEGAL_OPERATOR_EMAIL"];
   for(const name of legalEnv)if(!process.env[name]?.trim())failures.push(`public launch legal configuration missing ${name}`);
+
+  if(process.env.E2E_ALLOW_INSECURE_SESSION==="1")failures.push("E2E_ALLOW_INSECURE_SESSION must never be enabled in deployed production");
 
   const paymentsEnabled=String(process.env.PAYMENTS_ENABLED??"false").toLowerCase()==="true";
   if(paymentsEnabled){
