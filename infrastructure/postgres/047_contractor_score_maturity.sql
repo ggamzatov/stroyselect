@@ -79,8 +79,8 @@ SELECT
   END AS confidence_explanation
 FROM maturity;
 
-CREATE OR REPLACE FUNCTION public.snapshot_contractor_scores()
-RETURNS integer
+CREATE OR REPLACE FUNCTION public.snapshot_contractor_score(p_contractor_id uuid)
+RETURNS boolean
 LANGUAGE plpgsql
 AS $$
 DECLARE
@@ -122,32 +122,123 @@ BEGIN
     )
   FROM public.contractor_score_maturity s
   LEFT JOIN LATERAL (
-    SELECT h.raw_score, h.stroyselect_score, h.confidence_percent, h.confidence_level, h.components, h.evidence
+    SELECT h.raw_score, h.stroyselect_score, h.confidence_percent, h.confidence_level, h.components
     FROM public.contractor_score_history h
     WHERE h.contractor_id = s.contractor_id
     ORDER BY h.created_at DESC
     LIMIT 1
   ) latest ON true
-  WHERE latest.raw_score IS NULL
-     OR latest.raw_score IS DISTINCT FROM s.raw_score
-     OR latest.stroyselect_score IS DISTINCT FROM s.stroyselect_score
-     OR latest.confidence_percent IS DISTINCT FROM s.confidence_percent
-     OR latest.confidence_level IS DISTINCT FROM s.confidence_level
-     OR latest.components IS DISTINCT FROM jsonb_build_object(
-          'verification', s.verification_points,
-          'reviews', s.reviews_points,
-          'projects', s.projects_points,
-          'profile', s.profile_points,
-          'services', s.services_points,
-          'geography', s.geography_points,
-          'portfolio', s.portfolio_points,
-          'proposal', s.proposal_points
-        );
+  WHERE s.contractor_id = p_contractor_id
+    AND (
+      latest.raw_score IS NULL
+      OR latest.raw_score IS DISTINCT FROM s.raw_score
+      OR latest.stroyselect_score IS DISTINCT FROM s.stroyselect_score
+      OR latest.confidence_percent IS DISTINCT FROM s.confidence_percent
+      OR latest.confidence_level IS DISTINCT FROM s.confidence_level
+      OR latest.components IS DISTINCT FROM jsonb_build_object(
+           'verification', s.verification_points,
+           'reviews', s.reviews_points,
+           'projects', s.projects_points,
+           'profile', s.profile_points,
+           'services', s.services_points,
+           'geography', s.geography_points,
+           'portfolio', s.portfolio_points,
+           'proposal', s.proposal_points
+         )
+    );
 
   GET DIAGNOSTICS inserted_count = ROW_COUNT;
+  RETURN inserted_count > 0;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.snapshot_contractor_scores()
+RETURNS integer
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  row_data record;
+  inserted_count integer := 0;
+BEGIN
+  FOR row_data IN SELECT id FROM public.contractor_companies LOOP
+    IF public.snapshot_contractor_score(row_data.id) THEN
+      inserted_count := inserted_count + 1;
+    END IF;
+  END LOOP;
   RETURN inserted_count;
 END;
 $$;
+
+CREATE OR REPLACE FUNCTION public.capture_contractor_score_change()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  contractor_id_value uuid;
+BEGIN
+  IF TG_TABLE_NAME = 'contractor_companies' THEN
+    contractor_id_value := COALESCE(NEW.id, OLD.id);
+  ELSE
+    contractor_id_value := COALESCE(NEW.contractor_id, OLD.contractor_id);
+  END IF;
+
+  IF contractor_id_value IS NOT NULL THEN
+    PERFORM public.snapshot_contractor_score(contractor_id_value);
+  END IF;
+  RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.capture_project_score_change()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF OLD.selected_contractor_id IS NOT NULL THEN
+    PERFORM public.snapshot_contractor_score(OLD.selected_contractor_id);
+  END IF;
+  IF NEW.selected_contractor_id IS NOT NULL
+     AND NEW.selected_contractor_id IS DISTINCT FROM OLD.selected_contractor_id THEN
+    PERFORM public.snapshot_contractor_score(NEW.selected_contractor_id);
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS contractor_score_company_trigger ON public.contractor_companies;
+CREATE TRIGGER contractor_score_company_trigger
+AFTER UPDATE ON public.contractor_companies
+FOR EACH ROW EXECUTE FUNCTION public.capture_contractor_score_change();
+
+DROP TRIGGER IF EXISTS contractor_score_review_trigger ON public.contractor_reviews;
+CREATE TRIGGER contractor_score_review_trigger
+AFTER INSERT OR UPDATE OR DELETE ON public.contractor_reviews
+FOR EACH ROW EXECUTE FUNCTION public.capture_contractor_score_change();
+
+DROP TRIGGER IF EXISTS contractor_score_bid_trigger ON public.project_bids;
+CREATE TRIGGER contractor_score_bid_trigger
+AFTER INSERT OR UPDATE OR DELETE ON public.project_bids
+FOR EACH ROW EXECUTE FUNCTION public.capture_contractor_score_change();
+
+DROP TRIGGER IF EXISTS contractor_score_service_trigger ON public.contractor_services;
+CREATE TRIGGER contractor_score_service_trigger
+AFTER INSERT OR UPDATE OR DELETE ON public.contractor_services
+FOR EACH ROW EXECUTE FUNCTION public.capture_contractor_score_change();
+
+DROP TRIGGER IF EXISTS contractor_score_area_trigger ON public.contractor_service_areas;
+CREATE TRIGGER contractor_score_area_trigger
+AFTER INSERT OR UPDATE OR DELETE ON public.contractor_service_areas
+FOR EACH ROW EXECUTE FUNCTION public.capture_contractor_score_change();
+
+DROP TRIGGER IF EXISTS contractor_score_portfolio_trigger ON public.contractor_portfolio_projects;
+CREATE TRIGGER contractor_score_portfolio_trigger
+AFTER INSERT OR UPDATE OR DELETE ON public.contractor_portfolio_projects
+FOR EACH ROW EXECUTE FUNCTION public.capture_contractor_score_change();
+
+DROP TRIGGER IF EXISTS contractor_score_project_trigger ON public.projects;
+CREATE TRIGGER contractor_score_project_trigger
+AFTER UPDATE OF selected_contractor_id, status ON public.projects
+FOR EACH ROW EXECUTE FUNCTION public.capture_project_score_change();
 
 SELECT public.snapshot_contractor_scores();
 
