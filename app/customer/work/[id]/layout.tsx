@@ -1,7 +1,9 @@
+import { ProjectExecutionGateBanner } from "@/features/workspace/components/project-execution-gate-banner";
 import { ProjectRiskHoldBanner } from "@/features/workspace/components/project-risk-hold-banner";
 import { ProjectWorkspaceNav } from "@/features/workspace/components/project-workspace-nav";
 import { WorkspacePageNavigator } from "@/features/workspace/components/workspace-page-navigator";
 import { getProjectRiskHoldForParticipant } from "@/features/workspace/queries/get-project-risk-hold";
+import { requireActiveContract } from "@/lib/projects/require-active-contract";
 
 type Props = {
   children: React.ReactNode;
@@ -13,11 +15,16 @@ export default async function CustomerWorkLayout({
   params,
 }: Props) {
   const { id } = await params;
-  const riskHold = await getProjectRiskHoldForParticipant(id);
+  const [riskHold,contract] = await Promise.all([
+    getProjectRiskHoldForParticipant(id),
+    requireActiveContract(id),
+  ]);
+  const executionUnlocked=contract.success;
 
   return (
     <>
-      <ProjectWorkspaceNav projectId={id} role="customer" />
+      <ProjectWorkspaceNav projectId={id} role="customer" executionUnlocked={executionUnlocked} />
+      <ProjectExecutionGateBanner projectId={id} role="customer" unlocked={executionUnlocked} message={contract.success?undefined:contract.message} />
       <ProjectRiskHoldBanner state={riskHold} />
       {children}
       <WorkspacePageNavigator />
