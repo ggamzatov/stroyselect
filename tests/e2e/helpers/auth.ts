@@ -16,7 +16,24 @@ export async function login(page: Page, account: E2ECredentials) {
   await page.getByLabel("Электронная почта").fill(account.email);
   await page.getByLabel("Пароль").fill(account.password);
   await page.getByRole("button", { name: "Войти" }).click();
-  await expect(page).not.toHaveURL(/\/login(?:\?|$)/, { timeout: 15_000 });
+
+  try {
+    await expect(page).not.toHaveURL(/\/login(?:\?|$)/, { timeout: 15_000 });
+  } catch (error) {
+    const message = await page.locator("form p.text-red-700").first().textContent().catch(() => null);
+    const cookies = await page.context().cookies();
+    const sessionCookies = cookies
+      .filter((cookie) => cookie.name.includes("stroyselect_session"))
+      .map((cookie) => `${cookie.name}; secure=${cookie.secure}; domain=${cookie.domain}; path=${cookie.path}`)
+      .join(" | ");
+
+    throw new Error(
+      `E2E login failed for ${account.email}. ` +
+        `Form message: ${message?.trim() || "нет сообщения"}. ` +
+        `Session cookies: ${sessionCookies || "нет session cookie"}. ` +
+        `Current URL: ${page.url()}.\nOriginal assertion: ${String(error)}`
+    );
+  }
 }
 
 export async function logout(page: Page) {
