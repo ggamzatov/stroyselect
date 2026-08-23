@@ -31,7 +31,10 @@ export async function updateProjectIssueStatus(formData:FormData):Promise<void>{
  const auth=await requireActiveUser();if(!auth.success)return;
  const access=await getAccess(parsed.data.projectId,auth.user.id);if(!access)return;
  const result=await db.query<{title:string;created_by:string;assigned_to:string|null}>(`
-   UPDATE public.project_issues SET status=$3,resolved_at=CASE WHEN $3='resolved' THEN now() ELSE NULL END,updated_at=now()
+   UPDATE public.project_issues
+   SET status=$3::varchar,
+       resolved_at=CASE WHEN $3::varchar='resolved' THEN now() ELSE NULL END,
+       updated_at=now()
    WHERE id=$1::uuid AND project_id=$2::uuid AND status <> 'cancelled'
    RETURNING title,created_by,assigned_to
  `,[parsed.data.issueId,parsed.data.projectId,parsed.data.status]);
