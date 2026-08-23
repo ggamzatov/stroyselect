@@ -54,6 +54,9 @@ jobs:
       - name: Install dependencies
         run: npm ci --include=dev
 
+      - name: Audit production dependencies
+        run: npm run dependency:audit
+
       - name: Validate migration sequence
         run: npm run migrations:check
 
