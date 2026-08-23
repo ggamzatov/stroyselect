@@ -53,7 +53,7 @@ export function WorkspacePageNavigator() {
       });
 
       setItems(next);
-      if (next.length && !activeId) setActiveId(next[0].id);
+      if (next.length) setActiveId((current) => current || next[0].id);
 
       observer = new IntersectionObserver(
         (entries) => {
@@ -75,6 +75,7 @@ export function WorkspacePageNavigator() {
       timer = setTimeout(collect, 80);
     };
 
+    setActiveId("");
     collect();
     mutationObserver = new MutationObserver(scheduleCollect);
     mutationObserver.observe(document.body, { childList: true, subtree: true });
@@ -84,12 +85,9 @@ export function WorkspacePageNavigator() {
       observer?.disconnect();
       mutationObserver?.disconnect();
     };
-    // pathname intentionally resets navigation after route changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
   const visibleItems = useMemo(() => items.slice(0, 12), [items]);
-  if (visibleItems.length < 2) return null;
 
   function goTo(id: string) {
     const target = document.getElementById(id);
@@ -100,57 +98,82 @@ export function WorkspacePageNavigator() {
 
   return (
     <>
-      <div className="fixed bottom-4 left-1/2 z-40 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 gap-1 overflow-x-auto rounded-2xl border border-border bg-card/95 p-2 shadow-[var(--shadow-floating)] backdrop-blur xl:hidden">
-        {visibleItems.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => goTo(item.id)}
-            className={`shrink-0 rounded-xl px-3 py-2 text-xs font-semibold ${activeId === item.id ? "bg-primary text-primary-foreground" : "bg-secondary/60 text-foreground"}`}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
+      <style jsx global>{`
+        main :where(h1, h2, h3, h4, p, li, dd, dt, a, span, strong, button) {
+          overflow-wrap: anywhere;
+          word-break: normal;
+        }
+        main :where(section, article, div) {
+          min-width: 0;
+        }
+        main :where(pre, table) {
+          max-width: 100%;
+          overflow-x: auto;
+        }
+        main :where(img, video, iframe, canvas) {
+          max-width: 100%;
+        }
+        main :where(input, textarea, select) {
+          max-width: 100%;
+          min-width: 0;
+        }
+      `}</style>
 
-      <div className="fixed right-4 top-52 z-40 hidden xl:block">
-        {!open ? (
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            className="flex items-center gap-2 rounded-2xl border border-border bg-card/95 px-4 py-3 text-sm font-bold text-foreground shadow-[var(--shadow-card)] backdrop-blur"
-          >
-            <ListTree className="h-4 w-4 text-primary" />
-            Разделы
-          </button>
-        ) : (
-          <aside className="w-56 rounded-[1.5rem] border border-border bg-card/95 p-3 shadow-[var(--shadow-floating)] backdrop-blur">
-            <div className="mb-2 flex items-center justify-between gap-2 px-2 py-1">
-              <div className="flex min-w-0 items-center gap-2">
-                <ListTree className="h-4 w-4 shrink-0 text-primary" />
-                <span className="text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">На странице</span>
-              </div>
-              <button type="button" onClick={() => setOpen(false)} className="rounded-lg p-1 text-muted-foreground hover:bg-secondary hover:text-foreground" aria-label="Свернуть навигацию">
-                <X className="h-4 w-4" />
+      {visibleItems.length >= 2 && (
+        <>
+          <div className="fixed bottom-4 left-1/2 z-40 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 gap-1 overflow-x-auto rounded-2xl border border-border bg-card/95 p-2 shadow-[var(--shadow-floating)] backdrop-blur xl:hidden">
+            {visibleItems.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => goTo(item.id)}
+                className={`shrink-0 rounded-xl px-3 py-2 text-xs font-semibold ${activeId === item.id ? "bg-primary text-primary-foreground" : "bg-secondary/60 text-foreground"}`}
+              >
+                {item.label}
               </button>
-            </div>
-            <nav className="max-h-[calc(100vh-17rem)] space-y-1 overflow-y-auto">
-              {visibleItems.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => goTo(item.id)}
-                  title={item.label}
-                  className={`group flex w-full min-w-0 items-start justify-between gap-2 rounded-xl px-3 py-2.5 text-left text-sm transition ${activeId === item.id ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-secondary/70"}`}
-                >
-                  <span className="min-w-0 break-words leading-5 [overflow-wrap:anywhere]">{item.label}</span>
-                  <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 opacity-60 transition group-hover:translate-x-0.5" />
-                </button>
-              ))}
-            </nav>
-          </aside>
-        )}
-      </div>
+            ))}
+          </div>
+
+          <div className="fixed right-4 top-52 z-40 hidden xl:block">
+            {!open ? (
+              <button
+                type="button"
+                onClick={() => setOpen(true)}
+                className="flex items-center gap-2 rounded-2xl border border-border bg-card/95 px-4 py-3 text-sm font-bold text-foreground shadow-[var(--shadow-card)] backdrop-blur"
+              >
+                <ListTree className="h-4 w-4 text-primary" />
+                Разделы
+              </button>
+            ) : (
+              <aside className="w-56 rounded-[1.5rem] border border-border bg-card/95 p-3 shadow-[var(--shadow-floating)] backdrop-blur">
+                <div className="mb-2 flex items-center justify-between gap-2 px-2 py-1">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <ListTree className="h-4 w-4 shrink-0 text-primary" />
+                    <span className="text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">На странице</span>
+                  </div>
+                  <button type="button" onClick={() => setOpen(false)} className="rounded-lg p-1 text-muted-foreground hover:bg-secondary hover:text-foreground" aria-label="Свернуть навигацию">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <nav className="max-h-[calc(100vh-17rem)] space-y-1 overflow-y-auto">
+                  {visibleItems.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => goTo(item.id)}
+                      title={item.label}
+                      className={`group flex w-full min-w-0 items-start justify-between gap-2 rounded-xl px-3 py-2.5 text-left text-sm transition ${activeId === item.id ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-secondary/70"}`}
+                    >
+                      <span className="min-w-0 break-words leading-5 [overflow-wrap:anywhere]">{item.label}</span>
+                      <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 opacity-60 transition group-hover:translate-x-0.5" />
+                    </button>
+                  ))}
+                </nav>
+              </aside>
+            )}
+          </div>
+        </>
+      )}
     </>
   );
 }
