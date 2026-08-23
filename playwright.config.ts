@@ -1,5 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const reuseExistingServer = process.env.PLAYWRIGHT_REUSE_SERVER === "1";
+
 export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: true,
@@ -26,7 +28,7 @@ export default defineConfig({
     : {
         command: "npm run start",
         url: "http://127.0.0.1:3000/api/health/live",
-        reuseExistingServer: !process.env.CI,
+        reuseExistingServer,
         timeout: 120_000,
         env: { PORT: "3000" },
       },
