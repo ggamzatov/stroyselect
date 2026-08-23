@@ -12,8 +12,12 @@ if (!process.env.DATABASE_URL) {
 const ADMIN_ID = "00000000-0000-4000-8000-000000000103";
 const ADMIN_EMAIL = "e2e.admin@stroyselect.local";
 const CUSTOMER_ID = "00000000-0000-4000-8000-000000000101";
+const CONTRACTOR_ID = "00000000-0000-4000-8000-000000000102";
+const COMPANY_ID = "00000000-0000-4000-8000-000000000201";
 const WORKSPACE_PROJECT_ID = "00000000-0000-4000-8000-000000000302";
-const WORKSPACE_STAGE_ID = "00000000-0000-4000-8000-000000000501";
+const WORKSPACE_BID_ID = "00000000-0000-4000-8000-000000000401";
+const PAYMENT_STAGE_ID = "00000000-0000-4000-8000-000000000503";
+const CONTRACT_ID = "00000000-0000-4000-8000-000000000801";
 const PAYMENT_ID = "00000000-0000-4000-8000-000000000601";
 const PAYMENT_KEY = "00000000-0000-4000-8000-000000000701";
 const PASSWORD = process.env.E2E_SEED_PASSWORD || "StroySelect-E2E-2026!";
@@ -49,6 +53,63 @@ try {
     [ADMIN_ID, ADMIN_EMAIL]
   );
 
+  const contractResult = await client.query(
+    `
+      INSERT INTO public.project_contracts(
+        id,project_id,source_bid_id,customer_id,contractor_id,status,current_version,updated_at
+      ) VALUES($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid,'active',1,now())
+      ON CONFLICT(project_id) DO UPDATE SET
+        source_bid_id=EXCLUDED.source_bid_id,
+        customer_id=EXCLUDED.customer_id,
+        contractor_id=EXCLUDED.contractor_id,
+        status='active',
+        current_version=1,
+        updated_at=now()
+      RETURNING id
+    `,
+    [CONTRACT_ID, WORKSPACE_PROJECT_ID, WORKSPACE_BID_ID, CUSTOMER_ID, COMPANY_ID]
+  );
+  const contractId = contractResult.rows[0]?.id;
+  if (!contractId) throw new Error("E2E договор не создан");
+
+  await client.query(`DELETE FROM public.project_contract_versions WHERE contract_id=$1::uuid`, [contractId]);
+  await client.query(
+    `
+      INSERT INTO public.project_contract_versions(
+        contract_id,version_no,title,body,commercial_terms,created_by,
+        customer_approved_at,contractor_approved_at,legal_template_version,
+        customer_approval_evidence,contractor_approval_evidence
+      ) VALUES(
+        $1::uuid,1,'E2E подписанный договор','E2E договор для проверки жизненного цикла проекта',
+        '{}'::jsonb,$2::uuid,now(),now(),'ru-e2e-1.0',
+        '{"source":"e2e"}'::jsonb,'{"source":"e2e"}'::jsonb
+      )
+    `,
+    [contractId, CUSTOMER_ID]
+  );
+
+  await client.query(
+    `
+      INSERT INTO public.project_stages(
+        id,project_id,created_by,title,description,price,progress_weight,sort_order,status,
+        planned_start_date,planned_end_date,actual_started_at,actual_completed_at,
+        submitted_for_review_at,reviewed_at,reviewed_by,updated_at
+      ) VALUES(
+        $1::uuid,$2::uuid,$3::uuid,'E2E принятый этап для платежа',
+        'Отдельный завершённый этап для проверки финансового контура.',15000,0,99,'completed',
+        current_date-5,current_date-1,now()-interval '4 days',now()-interval '1 day',
+        now()-interval '2 days',now()-interval '1 day',$4::uuid,now()
+      )
+      ON CONFLICT(id) DO UPDATE SET
+        project_id=EXCLUDED.project_id,created_by=EXCLUDED.created_by,title=EXCLUDED.title,
+        description=EXCLUDED.description,price=EXCLUDED.price,progress_weight=0,sort_order=99,
+        status='completed',actual_started_at=EXCLUDED.actual_started_at,
+        actual_completed_at=EXCLUDED.actual_completed_at,submitted_for_review_at=EXCLUDED.submitted_for_review_at,
+        reviewed_at=EXCLUDED.reviewed_at,reviewed_by=EXCLUDED.reviewed_by,updated_at=now()
+    `,
+    [PAYMENT_STAGE_ID, WORKSPACE_PROJECT_ID, CONTRACTOR_ID, CUSTOMER_ID]
+  );
+
   await client.query(`DELETE FROM public.project_payment_confirmations WHERE payment_id=$1::uuid`, [PAYMENT_ID]);
   await client.query(`DELETE FROM public.project_payments WHERE id=$1::uuid`, [PAYMENT_ID]);
   await client.query(
@@ -57,7 +118,7 @@ try {
         id,project_id,recorded_by,stage_id,amount,paid_at,note,idempotency_key
       ) VALUES($1::uuid,$2::uuid,$3::uuid,$4::uuid,15000,current_date,'E2E платёж для подтверждения',$5::uuid)
     `,
-    [PAYMENT_ID, WORKSPACE_PROJECT_ID, CUSTOMER_ID, WORKSPACE_STAGE_ID, PAYMENT_KEY]
+    [PAYMENT_ID, WORKSPACE_PROJECT_ID, CUSTOMER_ID, PAYMENT_STAGE_ID, PAYMENT_KEY]
   );
 
   await client.query(
@@ -88,6 +149,7 @@ try {
   await fs.writeFile(envPath, envText, { mode: 0o600 });
 
   console.log(`Admin:      ${ADMIN_EMAIL}`);
+  console.log(`Contract:   ${contractId}`);
   console.log(`Payment:    ${PAYMENT_ID}`);
 } catch (error) {
   await client.query("ROLLBACK");
