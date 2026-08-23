@@ -61,6 +61,22 @@ try {
     [WORKSPACE_PROJECT_ID, APPOINTMENT_TITLE]
   );
 
+  // The workspace fixture must obey the same lifecycle as the product: the main
+  // contract is created and signed while the project is still contractor_selected.
+  // Migration 052 deliberately forbids creating a new main contract version after
+  // work has started, so reset only this deterministic fixture to the pre-start phase
+  // before rebuilding its contract state.
+  await client.query(
+    `
+      UPDATE public.projects
+      SET status='contractor_selected',work_started_at=NULL,updated_at=now()
+      WHERE id=$1::uuid
+        AND selected_contractor_id=$2::uuid
+        AND selected_bid_id=$3::uuid
+    `,
+    [WORKSPACE_PROJECT_ID, COMPANY_ID, WORKSPACE_BID_ID]
+  );
+
   const contractResult = await client.query(
     `
       INSERT INTO public.project_contracts(
@@ -94,6 +110,18 @@ try {
       )
     `,
     [contractId, CUSTOMER_ID]
+  );
+
+  // Only after both signatures exist may the project return to in_progress. The
+  // database trigger additionally verifies the selected bid/contractor and that the
+  // stage plan totals 100%, so the fixture cannot silently drift away from production.
+  await client.query(
+    `
+      UPDATE public.projects
+      SET status='in_progress',work_started_at=now(),updated_at=now()
+      WHERE id=$1::uuid AND status='contractor_selected'
+    `,
+    [WORKSPACE_PROJECT_ID]
   );
 
   await client.query(
