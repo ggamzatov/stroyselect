@@ -8,6 +8,7 @@ const workspaceProjectId = requiredProjectId("WORKSPACE");
 const adminEmail = process.env.E2E_ADMIN_EMAIL?.trim();
 const adminPassword = process.env.E2E_ADMIN_PASSWORD;
 const fixtureAvailable = Boolean(customer && contractor && projectId && workspaceProjectId && adminEmail && adminPassword);
+const intentionalNotFoundPath = "/e2e-route-that-must-not-exist";
 
 const forbiddenEnglish = [
   "Trust Center",
@@ -24,13 +25,33 @@ function collectRuntimeErrors(page: Page) {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
   page.on("console", (message) => {
-    if (message.type() === "error") errors.push(`console.error: ${message.text()}`);
+    if (message.type() !== "error") return;
+    // Chromium reports every HTTP 4xx/5xx as a generic console.error without a useful URL.
+    // HTTP failures are tracked separately below so an intentional 404 can be distinguished
+    // from a genuinely broken application resource.
+    if (message.text().startsWith("Failed to load resource:")) return;
+    errors.push(`console.error: ${message.text()}`);
+  });
+  return errors;
+}
+
+function collectHttpErrors(page: Page) {
+  const errors: string[] = [];
+  page.on("response", (response) => {
+    if (response.status() < 400) return;
+    const url = new URL(response.url());
+    if (response.status() === 404 && url.pathname === intentionalNotFoundPath && response.request().resourceType() === "document") return;
+    errors.push(`HTTP ${response.status()}: ${url.pathname}${url.search}`);
   });
   return errors;
 }
 
 async function expectNoRuntimeErrors(errors: string[]) {
   expect(errors, `В браузере не должно быть runtime-ошибок:\n${errors.join("\n")}`).toEqual([]);
+}
+
+async function expectNoHttpErrors(errors: string[]) {
+  expect(errors, `Не должно быть неожиданных HTTP-ошибок ресурсов:\n${errors.join("\n")}`).toEqual([]);
 }
 
 async function expectHealthyUi(page: Page) {
@@ -75,12 +96,14 @@ test.describe("pre-launch quality gate", () => {
 
   test("public routes, 404 and internal links are production-safe", async ({ page }) => {
     const runtimeErrors = collectRuntimeErrors(page);
+    const httpErrors = collectHttpErrors(page);
     await page.context().clearCookies();
     for (const path of ["/", "/contractors", "/legal/privacy", "/legal/terms", "/legal/personal-data-consent"]) await openHealthy(page, path);
-    await expectNotFound(page, "/e2e-route-that-must-not-exist");
+    await expectNotFound(page, intentionalNotFoundPath);
     await openHealthy(page, "/contractors");
     await expectNoBrokenInternalLinks(page);
     await expectNoRuntimeErrors(runtimeErrors);
+    await expectNoHttpErrors(httpErrors);
   });
 
   test("customer critical journey has no 5xx, overflow or legacy English", async ({ page }) => {
