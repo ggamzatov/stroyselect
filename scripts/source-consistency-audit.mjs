@@ -66,7 +66,8 @@ function auditSqlParameterTyping(file, text) {
     const blockOffset = (match.index ?? 0) + 1;
     const numbers = new Set([...sql.matchAll(/\$(\d+)/g)].map((m) => m[1]));
     for (const number of numbers) {
-      const token = `\\$${number}`;
+      // (?!\\d) is essential: $1 must never match the prefix of $10/$19.
+      const token = `\\$${number}(?!\\d)`;
       const uncastAssignment = new RegExp(`\\b[a-zA-Z_][a-zA-Z0-9_]*\\s*=\\s*${token}(?!\\s*::)`, "i");
       const stringComparison = new RegExp(`${token}(?!\\s*::)\\s*(?:=|<>|!=)\\s*'`, "i");
       const caseComparison = new RegExp(`CASE\\s+WHEN\\s+${token}(?!\\s*::)`, "i");
