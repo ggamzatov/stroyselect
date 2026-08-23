@@ -20,6 +20,7 @@ const PAYMENT_STAGE_ID = "00000000-0000-4000-8000-000000000503";
 const CONTRACT_ID = "00000000-0000-4000-8000-000000000801";
 const PAYMENT_ID = "00000000-0000-4000-8000-000000000601";
 const PAYMENT_KEY = "00000000-0000-4000-8000-000000000701";
+const APPOINTMENT_TITLE = "E2E Выезд на объект";
 const PASSWORD = process.env.E2E_SEED_PASSWORD || "StroySelect-E2E-2026!";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
@@ -51,6 +52,13 @@ try {
         role='admin',first_name='E2E',last_name='Администратор',email=EXCLUDED.email,is_blocked=false
     `,
     [ADMIN_ID, ADMIN_EMAIL]
+  );
+
+  // Scheduling E2E creates appointments through the real UI. Clear only its named
+  // fixture so interrupted or repeated runs cannot leave multiple matching cards.
+  await client.query(
+    `DELETE FROM public.project_appointments WHERE project_id=$1::uuid AND title=$2::text`,
+    [WORKSPACE_PROJECT_ID, APPOINTMENT_TITLE]
   );
 
   const contractResult = await client.query(
