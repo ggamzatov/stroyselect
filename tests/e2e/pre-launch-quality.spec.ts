@@ -39,6 +39,13 @@ async function openHealthy(page: Page, path: string) {
   await expectHealthyUi(page);
 }
 
+async function expectNotFound(page: Page, path: string) {
+  const response = await page.goto(path);
+  expect(response?.status(), `${path} должен возвращать HTTP 404`).toBe(404);
+  await expect(page.getByRole("heading", { name: "Страница не найдена" })).toBeVisible();
+  await expectHealthyUi(page);
+}
+
 async function expectNoBrokenInternalLinks(page: Page) {
   const links = await page.locator('a[href^="/"]').evaluateAll((nodes) =>
     Array.from(new Set(nodes.map((node) => (node as HTMLAnchorElement).getAttribute("href")).filter(Boolean))) as string[]
@@ -56,8 +63,7 @@ test.describe("pre-launch quality gate", () => {
   test("public routes, 404 and internal links are production-safe", async ({ page }) => {
     await page.context().clearCookies();
     for (const path of ["/", "/contractors", "/legal/privacy", "/legal/terms", "/legal/personal-data-consent"]) await openHealthy(page, path);
-    await openHealthy(page, "/e2e-route-that-must-not-exist");
-    await expect(page.getByRole("heading", { name: "Страница не найдена" })).toBeVisible();
+    await expectNotFound(page, "/e2e-route-that-must-not-exist");
     await openHealthy(page, "/contractors");
     await expectNoBrokenInternalLinks(page);
   });
