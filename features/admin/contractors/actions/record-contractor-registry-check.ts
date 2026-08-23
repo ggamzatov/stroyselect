@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { db } from "@/lib/db/pool";
-import { requireActiveUser } from "@/lib/auth/require-active-user";
+import { requireStaffUser } from "@/lib/auth/require-staff-user";
 import { createAdminAuditLog } from "@/features/admin/audit/server/create-admin-audit-log";
 
 const schema = z.object({
@@ -24,11 +24,7 @@ export async function recordContractorRegistryCheck(input: Input) {
     return { success: false, message: parsed.error.issues[0]?.message ?? "Проверьте данные проверки" };
   }
 
-  const auth = await requireActiveUser();
-  if (!auth.success) return { success: false, message: auth.message };
-  if (!["admin", "moderator", "manager"].includes(auth.profile.role)) {
-    return { success: false, message: "Недостаточно прав для фиксации проверки" };
-  }
+  const { user } = await requireStaffUser();
 
   const companyResult = await db.query<{ id: string; public_name: string }>(
     `SELECT id,public_name FROM public.contractor_companies WHERE id=$1::uuid LIMIT 1`,
@@ -51,13 +47,13 @@ export async function recordContractorRegistryCheck(input: Input) {
       parsed.data.identifierType,
       parsed.data.identifierValue,
       parsed.data.status,
-      auth.user.id,
+      user.id,
       parsed.data.note ?? "",
     ]
   );
 
   await createAdminAuditLog({
-    adminId: auth.user.id,
+    adminId: user.id,
     actionType: "contractor_registry_check_recorded",
     entityType: "contractor",
     entityId: parsed.data.contractorId,
