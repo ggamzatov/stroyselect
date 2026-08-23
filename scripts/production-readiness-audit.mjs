@@ -79,29 +79,27 @@ for (const script of ["verify", "db:backup", "db:restore-drill", "test:e2e:produ
 
 const envExample = await text(".env.example");
 for (const name of [
-  "DATABASE_URL",
-  "APP_BASE_URL",
-  "S3_ENDPOINT",
-  "S3_ACCESS_KEY",
-  "S3_SECRET_KEY",
-  "RESEND_API_KEY",
-  "EMAIL_FROM",
+  "DATABASE_URL","APP_BASE_URL","S3_ENDPOINT","S3_ACCESS_KEY","S3_SECRET_KEY","RESEND_API_KEY","EMAIL_FROM",
+  "PAYMENTS_ENABLED","YOOKASSA_SHOP_ID","YOOKASSA_SECRET_KEY","YOOKASSA_PLATFORM_FEE_PERCENT",
+  "LEGAL_OPERATOR_NAME","LEGAL_OPERATOR_INN","LEGAL_OPERATOR_OGRN","LEGAL_OPERATOR_ADDRESS","LEGAL_OPERATOR_EMAIL","LEGAL_OPERATOR_PHONE"
 ]) {
   if (!envExample.includes(`${name}=`)) failures.push(`.env.example missing ${name}`);
 }
 
 if (process.argv.includes("--env")) {
-  const requiredEnv = [
-    "DATABASE_URL",
-    "APP_BASE_URL",
-    "S3_ENDPOINT",
-    "S3_ACCESS_KEY",
-    "S3_SECRET_KEY",
-    "RESEND_API_KEY",
-    "EMAIL_FROM",
-  ];
+  const requiredEnv = ["DATABASE_URL","APP_BASE_URL","S3_ENDPOINT","S3_ACCESS_KEY","S3_SECRET_KEY","RESEND_API_KEY","EMAIL_FROM"];
   for (const name of requiredEnv) {
     if (!process.env[name]?.trim()) failures.push(`production environment missing ${name}`);
+  }
+
+  const legalEnv=["LEGAL_OPERATOR_NAME","LEGAL_OPERATOR_INN","LEGAL_OPERATOR_OGRN","LEGAL_OPERATOR_ADDRESS","LEGAL_OPERATOR_EMAIL"];
+  for(const name of legalEnv){if(!process.env[name]?.trim())failures.push(`public launch legal configuration missing ${name}`);}
+
+  const paymentsEnabled=String(process.env.PAYMENTS_ENABLED??"false").toLowerCase()==="true";
+  if(paymentsEnabled){
+    for(const name of ["YOOKASSA_SHOP_ID","YOOKASSA_SECRET_KEY"]){if(!process.env[name]?.trim())failures.push(`payments are enabled but ${name} is missing`);}
+    const fee=Number(process.env.YOOKASSA_PLATFORM_FEE_PERCENT??"0");
+    if(!Number.isFinite(fee)||fee<0||fee>=100)failures.push("YOOKASSA_PLATFORM_FEE_PERCENT must be between 0 and 100");
   }
 
   const baseUrl = process.env.APP_BASE_URL?.trim();
@@ -114,7 +112,7 @@ if (process.argv.includes("--env")) {
 
   for (const [name, value] of Object.entries(process.env)) {
     if (!value) continue;
-    if (["S3_ACCESS_KEY", "S3_SECRET_KEY", "RESEND_API_KEY"].includes(name) && /change-me|example|dummy/i.test(value)) {
+    if (["S3_ACCESS_KEY", "S3_SECRET_KEY", "RESEND_API_KEY", "YOOKASSA_SECRET_KEY"].includes(name) && /change-me|example|dummy/i.test(value)) {
       failures.push(`${name} still looks like a placeholder credential`);
     }
   }
