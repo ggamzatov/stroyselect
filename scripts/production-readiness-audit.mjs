@@ -6,6 +6,7 @@ const requiredFiles = [
   "scripts/db-backup.sh",
   "scripts/db-restore.sh",
   "scripts/db-restore-drill.sh",
+  "scripts/production-launch-check.mjs",
   "app/api/health/live/route.ts",
   "app/api/health/ready/route.ts",
   "app/api/internal/maintenance/route.ts",
@@ -58,21 +59,28 @@ const s3 = await text("lib/storage/s3.ts");
 for (const envName of ["S3_ENDPOINT", "S3_ACCESS_KEY", "S3_SECRET_KEY"]) if (!s3.includes(envName)) failures.push(`S3 configuration missing ${envName}`);
 
 const ci = await text(".github/workflows/ci.yml");
-for (const gate of ["migrations:apply", "security:audit", "authorization:audit", "test:e2e:production:seeded"]) if (!ci.includes(gate)) failures.push(`CI missing production gate: ${gate}`);
+for (const gate of ["migrations:apply", "security:audit", "authorization:audit", "production:audit", "test:e2e:production:seeded"]) if (!ci.includes(gate)) failures.push(`CI missing production gate: ${gate}`);
 
 const packageJson = JSON.parse(await text("package.json"));
-for (const script of ["verify", "db:backup", "db:restore-drill", "test:e2e:production:seeded"]) if (!packageJson.scripts?.[script]) failures.push(`package.json missing script: ${script}`);
-if(!String(packageJson.scripts?.["test:e2e:production:seeded"]??"").includes("ui-regression.spec.ts"))failures.push("production E2E gate must include UI regression");
+for (const script of ["verify", "db:backup", "db:restore-drill", "test:e2e:production:seeded", "production:launch:check"]) if (!packageJson.scripts?.[script]) failures.push(`package.json missing script: ${script}`);
+const productionE2e=String(packageJson.scripts?.["test:e2e:production:seeded"]??"");
+if(!productionE2e.includes("ui-regression.spec.ts"))failures.push("production E2E gate must include UI regression");
+if(!productionE2e.includes("pre-launch-quality.spec.ts"))failures.push("production E2E gate must include pre-launch quality regression");
+
+const launchCheck=await text("scripts/production-launch-check.mjs");
+for(const requirement of ["release_checklist","marketplace_operational_alerts","/api/health/ready","/robots.txt","/sitemap.xml","/api/internal/maintenance"]){
+  if(!launchCheck.includes(requirement))failures.push(`production launch check missing: ${requirement}`);
+}
 
 const envExample = await text(".env.example");
 for (const name of [
-  "DATABASE_URL","APP_BASE_URL","CRON_SECRET","S3_ENDPOINT","S3_ACCESS_KEY","S3_SECRET_KEY","RESEND_API_KEY","EMAIL_FROM",
+  "DATABASE_URL","APP_BASE_URL","NEXT_PUBLIC_APP_URL","CRON_SECRET","S3_ENDPOINT","S3_ACCESS_KEY","S3_SECRET_KEY","RESEND_API_KEY","EMAIL_FROM",
   "PAYMENTS_ENABLED","YOOKASSA_SHOP_ID","YOOKASSA_SECRET_KEY","YOOKASSA_PLATFORM_FEE_PERCENT",
   "LEGAL_OPERATOR_NAME","LEGAL_OPERATOR_INN","LEGAL_OPERATOR_OGRN","LEGAL_OPERATOR_ADDRESS","LEGAL_OPERATOR_EMAIL","LEGAL_OPERATOR_PHONE"
 ]) if (!envExample.includes(`${name}=`)) failures.push(`.env.example missing ${name}`);
 
 if (process.argv.includes("--env")) {
-  const requiredEnv = ["DATABASE_URL","APP_BASE_URL","CRON_SECRET","S3_ENDPOINT","S3_ACCESS_KEY","S3_SECRET_KEY","RESEND_API_KEY","EMAIL_FROM"];
+  const requiredEnv = ["DATABASE_URL","APP_BASE_URL","NEXT_PUBLIC_APP_URL","CRON_SECRET","S3_ENDPOINT","S3_ACCESS_KEY","S3_SECRET_KEY","RESEND_API_KEY","EMAIL_FROM"];
   for (const name of requiredEnv) if (!process.env[name]?.trim()) failures.push(`production environment missing ${name}`);
 
   const legalEnv=["LEGAL_OPERATOR_NAME","LEGAL_OPERATOR_INN","LEGAL_OPERATOR_OGRN","LEGAL_OPERATOR_ADDRESS","LEGAL_OPERATOR_EMAIL"];
@@ -84,12 +92,37 @@ if (process.argv.includes("--env")) {
     const fee=Number(process.env.YOOKASSA_PLATFORM_FEE_PERCENT??"0");if(!Number.isFinite(fee)||fee<0||fee>=100)failures.push("YOOKASSA_PLATFORM_FEE_PERCENT must be between 0 and 100");
   }
 
-  const baseUrl = process.env.APP_BASE_URL?.trim(); if (baseUrl && !baseUrl.startsWith("https://")) failures.push("APP_BASE_URL must use HTTPS in production");
-  const databaseUrl = process.env.DATABASE_URL?.trim(); if (databaseUrl && /localhost|127\.0\.0\.1/.test(databaseUrl)) warnings.push("DATABASE_URL points to localhost; acceptable for local release drills, not for deployed production");
+  const baseUrl=process.env.APP_BASE_URL?.trim();
+  const publicUrl=process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if(baseUrl&&!baseUrl.startsWith("https://"))failures.push("APP_BASE_URL must use HTTPS in production");
+  if(publicUrl&&!publicUrl.startsWith("https://"))failures.push("NEXT_PUBLIC_APP_URL must use HTTPS in production");
+  if(baseUrl&&publicUrl&&baseUrl.replace(/\/$/,"")!==publicUrl.replace(/\/$/,""))failures.push("APP_BASE_URL and NEXT_PUBLIC_APP_URL must use the same canonical origin");
+
+  const cronSecret=process.env.CRON_SECRET?.trim()??"";
+  if(cronSecret&&cronSecret.length<32)failures.push("CRON_SECRET must be at least 32 characters");
+
+  const s3Endpoint=process.env.S3_ENDPOINT?.trim();
+  if(s3Endpoint&&!/^https:\/\//i.test(s3Endpoint)&&!/localhost|127\.0\.0\.1/.test(s3Endpoint))failures.push("S3_ENDPOINT must use HTTPS in deployed production");
+
+  const resend=process.env.RESEND_API_KEY?.trim();
+  if(resend&&!resend.startsWith("re_"))warnings.push("RESEND_API_KEY does not look like a Resend API key");
+  const emailFrom=process.env.EMAIL_FROM?.trim();
+  if(emailFrom&&!/@/.test(emailFrom))failures.push("EMAIL_FROM must contain a valid sender email address");
+
+  const inn=(process.env.LEGAL_OPERATOR_INN??"").replace(/\D/g,"");
+  if(inn&&![10,12].includes(inn.length))failures.push("LEGAL_OPERATOR_INN must contain 10 or 12 digits");
+  const ogrn=(process.env.LEGAL_OPERATOR_OGRN??"").replace(/\D/g,"");
+  if(ogrn&&![13,15].includes(ogrn.length))failures.push("LEGAL_OPERATOR_OGRN must contain 13 or 15 digits");
+  const legalEmail=process.env.LEGAL_OPERATOR_EMAIL?.trim();
+  if(legalEmail&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(legalEmail))failures.push("LEGAL_OPERATOR_EMAIL has invalid format");
+
+  const databaseUrl=process.env.DATABASE_URL?.trim();
+  if(databaseUrl&&/localhost|127\.0\.0\.1/.test(databaseUrl))warnings.push("DATABASE_URL points to localhost; acceptable for local release drills, not for deployed production");
 
   for (const [name, value] of Object.entries(process.env)) {
     if (!value) continue;
-    if (["CRON_SECRET","S3_ACCESS_KEY", "S3_SECRET_KEY", "RESEND_API_KEY", "YOOKASSA_SECRET_KEY"].includes(name) && /change-me|example|dummy/i.test(value)) failures.push(`${name} still looks like a placeholder credential`);
+    if (["CRON_SECRET","S3_ACCESS_KEY","S3_SECRET_KEY","RESEND_API_KEY","YOOKASSA_SECRET_KEY"].includes(name) && /change-me|example|dummy/i.test(value)) failures.push(`${name} still looks like a placeholder credential`);
+    if (["LEGAL_OPERATOR_NAME","LEGAL_OPERATOR_ADDRESS","LEGAL_OPERATOR_EMAIL"].includes(name) && /change-me|example|пример/i.test(value)) failures.push(`${name} still looks like placeholder legal data`);
   }
 }
 
