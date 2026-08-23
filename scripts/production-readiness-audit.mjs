@@ -32,7 +32,8 @@ const session = await text("lib/auth/session.ts");
 if (!session.includes("__Host-stroyselect_session")) failures.push("production session must use a __Host- cookie");
 if (!session.includes("httpOnly: true")) failures.push("session cookie must be HttpOnly");
 if (!session.includes("sameSite: \"lax\"")) failures.push("session cookie must define SameSite policy");
-if (!session.includes("secure: process.env.NODE_ENV === \"production\"")) failures.push("session cookie must be Secure in production");
+if (!session.includes('secure: process.env.NODE_ENV === "production" && !INSECURE_E2E_SESSION')) failures.push("session cookie must be Secure in production except explicit loopback E2E");
+if (!session.includes('process.env.E2E_ALLOW_INSECURE_SESSION === "1"') || !session.includes("127\\.0\\.0\\.1|localhost")) failures.push("insecure E2E session override must be explicit and loopback-only");
 
 const nextConfig = await text("next.config.ts");
 for (const header of ["X-Content-Type-Options","X-Frame-Options","Referrer-Policy","Permissions-Policy","Strict-Transport-Security"]) {
@@ -82,6 +83,8 @@ for (const name of [
 if (process.argv.includes("--env")) {
   const requiredEnv = ["DATABASE_URL","APP_BASE_URL","NEXT_PUBLIC_APP_URL","CRON_SECRET","S3_ENDPOINT","S3_ACCESS_KEY","S3_SECRET_KEY","RESEND_API_KEY","EMAIL_FROM"];
   for (const name of requiredEnv) if (!process.env[name]?.trim()) failures.push(`production environment missing ${name}`);
+
+  if(process.env.E2E_ALLOW_INSECURE_SESSION === "1") failures.push("E2E_ALLOW_INSECURE_SESSION must never be enabled in deployed production");
 
   const legalEnv=["LEGAL_OPERATOR_NAME","LEGAL_OPERATOR_INN","LEGAL_OPERATOR_OGRN","LEGAL_OPERATOR_ADDRESS","LEGAL_OPERATOR_EMAIL"];
   for(const name of legalEnv)if(!process.env[name]?.trim())failures.push(`public launch legal configuration missing ${name}`);
