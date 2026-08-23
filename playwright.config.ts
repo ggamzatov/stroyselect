@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const reuseExistingServer = process.env.PLAYWRIGHT_REUSE_SERVER === "1";
+const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000";
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -10,7 +11,7 @@ export default defineConfig({
   workers: process.env.CI ? 2 : undefined,
   reporter: process.env.CI ? [["line"], ["html", { open: "never" }]] : "list",
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000",
+    baseURL,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     video: "retain-on-failure",
@@ -27,13 +28,15 @@ export default defineConfig({
     ? undefined
     : {
         command: "node .next/standalone/server.js",
-        url: "http://127.0.0.1:3000/api/health/live",
+        url: `${baseURL}/api/health/live`,
         reuseExistingServer,
         timeout: 120_000,
         env: {
           ...process.env,
           PORT: "3000",
           HOSTNAME: "127.0.0.1",
+          PLAYWRIGHT_BASE_URL: baseURL,
+          E2E_ALLOW_INSECURE_SESSION: "1",
         },
       },
 });
