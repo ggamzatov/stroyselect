@@ -42,33 +42,23 @@ BEGIN
     IF NEW.stage_id IS NULL THEN
       RAISE EXCEPTION 'Выплата подрядчику должна быть привязана к принятому этапу';
     END IF;
-
     SELECT ps.status::text INTO stage_status
     FROM public.project_stages ps
     WHERE ps.id=NEW.stage_id AND ps.project_id=NEW.project_id;
-
     IF stage_status IS DISTINCT FROM 'completed' THEN
       RAISE EXCEPTION 'Выплата подрядчику запрещена до принятия этапа заказчиком';
     END IF;
   END IF;
-
   NEW.updated_at = now();
-  IF NEW.status='release_ready' AND OLD.status IS DISTINCT FROM 'release_ready' THEN
-    NEW.release_ready_at = COALESCE(NEW.release_ready_at,now());
-  END IF;
-  IF NEW.status='paid' AND OLD.status IS DISTINCT FROM 'paid' THEN
-    NEW.paid_at = COALESCE(NEW.paid_at,now());
-  END IF;
-  IF NEW.status='refunded' AND OLD.status IS DISTINCT FROM 'refunded' THEN
-    NEW.refunded_at = COALESCE(NEW.refunded_at,now());
-  END IF;
+  IF NEW.status='release_ready' AND OLD.status IS DISTINCT FROM 'release_ready' THEN NEW.release_ready_at=COALESCE(NEW.release_ready_at,now()); END IF;
+  IF NEW.status='paid' AND OLD.status IS DISTINCT FROM 'paid' THEN NEW.paid_at=COALESCE(NEW.paid_at,now()); END IF;
+  IF NEW.status='refunded' AND OLD.status IS DISTINCT FROM 'refunded' THEN NEW.refunded_at=COALESCE(NEW.refunded_at,now()); END IF;
   RETURN NEW;
 END;
 $$;
 
 DROP TRIGGER IF EXISTS trg_enforce_stage_payment_release ON public.project_payment_intents;
-CREATE TRIGGER trg_enforce_stage_payment_release
-BEFORE UPDATE ON public.project_payment_intents
+CREATE TRIGGER trg_enforce_stage_payment_release BEFORE UPDATE ON public.project_payment_intents
 FOR EACH ROW EXECUTE FUNCTION public.enforce_stage_payment_release();
 
 CREATE OR REPLACE FUNCTION public.release_payment_after_stage_acceptance()
@@ -78,24 +68,19 @@ AS $$
 BEGIN
   IF NEW.status::text='completed' AND OLD.status::text IS DISTINCT FROM 'completed' THEN
     UPDATE public.project_payment_intents
-       SET status='release_ready', release_ready_at=COALESCE(release_ready_at,now()), updated_at=now()
-     WHERE project_id=NEW.project_id
-       AND stage_id=NEW.id
-       AND status IN ('funded','stage_submitted');
+       SET status='release_ready',release_ready_at=COALESCE(release_ready_at,now()),updated_at=now()
+     WHERE project_id=NEW.project_id AND stage_id=NEW.id AND status IN ('funded','stage_submitted');
   ELSIF NEW.status::text IN ('revision_required','awaiting_review') THEN
     UPDATE public.project_payment_intents
-       SET status='stage_submitted', release_ready_at=NULL, updated_at=now()
-     WHERE project_id=NEW.project_id
-       AND stage_id=NEW.id
-       AND status='release_ready';
+       SET status='stage_submitted',release_ready_at=NULL,updated_at=now()
+     WHERE project_id=NEW.project_id AND stage_id=NEW.id AND status='release_ready';
   END IF;
   RETURN NEW;
 END;
 $$;
 
 DROP TRIGGER IF EXISTS trg_release_payment_after_stage_acceptance ON public.project_stages;
-CREATE TRIGGER trg_release_payment_after_stage_acceptance
-AFTER UPDATE OF status ON public.project_stages
+CREATE TRIGGER trg_release_payment_after_stage_acceptance AFTER UPDATE OF status ON public.project_stages
 FOR EACH ROW EXECUTE FUNCTION public.release_payment_after_stage_acceptance();
 
 CREATE OR REPLACE FUNCTION public.enforce_legacy_payment_after_stage_acceptance()
@@ -106,33 +91,23 @@ DECLARE
   contract_status text;
   stage_status text;
 BEGIN
-  SELECT pc.status INTO contract_status
-  FROM public.project_contracts pc
-  WHERE pc.project_id=NEW.project_id;
-
+  SELECT pc.status INTO contract_status FROM public.project_contracts pc WHERE pc.project_id=NEW.project_id;
   IF contract_status IS DISTINCT FROM 'active' THEN
     RAISE EXCEPTION 'Расчёты доступны только после подписания договора обеими сторонами';
   END IF;
-
   IF NEW.stage_id IS NULL THEN
     RAISE EXCEPTION 'Выплата подрядчику должна быть привязана к этапу работ';
   END IF;
-
-  SELECT ps.status::text INTO stage_status
-  FROM public.project_stages ps
-  WHERE ps.id=NEW.stage_id AND ps.project_id=NEW.project_id;
-
+  SELECT ps.status::text INTO stage_status FROM public.project_stages ps WHERE ps.id=NEW.stage_id AND ps.project_id=NEW.project_id;
   IF stage_status IS DISTINCT FROM 'completed' THEN
     RAISE EXCEPTION 'Нельзя зафиксировать выплату подрядчику до принятия этапа заказчиком';
   END IF;
-
   RETURN NEW;
 END;
 $$;
 
 DROP TRIGGER IF EXISTS trg_enforce_legacy_payment_after_stage_acceptance ON public.project_payments;
-CREATE TRIGGER trg_enforce_legacy_payment_after_stage_acceptance
-BEFORE INSERT ON public.project_payments
+CREATE TRIGGER trg_enforce_legacy_payment_after_stage_acceptance BEFORE INSERT ON public.project_payments
 FOR EACH ROW EXECUTE FUNCTION public.enforce_legacy_payment_after_stage_acceptance();
 
 CREATE OR REPLACE FUNCTION public.activate_project_after_contract_signing()
@@ -145,72 +120,36 @@ DECLARE
   contractor_user uuid;
   project_title text;
 BEGIN
-  IF NEW.customer_approved_at IS NULL OR NEW.contractor_approved_at IS NULL THEN
-    RETURN NEW;
-  END IF;
+  IF NEW.customer_approved_at IS NULL OR NEW.contractor_approved_at IS NULL THEN RETURN NEW; END IF;
+  IF OLD.customer_approved_at IS NOT NULL AND OLD.contractor_approved_at IS NOT NULL THEN RETURN NEW; END IF;
 
-  IF OLD.customer_approved_at IS NOT NULL AND OLD.contractor_approved_at IS NOT NULL THEN
-    RETURN NEW;
-  END IF;
+  SELECT * INTO contract_row FROM public.project_contracts pc
+   WHERE pc.id=NEW.contract_id AND pc.current_version=NEW.version_no FOR UPDATE;
+  IF contract_row.id IS NULL THEN RETURN NEW; END IF;
 
-  SELECT * INTO contract_row
-  FROM public.project_contracts pc
-  WHERE pc.id=NEW.contract_id
-    AND pc.current_version=NEW.version_no
-  FOR UPDATE;
-
-  IF contract_row.id IS NULL THEN
-    RETURN NEW;
-  END IF;
-
-  UPDATE public.project_contracts
-     SET status='active', updated_at=now()
-   WHERE id=contract_row.id;
-
-  UPDATE public.projects
-     SET status=CASE WHEN status='contractor_selected' THEN 'in_progress' ELSE status END,
-         updated_at=now()
-   WHERE id=contract_row.project_id
-   RETURNING customer_id,title INTO customer_user,project_title;
-
-  SELECT cc.owner_id INTO contractor_user
-  FROM public.contractor_companies cc
-  WHERE cc.id=contract_row.contractor_id;
-
-  INSERT INTO public.project_events(project_id,author_id,event_type,title,description,metadata)
-  VALUES(
-    contract_row.project_id,
-    customer_user,
-    'project_started',
-    'Договор подписан обеими сторонами',
-    'Рабочий этап проекта открыт после подписания текущей версии договора.',
-    jsonb_build_object('contract_id',contract_row.id,'version_no',NEW.version_no)
-  );
+  UPDATE public.project_contracts SET status='active',updated_at=now() WHERE id=contract_row.id;
+  SELECT p.customer_id,p.title INTO customer_user,project_title FROM public.projects p WHERE p.id=contract_row.project_id;
+  SELECT cc.owner_id INTO contractor_user FROM public.contractor_companies cc WHERE cc.id=contract_row.contractor_id;
 
   IF customer_user IS NOT NULL THEN
-    INSERT INTO public.notifications(
-      user_id,actor_id,notification_type,title,body,project_id,url,metadata,deduplication_key
-    ) VALUES(
-      customer_user,NULL,'contract_activated','Договор подписан обеими сторонами',
-      'Можно переходить к этапам работ и оплате по проекту «'||COALESCE(project_title,'Проект')||'».',
+    INSERT INTO public.notifications(user_id,actor_id,notification_type,title,body,project_id,url,metadata,deduplication_key)
+    VALUES(customer_user,NULL,'contract_activated','Договор подписан обеими сторонами',
+      'Договор по проекту «'||COALESCE(project_title,'Проект')||'» вступил в силу. Теперь можно сформировать этапы работ.',
       contract_row.project_id,'/customer/work/'||contract_row.project_id||'/contract',
       jsonb_build_object('contract_id',contract_row.id,'version_no',NEW.version_no),
-      'contract-activated:'||contract_row.id||':'||NEW.version_no||':'||customer_user
-    ) ON CONFLICT DO NOTHING;
+      'contract-activated:'||contract_row.id||':'||NEW.version_no||':'||customer_user)
+    ON CONFLICT DO NOTHING;
   END IF;
 
   IF contractor_user IS NOT NULL THEN
-    INSERT INTO public.notifications(
-      user_id,actor_id,notification_type,title,body,project_id,url,metadata,deduplication_key
-    ) VALUES(
-      contractor_user,NULL,'contract_activated','Договор подписан обеими сторонами',
-      'Можно переходить к этапам работ по проекту «'||COALESCE(project_title,'Проект')||'».',
+    INSERT INTO public.notifications(user_id,actor_id,notification_type,title,body,project_id,url,metadata,deduplication_key)
+    VALUES(contractor_user,NULL,'contract_activated','Договор подписан обеими сторонами',
+      'Договор по проекту «'||COALESCE(project_title,'Проект')||'» вступил в силу. Можно сформировать этапы и приступить к работам.',
       contract_row.project_id,'/contractor/work/'||contract_row.project_id||'/contract',
       jsonb_build_object('contract_id',contract_row.id,'version_no',NEW.version_no),
-      'contract-activated:'||contract_row.id||':'||NEW.version_no||':'||contractor_user
-    ) ON CONFLICT DO NOTHING;
+      'contract-activated:'||contract_row.id||':'||NEW.version_no||':'||contractor_user)
+    ON CONFLICT DO NOTHING;
   END IF;
-
   RETURN NEW;
 END;
 $$;
