@@ -21,8 +21,8 @@ Create `.env.production` from `.env.example` on the deployment host or provide t
 Required production values include:
 
 - `DATABASE_URL` — private PostgreSQL connection string;
-- `APP_BASE_URL` / `NEXT_PUBLIC_APP_URL` — canonical HTTPS origin;
-- `CRON_SECRET` — long random secret protecting scheduled maintenance;
+- `APP_BASE_URL` / `NEXT_PUBLIC_APP_URL` — the same canonical HTTPS origin;
+- `CRON_SECRET` — random secret of at least 32 characters protecting scheduled maintenance;
 - `S3_ENDPOINT`, `S3_REGION`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_FORCE_PATH_STYLE`;
 - `RESEND_API_KEY`, `EMAIL_FROM`;
 - `LEGAL_OPERATOR_NAME`, `LEGAL_OPERATOR_INN`, `LEGAL_OPERATOR_OGRN`, `LEGAL_OPERATOR_ADDRESS`, `LEGAL_OPERATOR_EMAIL` and, when used, `LEGAL_OPERATOR_PHONE`.
@@ -109,6 +109,30 @@ The smoke checks:
 
 Then manually verify login with one real/staging customer and contractor account. Do not use E2E seed scripts on production.
 
+## Final public-launch acceptance
+
+After deploy, migrations and smoke, complete every required row on `/admin/release`. The checklist is grouped into legal, infrastructure, operations and product controls. Payment rows remain non-blocking while `PAYMENTS_ENABLED=false`.
+
+Run the final gate from a trusted administration host that has network access to both the production HTTPS origin and production PostgreSQL. Export the same production environment variables used by the application, then run:
+
+```bash
+DEPLOY_BASE_URL=https://YOUR_HOST npm run production:launch:check
+```
+
+`production:launch:check` is read-only with respect to application data. It verifies:
+
+- valid HTTPS access, liveness and PostgreSQL-backed readiness;
+- required security headers and HSTS;
+- public legal pages are reachable and do not expose obvious placeholder operator data;
+- `robots.txt` and `sitemap.xml` are available and use the production canonical origin;
+- admin pages are not anonymous-public;
+- the maintenance endpoint rejects unauthenticated requests;
+- every required `/admin/release` row is completed;
+- there are no open critical marketplace SLA alerts;
+- unresolved application errors seen during the previous 24 hours are surfaced as a warning for manual review.
+
+A warning does not automatically fail the launch gate, but every warning must be reviewed and documented before opening registration broadly.
+
 ## Rollback
 
 Application-only regression:
@@ -166,7 +190,8 @@ Vercel invokes `/api/internal/maintenance` every ten minutes according to `verce
 - database housekeeping;
 - due meeting reminders;
 - stage due/overdue reminders;
-- delivery of queued transactional email with retry/backoff.
+- delivery of queued transactional email with retry/backoff;
+- critical marketplace SLA escalation.
 
 For non-Vercel hosting, call the same protected endpoint from the platform scheduler at a comparable interval. Do not expose it without `CRON_SECRET`.
 
@@ -208,16 +233,18 @@ A release is accepted only when all are true:
 
 - `npm run verify` is green;
 - `npm run production:env:check` is green against deployment values;
-- production seeded E2E including UI regression is green on an isolated test database;
-- backup has been created before schema changes;
+- production seeded E2E including UI and pre-launch regression is green on an isolated test database;
+- backup has been created before schema changes and copied off-host;
 - restore drill has passed recently;
 - migrations completed successfully as a separate deployment step;
 - application container is healthy;
 - `/api/health/live` and `/api/health/ready` are green;
 - scheduled maintenance is configured with a real `CRON_SECRET`;
 - transactional email delivery is verified in staging;
+- storage audit is green;
 - `DEPLOY_BASE_URL=https://... npm run production:smoke` is green;
 - admin error monitoring receives test events in staging;
-- no unresolved P0/P1 error is visible in `/admin/errors`;
-- all required rows on `/admin/release` are confirmed;
-- critical customer and contractor flows work from a clean browser session.
+- no blocking operational issue remains unresolved;
+- every required row on `/admin/release` is confirmed;
+- critical customer and contractor flows work from a clean browser session;
+- `DEPLOY_BASE_URL=https://... npm run production:launch:check` passes from a trusted administration host.
