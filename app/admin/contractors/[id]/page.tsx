@@ -16,18 +16,16 @@ import {
   Wrench,
 } from "lucide-react";
 
-import { getContractorReview } from
-  "@/features/admin/contractors/queries/get-contractor-review";
-import { VerificationStatusBadge } from
-  "@/features/admin/components/verification-status-badge";
-import { ContractorReviewActions } from
-  "@/features/admin/components/contractor-review-actions";
+import { getContractorReview } from "@/features/admin/contractors/queries/get-contractor-review";
+import { VerificationStatusBadge } from "@/features/admin/components/verification-status-badge";
+import { ContractorReviewActions } from "@/features/admin/components/contractor-review-actions";
+import { ContractorDataQualityPanel } from "@/features/admin/contractors/components/contractor-data-quality-panel";
 
 type Props = { params: Promise<{ id: string }> };
 
 export default async function ContractorReviewPage({ params }: Props) {
   const { id } = await params;
-  const { company, owner, logs } = await getContractorReview(id);
+  const { company, owner, logs, profileChanges, registryChecks, openMatches } = await getContractorReview(id);
 
   return (
     <div className="space-y-6">
@@ -43,7 +41,7 @@ export default async function ContractorReviewPage({ params }: Props) {
             <div className="min-w-0">
               <p className="text-sm font-semibold text-primary">Проверка подрядчика</p>
               <h1 className="mt-1 break-words text-3xl font-black tracking-[-0.04em] text-foreground md:text-4xl">{company.public_name}</h1>
-              {company.legal_name && <p className="mt-2 text-sm text-muted-foreground">{company.legal_name}</p>}
+              {company.legal_name && <p className="mt-2 break-words text-sm text-muted-foreground">{company.legal_name}</p>}
             </div>
           </div>
           <VerificationStatusBadge status={company.verification_status} />
@@ -52,6 +50,15 @@ export default async function ContractorReviewPage({ params }: Props) {
 
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-6">
+          <ContractorDataQualityPanel
+            contractorId={company.id}
+            inn={company.inn}
+            ogrn={company.ogrn}
+            profileChanges={profileChanges}
+            registryChecks={registryChecks}
+            openMatches={openMatches}
+          />
+
           <InfoSection title="Основная информация" icon={<Building2 className="h-5 w-5" />}>
             <InfoRow label="Публичное название" value={company.public_name} />
             <InfoRow label="Юридическое название" value={company.legal_name} />
@@ -63,7 +70,7 @@ export default async function ContractorReviewPage({ params }: Props) {
           </InfoSection>
 
           <InfoSection title="Описание компании" icon={<BadgeCheck className="h-5 w-5" />}>
-            <p className="whitespace-pre-wrap text-sm leading-7 text-muted-foreground">{company.description || "Описание не указано"}</p>
+            <p className="whitespace-pre-wrap break-words text-sm leading-7 text-muted-foreground">{company.description || "Описание не указано"}</p>
           </InfoSection>
 
           <InfoSection title="Диапазон проектов" icon={<Banknote className="h-5 w-5" />}>
@@ -133,6 +140,7 @@ export default async function ContractorReviewPage({ params }: Props) {
               <SidebarLine icon={<CalendarDays className="h-4 w-4" />} label="Начало работы" value={company.founded_year ? String(company.founded_year) : "Не указано"} />
               <SidebarLine icon={<UsersRound className="h-4 w-4" />} label="Сотрудников" value={company.employee_count ? String(company.employee_count) : "Не указано"} />
               <SidebarLine icon={<Clock3 className="h-4 w-4" />} label="Решений" value={String(logs.length)} />
+              <SidebarLine icon={<ShieldCheck className="h-4 w-4" />} label="Проверок реестров" value={String(registryChecks.length)} />
             </div>
           </section>
         </aside>
@@ -145,7 +153,7 @@ function InfoSection({ title, icon, children }: { title: string; icon: React.Rea
   return <section className="rounded-[1.75rem] border border-border bg-card p-6 shadow-[var(--shadow-soft)] md:p-7"><div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-secondary text-primary">{icon}</span><h2 className="text-xl font-bold tracking-tight text-foreground">{title}</h2></div><div className="mt-6 space-y-4">{children}</div></section>;
 }
 function InfoRow({ label, value }: { label: string; value: string | null | undefined }) { return <div className="grid gap-1 border-b border-border pb-4 last:border-0 last:pb-0 md:grid-cols-[220px_minmax(0,1fr)]"><span className="text-sm text-muted-foreground">{label}</span><span className="break-words font-semibold text-foreground">{value || "Не указано"}</span></div>; }
-function DataCard({ label, value }: { label: string; value: string }) { return <div className="rounded-[1.3rem] border border-border bg-background/60 p-4"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-2 font-bold text-foreground">{value}</p></div>; }
+function DataCard({ label, value }: { label: string; value: string }) { return <div className="rounded-[1.3rem] border border-border bg-background/60 p-4"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-2 break-words font-bold text-foreground">{value}</p></div>; }
 function ContactGrid({ children }: { children: React.ReactNode }) { return <div className="grid gap-3 sm:grid-cols-2">{children}</div>; }
 function ContactItem({ icon, label, value }: { icon: React.ReactNode; label: string; value: string | null | undefined }) { return <div className="rounded-[1.25rem] border border-border bg-background/60 p-4"><div className="flex items-center gap-2 text-primary">{icon}<span className="text-xs font-semibold">{label}</span></div><p className="mt-2 break-all text-sm font-semibold text-foreground">{value || "Не указано"}</p></div>; }
 function SidebarLine({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) { return <div className="flex items-center gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-secondary text-primary">{icon}</span><div className="min-w-0"><p className="text-xs text-muted-foreground">{label}</p><p className="truncate text-sm font-semibold text-foreground">{value}</p></div></div>; }
