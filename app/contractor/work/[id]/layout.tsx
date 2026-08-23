@@ -1,5 +1,6 @@
 import { ProjectRiskHoldBanner } from "@/features/workspace/components/project-risk-hold-banner";
 import { ProjectWorkspaceNav } from "@/features/workspace/components/project-workspace-nav";
+import { WorkspacePageNavigator } from "@/features/workspace/components/workspace-page-navigator";
 import { getProjectRiskHoldForParticipant } from "@/features/workspace/queries/get-project-risk-hold";
 
 type Props = {
@@ -19,6 +20,7 @@ export default async function ContractorWorkLayout({
       <ProjectWorkspaceNav projectId={id} role="contractor" />
       <ProjectRiskHoldBanner state={riskHold} />
       {children}
+      <WorkspacePageNavigator />
     </>
   );
 }
