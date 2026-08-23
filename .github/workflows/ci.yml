@@ -72,6 +72,9 @@ jobs:
       - name: Production readiness audit
         run: npm run production:audit
 
+      - name: Source consistency audit
+        run: npm run source:audit
+
       - name: Lint
         run: npm run lint
 
