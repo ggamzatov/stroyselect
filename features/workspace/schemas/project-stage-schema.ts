@@ -103,8 +103,8 @@ export const projectStageSchema = z
         .number()
         .int()
         .min(
-          0,
-          "Процент не может быть меньше 0"
+          1,
+          "Доля этапа должна быть не меньше 1%"
         )
         .max(
           100,
