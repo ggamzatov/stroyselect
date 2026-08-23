@@ -1,45 +1,57 @@
 import { expect, test } from "@playwright/test";
 
-import {
-  credentials,
-  login,
-  logout,
-  requiredProjectId,
-} from "./helpers/auth";
+import { credentials, login, logout, requiredProjectId } from "./helpers/auth";
 
 const customer = credentials("CUSTOMER");
 const contractor = credentials("CONTRACTOR");
-const admin = credentials("ADMIN");
+const adminEmail = process.env.E2E_ADMIN_EMAIL?.trim();
+const adminPassword = process.env.E2E_ADMIN_PASSWORD;
 const workspaceProjectId = requiredProjectId("WORKSPACE");
-const fixtureAvailable = Boolean(customer && contractor && admin && workspaceProjectId);
+const paymentId = process.env.E2E_PAYMENT_ID?.trim();
+
+const fixtureAvailable = Boolean(
+  customer && contractor && adminEmail && adminPassword && workspaceProjectId && paymentId
+);
 
 test.describe("production hardening", () => {
+  test.describe.configure({ mode: "serial" });
+
   test.beforeEach(() => {
-    test.skip(!fixtureAvailable, "Production hardening E2E fixture is not configured");
+    test.skip(!fixtureAvailable, "Run npm run e2e:seed to provision production-hardening fixtures");
   });
 
   test("customer cannot access admin monitoring", async ({ page }) => {
     await login(page, customer!);
-    const response = await page.goto("/admin/errors");
-    expect(response?.status()).toBeLessThan(500);
-    await expect(page).not.toHaveURL(/\/admin\/errors/);
+    await page.goto("/admin/errors");
+    await expect(page).toHaveURL(/\/dashboard(?:\?|$)/);
   });
 
-  test("client error is captured and visible to admin", async ({ page, request }) => {
-    const marker = `E2E client error ${Date.now()}`;
+  test("client error is captured and visible to admin", async ({ page }) => {
+    const marker = `E2E observability ${Date.now()}`;
 
     await login(page, customer!);
-    const response = await request.post("/api/errors/client", {
-      data: {
-        message: marker,
-        path: "/e2e/observability",
-        source: "e2e",
-      },
-    });
-    expect(response.ok()).toBeTruthy();
+    await page.goto("/customer/dashboard");
+
+    const response = await page.evaluate(async (message) => {
+      const result = await fetch("/api/errors/client", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          message,
+          route: "/e2e/observability",
+          digest: "e2e-observability",
+          metadata: { suite: "production-hardening" },
+        }),
+      });
+
+      return { ok: result.ok, status: result.status };
+    }, marker);
+
+    expect(response.ok, `client error endpoint returned ${response.status}`).toBeTruthy();
 
     await logout(page);
-    await login(page, admin!);
+    await login(page, { email: adminEmail!, password: adminPassword! });
     await page.goto("/admin/errors");
     await expect(page).toHaveURL(/\/admin\/errors/);
 
@@ -67,6 +79,7 @@ test.describe("production hardening", () => {
     await expect(contractorCard).toBeVisible();
     await expect(contractorCard).toContainText("Заказчик: подтверждено");
     await contractorCard.getByRole("button", { name: "Подтвердить запись" }).click();
+    await expect(contractorCard).toContainText("Подтверждено обеими сторонами");
     await expect(contractorCard).toContainText("Подрядчик: подтверждено");
   });
 });
