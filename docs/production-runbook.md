@@ -12,7 +12,7 @@ npm run test:e2e:production:seeded
 npm run storage:audit
 ```
 
-Never run seeded E2E against a production database. The seed commands create deterministic disposable users/projects and mutate payment confirmation state.
+Never run seeded E2E against a production database. The seed commands create deterministic disposable users/projects and mutate test workflow state.
 
 ## Production environment
 
@@ -22,8 +22,12 @@ Required production values include:
 
 - `DATABASE_URL` — private PostgreSQL connection string;
 - `APP_BASE_URL` / `NEXT_PUBLIC_APP_URL` — canonical HTTPS origin;
+- `CRON_SECRET` — long random secret protecting scheduled maintenance;
 - `S3_ENDPOINT`, `S3_REGION`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_FORCE_PATH_STYLE`;
-- `RESEND_API_KEY`, `EMAIL_FROM`.
+- `RESEND_API_KEY`, `EMAIL_FROM`;
+- `LEGAL_OPERATOR_NAME`, `LEGAL_OPERATOR_INN`, `LEGAL_OPERATOR_OGRN`, `LEGAL_OPERATOR_ADDRESS`, `LEGAL_OPERATOR_EMAIL` and, when used, `LEGAL_OPERATOR_PHONE`.
+
+Keep `PAYMENTS_ENABLED=false` until a separate payment-provider rollout is approved and tested. YooKassa credentials are not required for the public version without online payments.
 
 The application must be exposed through an HTTPS reverse proxy/load balancer. The provided production Compose file binds the app to `127.0.0.1` intentionally; TLS termination should happen in the proxy.
 
@@ -41,7 +45,7 @@ Or start with the hardened Compose profile:
 
 ```bash
 cp .env.example .env.production
-# Replace every placeholder in .env.production with real production secrets/endpoints.
+# Replace every required placeholder in .env.production with real production secrets/endpoints.
 APP_IMAGE_TAG=$(git rev-parse --short HEAD) npm run production:compose:up
 ```
 
@@ -141,24 +145,52 @@ The seeded production E2E verifies that:
 - a client error submitted while authenticated is persisted;
 - the admin can see that error with its route and originating user.
 
-## Financial workflow verification
+## Project and financial lifecycle
 
-The seeded production E2E also verifies the two-party payment state machine:
+The operational sequence is enforced server-side:
 
-1. customer confirms a seeded payment;
-2. contractor sees the customer confirmation;
-3. contractor confirms the same payment;
-4. UI reports `Подтверждён обеими сторонами`.
+1. customer accepts a contractor proposal;
+2. customer creates the agreed contract version;
+3. customer and contractor sign the same current version;
+4. only after both signatures can work stages be created and started;
+5. contractor submits a stage for acceptance;
+6. customer accepts it or returns it for revision;
+7. any future online release of funds is allowed only for a stage with status `completed` (accepted by customer).
 
-## Housekeeping
+While `PAYMENTS_ENABLED=false`, the UI exposes only the transitional manual record for an already accepted stage. It must never be used to bypass stage acceptance.
 
-Run periodically:
+## Scheduled reminders and email queue
+
+Vercel invokes `/api/internal/maintenance` every ten minutes according to `vercel.json`. The endpoint requires `Authorization: Bearer <CRON_SECRET>` and performs:
+
+- database housekeeping;
+- due meeting reminders;
+- stage due/overdue reminders;
+- delivery of queued transactional email with retry/backoff.
+
+For non-Vercel hosting, call the same protected endpoint from the platform scheduler at a comparable interval. Do not expose it without `CRON_SECRET`.
+
+The local command remains available for maintenance drills:
 
 ```bash
 npm run maintenance
 ```
 
-This removes stale rate-limit/login/session/token rows and resolved application errors according to the database housekeeping policy.
+## Realtime chat
+
+Project chat uses an authenticated SSE endpoint backed by PostgreSQL `LISTEN/NOTIFY`. The client retains a slower recovery refresh so a dropped event stream does not leave the conversation permanently stale. Reverse proxies must allow streaming responses and should not buffer `text/event-stream` responses.
+
+## Legal release controls
+
+Before opening registration to real users:
+
+1. fill all real `LEGAL_OPERATOR_*` values;
+2. verify the public personal-data policy, consent and terms with the actual operator model;
+3. perform the organizational actions required for the operator (including Roskomnadzor-related actions where applicable);
+4. complete required rows on `/admin/release` and record supporting notes/evidence;
+5. keep payment-specific checklist rows deferred while `PAYMENTS_ENABLED=false`.
+
+The in-product checklist is an operational gate and does not replace a legal opinion or filing required by law.
 
 ## Network and TLS
 
@@ -168,7 +200,7 @@ HSTS is emitted by the production application build. Do not serve the same produ
 
 ## Secrets
 
-Do not commit `.env.local`, `.env.production`, `.env.e2e.local`, database dumps, S3 credentials, email credentials or session secrets. Rotate secrets after any suspected exposure and invalidate active sessions when authentication secrets are rotated.
+Do not commit `.env.local`, `.env.production`, `.env.e2e.local`, database dumps, S3 credentials, email credentials, `CRON_SECRET` or session secrets. Rotate secrets after any suspected exposure and invalidate active sessions when authentication secrets are rotated.
 
 ## Release acceptance checklist
 
@@ -176,13 +208,16 @@ A release is accepted only when all are true:
 
 - `npm run verify` is green;
 - `npm run production:env:check` is green against deployment values;
-- production seeded E2E is green on an isolated test database;
+- production seeded E2E including UI regression is green on an isolated test database;
 - backup has been created before schema changes;
 - restore drill has passed recently;
 - migrations completed successfully as a separate deployment step;
 - application container is healthy;
 - `/api/health/live` and `/api/health/ready` are green;
+- scheduled maintenance is configured with a real `CRON_SECRET`;
+- transactional email delivery is verified in staging;
 - `DEPLOY_BASE_URL=https://... npm run production:smoke` is green;
 - admin error monitoring receives test events in staging;
 - no unresolved P0/P1 error is visible in `/admin/errors`;
+- all required rows on `/admin/release` are confirmed;
 - critical customer and contractor flows work from a clean browser session.
