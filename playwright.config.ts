@@ -20,7 +20,7 @@ export default defineConfig({
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
     {
       name: "mobile-chromium",
-      testMatch: /pre-launch-quality\.spec\.ts/,
+      testMatch: /(?:pre-launch-quality|full-app-audit)\.spec\.ts/,
       use: { ...devices["Pixel 7"] },
     },
   ],
