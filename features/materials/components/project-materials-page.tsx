@@ -18,7 +18,7 @@ export async function ProjectMaterialsPage({projectId,role,query}:Props){
  const activeUser=await requireActiveUser();if(!activeUser.success)redirect("/login");if(activeUser.profile.role!==role)redirect("/dashboard");const ctx=await getMaterialProjectParticipant(projectId,activeUser.user.id,activeUser.profile.role);if(!ctx.success)redirect(`/${role}/work/${projectId}`);
  const listResult=await db.query<ListRow>(`SELECT id,title,status,selected_quote_id,created_at FROM public.project_material_lists WHERE project_id=$1::uuid ORDER BY created_at DESC LIMIT 1`,[projectId]);const list=listResult.rows[0]??null;
  const [itemsResult,productsResult,requestResult]=await Promise.all([
-   list?db.query<ItemRow>(`SELECT id,product_id,description,quantity,unit FROM public.project_material_items WHERE list_id=$1::uuid ORDER BY sort_order,created_at`):Promise.resolve({rows:[]} as {rows:ItemRow[]}),
+   list?db.query<ItemRow>(`SELECT id,product_id,description,quantity,unit FROM public.project_material_items WHERE list_id=$1::uuid ORDER BY sort_order,created_at`,[list.id]):Promise.resolve({rows:[]} as {rows:ItemRow[]}),
    db.query<ProductRow>(`SELECT id,canonical_name,brand,model,unit FROM public.material_products WHERE is_active=true ORDER BY canonical_name LIMIT 1000`),
    list?db.query<RequestRow>(`SELECT id,status,requested_at,closes_at FROM public.material_procurement_requests WHERE list_id=$1::uuid ORDER BY requested_at DESC LIMIT 1`,[list.id]):Promise.resolve({rows:[]} as {rows:RequestRow[]}),
  ]);
