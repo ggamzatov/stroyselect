@@ -168,7 +168,7 @@ export async function createMaterialDeliveryClaim(formData:FormData):Promise<nev
   const version=claim.version??claim.revision??null;
   const mapped=mapYandexStatus(claim.status);
   const localStatus:ClaimCreationState=mapped==="failed"||mapped==="cancelled"?mapped:"claim_created";
-  await db.query(`UPDATE public.material_delivery_requests SET status=$2,provider_claim_id=$3,provider_status=$4,provider_version=$5,provider_error=NULL,claim_created_at=COALESCE(claim_created_at,now()),updated_at=now() WHERE id=$1::uuid`,[requestId,localStatus,claim.id,claim.status,version]);
+  await db.query(`UPDATE public.material_delivery_requests SET status=$2::varchar,provider_claim_id=$3,provider_status=$4,provider_version=$5,provider_error=NULL,claim_created_at=COALESCE(claim_created_at,now()),updated_at=now() WHERE id=$1::uuid`,[requestId,localStatus,claim.id,claim.status,version]);
   revalidateMaterials(request.project_id);redirect(url(mapped==="failed"||mapped==="cancelled"?"delivery_error=claim_status":"delivery=claim_created"));
 }
 
@@ -237,11 +237,11 @@ async function persistProviderState(requestId:string,orderId:string,info:YandexC
     const current=localResult.rows[0]?.status;if(!current){await client.query("ROLLBACK");return;}
     const next=nextState(current,mapped);
     await client.query(`
-      UPDATE public.material_delivery_requests SET status=$2,provider_status=$3,provider_version=$4,provider_error=NULL,
-        accepted_at=CASE WHEN $2 IN ('accepted','in_delivery','delivered') THEN COALESCE(accepted_at,now()) ELSE accepted_at END,
-        picked_up_at=CASE WHEN $2 IN ('in_delivery','delivered') THEN COALESCE(picked_up_at,now()) ELSE picked_up_at END,
-        delivered_at=CASE WHEN $2='delivered' THEN COALESCE(delivered_at,now()) ELSE delivered_at END,
-        cancelled_at=CASE WHEN $2='cancelled' THEN COALESCE(cancelled_at,now()) ELSE cancelled_at END,
+      UPDATE public.material_delivery_requests SET status=$2::varchar,provider_status=$3,provider_version=$4,provider_error=NULL,
+        accepted_at=CASE WHEN $2::varchar IN ('accepted','in_delivery','delivered') THEN COALESCE(accepted_at,now()) ELSE accepted_at END,
+        picked_up_at=CASE WHEN $2::varchar IN ('in_delivery','delivered') THEN COALESCE(picked_up_at,now()) ELSE picked_up_at END,
+        delivered_at=CASE WHEN $2::varchar='delivered' THEN COALESCE(delivered_at,now()) ELSE delivered_at END,
+        cancelled_at=CASE WHEN $2::varchar='cancelled' THEN COALESCE(cancelled_at,now()) ELSE cancelled_at END,
         updated_at=now()
       WHERE id=$1::uuid
     `,[requestId,next,info.status,version]);
