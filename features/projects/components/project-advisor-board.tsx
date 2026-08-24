@@ -296,7 +296,10 @@ function TaskPanel({ projectId, tasks }: { projectId: string; tasks: AdvisorTask
 
       <div className="mt-4 space-y-3">
         <input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={300} placeholder="Например: позвонить финалистам" className="min-h-11 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary" />
-        <input type="datetime-local" value={dueAt} onChange={(event) => setDueAt(event.target.value)} className="min-h-11 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary" />
+        <label className="block text-xs font-semibold text-muted-foreground">
+          Срок задачи
+          <input type="datetime-local" value={dueAt} onChange={(event) => setDueAt(event.target.value)} className="mt-2 min-h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary" />
+        </label>
         <button type="button" disabled={isPending || !title.trim()} onClick={createTask} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-primary px-3 text-xs font-bold text-primary-foreground disabled:opacity-50">
           {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarClock className="h-4 w-4" />} Добавить задачу
         </button>
@@ -305,7 +308,13 @@ function TaskPanel({ projectId, tasks }: { projectId: string; tasks: AdvisorTask
       <div className="mt-5 space-y-2">
         {sortedTasks.length === 0 ? <p className="text-sm text-muted-foreground">Задач пока нет.</p> : sortedTasks.map((task) => (
           <div key={task.id} className="flex items-start gap-3 rounded-xl border border-border bg-background/60 p-3">
-            <button type="button" disabled={isPending} onClick={() => toggle(task)} className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border text-primary">
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={() => toggle(task)}
+              aria-label={task.isCompleted ? "Вернуть задачу в работу" : "Отметить задачу выполненной"}
+              className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border text-primary"
+            >
               {task.isCompleted ? <Check className="h-4 w-4" /> : null}
             </button>
             <div className="min-w-0 flex-1">
