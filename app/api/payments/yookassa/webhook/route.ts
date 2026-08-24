@@ -1,63 +1,87 @@
+import { NextResponse } from "next/server";
+
 import { db } from "@/lib/db/pool";
-import { getYooKassaObject } from "@/lib/payments/yookassa";
 
-export const dynamic = "force-dynamic";
+type WebhookBody={event?:string;object?:{id?:string}};
+type YooPayment={id:string;status:string;paid?:boolean;amount:{value:string;currency:string};metadata?:Record<string,string>;payment_method?:{id?:string;saved?:boolean}};
+type LocalPayment={id:string;contractor_id:string;plan_id:string|null;status:string;amount_minor:string|number;currency:string;duration_months_snapshot:number;auto_renew_requested:boolean};
 
-type Notification = { type?: string; event?: string; object?: Record<string,unknown>&{id?:string;status?:string;metadata?:Record<string,unknown>} };
+export async function POST(request:Request){
+  const shopId=process.env.YOOKASSA_SHOP_ID?.trim();
+  const secretKey=process.env.YOOKASSA_SECRET_KEY?.trim();
+  if(!shopId||!secretKey)return NextResponse.json({ok:false,error:"provider_not_configured"},{status:503});
 
-export async function POST(request: Request) {
-  let payload: Notification;
-  try { payload = await request.json() as Notification; } catch { return Response.json({ ok:false },{status:400}); }
-  const event=payload.event?.trim();
-  const object=payload.object;
-  const objectId=object?.id?.trim();
-  if(payload.type!=="notification"||!event||!objectId)return Response.json({ok:false},{status:400});
+  let incoming:WebhookBody;
+  try{incoming=await request.json() as WebhookBody;}catch{return NextResponse.json({ok:false},{status:400});}
+  const providerPaymentId=incoming.object?.id;
+  if(!providerPaymentId)return NextResponse.json({ok:false},{status:400});
 
-  const [kind] = event.split(".");
-  if(!["payment","refund","payout","deal"].includes(kind))return Response.json({ok:true});
+  const response=await fetch(`https://api.yookassa.ru/v3/payments/${encodeURIComponent(providerPaymentId)}`,{
+    headers:{Authorization:`Basic ${Buffer.from(`${shopId}:${secretKey}`).toString("base64")}`},
+    cache:"no-store",
+  });
+  if(!response.ok)return NextResponse.json({ok:false},{status:502});
+  const provider=await response.json() as YooPayment;
 
+  const client=await db.connect();
   try{
-    const verified=await getYooKassaObject(kind as "payment"|"refund"|"payout"|"deal",objectId);
-    const incomingStatus=typeof object?.status==="string"?object.status:null;
-    if(incomingStatus&&verified.status&&incomingStatus!==verified.status){
-      console.warn("YooKassa webhook status differs from current API object",{event,objectId,incomingStatus,currentStatus:verified.status});
+    await client.query("BEGIN");
+    const localResult=await client.query<LocalPayment>(`
+      SELECT id,contractor_id,plan_id,status,amount_minor,currency,duration_months_snapshot,auto_renew_requested
+      FROM public.contractor_subscription_payments
+      WHERE provider_payment_id=$1
+      LIMIT 1 FOR UPDATE
+    `,[providerPaymentId]);
+    const local=localResult.rows[0];
+    if(!local){await client.query("ROLLBACK");return NextResponse.json({ok:true,ignored:"unknown_payment"});}
+
+    if(provider.status==="canceled"){
+      if(local.status==="pending")await client.query(`UPDATE public.contractor_subscription_payments SET status='cancelled',updated_at=now() WHERE id=$1::uuid`,[local.id]);
+      await client.query("COMMIT");
+      return NextResponse.json({ok:true});
+    }
+    if(provider.status!=="succeeded"||provider.paid===false){
+      await client.query("COMMIT");
+      return NextResponse.json({ok:true,ignored:"not_succeeded"});
+    }
+    if(local.status==="succeeded"){
+      await client.query("COMMIT");
+      return NextResponse.json({ok:true,idempotent:true});
     }
 
-    const eventId=`${event}:${objectId}:${incomingStatus??verified.status??"unknown"}`;
-    const inserted=await db.query<{id:string}>(`
-      INSERT INTO public.payment_provider_events(provider,provider_event_id,event_type,object_type,object_id,payload)
-      VALUES('yookassa',$1::text,$2::text,$3::text,$4::text,$5::jsonb)
-      ON CONFLICT(provider,provider_event_id) DO NOTHING RETURNING id
-    `,[eventId,event,kind,objectId,JSON.stringify(payload)]);
-    if(!inserted.rows[0])return Response.json({ok:true});
-
-    await db.query(`SELECT set_config('stroyselect.payment_source','yookassa',true)`);
-    if(kind==="payment"){
-      const metadata=(verified.metadata??object?.metadata??{}) as Record<string,unknown>;
-      const intentId=typeof metadata.payment_intent_id==="string"?metadata.payment_intent_id:null;
-      if(intentId){
-        const next=verified.status==="succeeded"?"funded":verified.status==="canceled"?"cancelled":null;
-        await db.query(`UPDATE public.project_payment_intents SET provider_status=$2::varchar,last_provider_event_at=now(),status=COALESCE($3::varchar,status),funded_at=CASE WHEN $3::varchar='funded' THEN COALESCE(funded_at,now()) ELSE funded_at END,updated_at=now() WHERE id=$1::uuid`,[intentId,verified.status??incomingStatus,next]);
-      }else{
-        await db.query(`UPDATE public.project_payment_intents SET provider_status=$2::varchar,last_provider_event_at=now(),status=CASE WHEN $2::varchar='succeeded' THEN 'funded' WHEN $2::varchar='canceled' THEN 'cancelled' ELSE status END,funded_at=CASE WHEN $2::varchar='succeeded' THEN COALESCE(funded_at,now()) ELSE funded_at END,updated_at=now() WHERE provider_payment_id=$1::text`,[objectId,verified.status??incomingStatus]);
-      }
-    }else if(kind==="payout"){
-      const status=verified.status??incomingStatus;
-      await db.query(`UPDATE public.project_payment_intents SET provider_status=$2::varchar,last_provider_event_at=now(),status=CASE WHEN $2::varchar='succeeded' THEN 'paid' WHEN $2::varchar='canceled' THEN 'release_ready' ELSE status END,failure_reason=CASE WHEN $2::varchar='canceled' THEN 'Выплата отменена платёжным провайдером' ELSE failure_reason END,updated_at=now() WHERE provider_payout_id=$1::text`,[objectId,status]);
-    }else if(kind==="refund"){
-      const status=verified.status??incomingStatus;
-      const paymentId=typeof verified.payment_id==="string"?verified.payment_id:typeof object?.payment_id==="string"?object.payment_id:null;
-      if(paymentId){
-        await db.query(`UPDATE public.project_payment_intents SET provider_status=$2::varchar,last_provider_event_at=now(),status=CASE WHEN $2::varchar='succeeded' THEN 'refunded' ELSE status END,provider_refund_id=$3::text,updated_at=now() WHERE provider_payment_id=$1::text`,[paymentId,status,objectId]);
-      }
-    }else if(kind==="deal"){
-      await db.query(`UPDATE public.project_payment_intents SET provider_status=$2::varchar,last_provider_event_at=now(),updated_at=now() WHERE provider_deal_id=$1::text`,[objectId,verified.status??incomingStatus]);
+    const providerMinor=Math.round(Number(provider.amount.value)*100);
+    if(providerMinor!==Number(local.amount_minor)||provider.amount.currency!==local.currency){
+      await client.query("ROLLBACK");
+      console.error("Несовпадение суммы платежа подписки",{providerPaymentId,providerMinor,localAmount:local.amount_minor});
+      return NextResponse.json({ok:false,error:"amount_mismatch"},{status:409});
+    }
+    if(provider.metadata?.local_subscription_payment_id&&provider.metadata.local_subscription_payment_id!==local.id){
+      await client.query("ROLLBACK");
+      return NextResponse.json({ok:false,error:"metadata_mismatch"},{status:409});
     }
 
-    await db.query(`UPDATE public.payment_provider_events SET processed_at=now() WHERE provider='yookassa' AND provider_event_id=$1::text`,[eventId]);
-    return Response.json({ok:true});
+    await client.query(`UPDATE public.contractor_subscription_payments SET status='succeeded',paid_at=now(),updated_at=now() WHERE id=$1::uuid`,[local.id]);
+    const savedMethod=provider.payment_method?.saved&&provider.payment_method.id?provider.payment_method.id:null;
+    await client.query(`
+      INSERT INTO public.contractor_subscriptions(
+        contractor_id,plan_id,status,started_at,current_period_start,current_period_end,auto_renew,provider_payment_method_id,cancel_at_period_end,updated_at
+      ) VALUES($1::uuid,$2::uuid,'active',now(),now(),now()+make_interval(months=>$3),$4,$5,false,now())
+      ON CONFLICT(contractor_id) DO UPDATE SET
+        plan_id=EXCLUDED.plan_id,
+        status='active',
+        current_period_start=CASE WHEN public.contractor_subscriptions.current_period_end>now() THEN public.contractor_subscriptions.current_period_start ELSE now() END,
+        current_period_end=GREATEST(public.contractor_subscriptions.current_period_end,now())+make_interval(months=>$3),
+        grace_ends_at=NULL,
+        auto_renew=$4,
+        provider_payment_method_id=COALESCE($5,public.contractor_subscriptions.provider_payment_method_id),
+        cancel_at_period_end=false,
+        updated_at=now()
+    `,[local.contractor_id,local.plan_id,local.duration_months_snapshot,local.auto_renew_requested,savedMethod]);
+    await client.query("COMMIT");
+    return NextResponse.json({ok:true});
   }catch(error){
-    console.error("YooKassa webhook processing failed",error);
-    return Response.json({ok:false},{status:500});
-  }
+    await client.query("ROLLBACK");
+    console.error("Ошибка обработки YooKassa webhook подписки:",error);
+    return NextResponse.json({ok:false},{status:500});
+  }finally{client.release();}
 }

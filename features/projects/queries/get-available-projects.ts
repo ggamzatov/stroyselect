@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { db } from "@/lib/db/pool";
 import { getCurrentSessionUserId } from "@/lib/auth/session";
+import { getContractorMarketplaceAccess } from "@/lib/subscriptions/contractor-marketplace-access";
 
 type CompanyRow = {
   id: string;
@@ -39,12 +40,7 @@ type ProjectRow = {
   match_score: string | number;
 };
 
-type BidRow = {
-  id: string;
-  project_id: string;
-  contractor_id: string;
-  status: string;
-};
+type BidRow = { id: string; project_id: string; contractor_id: string; status: string };
 
 export async function getAvailableProjects() {
   const userId = await getCurrentSessionUserId();
@@ -62,6 +58,9 @@ export async function getAvailableProjects() {
   if (!company) return { company: null, projects: [], debugMessage: "Компания подрядчика не найдена" };
   if (company.verification_status !== "verified") return { company, projects: [], debugMessage: `Статус подрядчика: ${company.verification_status}` };
   if (!company.accepts_new_projects) return { company, projects: [], debugMessage: "Подрядчик не принимает новые проекты" };
+
+  const access = await getContractorMarketplaceAccess(company.id);
+  if (!access.hasAccess) redirect("/contractor/subscription?reason=marketplace");
 
   try {
     const [projectsResult, bidsResult] = await Promise.all([
@@ -92,8 +91,7 @@ export async function getAvailableProjects() {
                 AND coalesce(cc.maximum_project_budget, 999999999999) >= coalesce(p.budget_min, p.budget_max, 0)
             END AS budget_match,
             EXISTS (
-              SELECT 1
-              FROM public.project_contractor_invitations pci
+              SELECT 1 FROM public.project_contractor_invitations pci
               WHERE pci.project_id = p.id
                 AND pci.contractor_id = $1::uuid
                 AND pci.status <> 'cancelled'
@@ -134,45 +132,21 @@ export async function getAvailableProjects() {
           LEFT JOIN public.service_categories sc ON sc.id = p.category_id
           LEFT JOIN LATERAL (
             SELECT
-              COUNT(*) FILTER (
-                WHERE hp.status::text='completed' AND hp.category_id=p.category_id
-              )::int AS relevant_category_projects,
-              COUNT(*) FILTER (
-                WHERE hp.status::text='completed'
-                  AND coalesce(p.property_type::text,'') <> ''
-                  AND hp.property_type::text=p.property_type::text
-              )::int AS same_property_projects
+              COUNT(*) FILTER (WHERE hp.status::text='completed' AND hp.category_id=p.category_id)::int AS relevant_category_projects,
+              COUNT(*) FILTER (WHERE hp.status::text='completed' AND coalesce(p.property_type::text,'') <> '' AND hp.property_type::text=p.property_type::text)::int AS same_property_projects
             FROM public.projects hp
             WHERE hp.selected_contractor_id=$1::uuid
           ) exp ON true
           WHERE p.status IN ('published', 'collecting_bids')
             AND (
-              EXISTS (
-                SELECT 1 FROM public.contractor_service_areas csa
-                WHERE csa.contractor_id = $1::uuid
-                  AND lower(trim(csa.city)) = lower(trim(coalesce(p.city, '')))
-              )
-              OR EXISTS (
-                SELECT 1 FROM public.contractor_service_areas csa
-                WHERE csa.contractor_id = $1::uuid
-                  AND coalesce(trim(p.region), '') <> ''
-                  AND lower(trim(coalesce(csa.region, ''))) = lower(trim(p.region))
-              )
+              EXISTS (SELECT 1 FROM public.contractor_service_areas csa WHERE csa.contractor_id = $1::uuid AND lower(trim(csa.city)) = lower(trim(coalesce(p.city, ''))))
+              OR EXISTS (SELECT 1 FROM public.contractor_service_areas csa WHERE csa.contractor_id = $1::uuid AND coalesce(trim(p.region), '') <> '' AND lower(trim(coalesce(csa.region, ''))) = lower(trim(p.region)))
             )
-          ORDER BY
-            is_invited DESC,
-            match_score DESC,
-            p.published_at DESC NULLS LAST,
-            p.created_at DESC
+          ORDER BY is_invited DESC, match_score DESC, p.published_at DESC NULLS LAST, p.created_at DESC
         `,
         [company.id]
       ),
-      db.query<BidRow>(
-        `SELECT id, project_id, contractor_id, status
-         FROM public.project_bids
-         WHERE contractor_id = $1::uuid`,
-        [company.id]
-      ),
+      db.query<BidRow>(`SELECT id, project_id, contractor_id, status FROM public.project_bids WHERE contractor_id = $1::uuid`,[company.id]),
     ]);
 
     const bidsByProject = new Map<string, BidRow[]>();
@@ -211,9 +185,7 @@ export async function getAvailableProjects() {
         match_score: Math.min(100, Math.max(0, Number(row.match_score) || 0)),
         match_reasons: reasons.slice(0, 6),
         is_invited: Boolean(row.is_invited),
-        service_categories: row.category_id && row.category_name
-          ? { id: Number(row.category_id), name: row.category_name }
-          : null,
+        service_categories: row.category_id && row.category_name ? { id: Number(row.category_id), name: row.category_name } : null,
         project_bids: bidsByProject.get(row.id) ?? [],
       };
     });
@@ -225,17 +197,6 @@ export async function getAvailableProjects() {
   }
 }
 
-function toNullableNumber(value: unknown) {
-  if (value === null || value === undefined || value === "") return null;
-  const number = Number(value);
-  return Number.isFinite(number) ? number : null;
-}
-
-function toNullableDateString(value: Date | string | null) {
-  if (!value) return null;
-  return value instanceof Date ? value.toISOString().slice(0, 10) : String(value).slice(0, 10);
-}
-
-function toIsoString(value: Date | string) {
-  return value instanceof Date ? value.toISOString() : String(value);
-}
+function toNullableNumber(value: unknown) { if (value === null || value === undefined || value === "") return null; const number = Number(value); return Number.isFinite(number) ? number : null; }
+function toNullableDateString(value: Date | string | null) { if (!value) return null; return value instanceof Date ? value.toISOString().slice(0, 10) : String(value).slice(0, 10); }
+function toIsoString(value: Date | string) { return value instanceof Date ? value.toISOString() : String(value); }
