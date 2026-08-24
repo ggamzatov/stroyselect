@@ -98,9 +98,9 @@ export function WorkspacePageNavigator() {
       timer = setTimeout(collect, 80);
     };
 
-    collect();
     mutationObserver = new MutationObserver(scheduleCollect);
     mutationObserver.observe(document.body, { childList: true, subtree: true });
+    collect();
 
     return () => {
       if (timer) clearTimeout(timer);
