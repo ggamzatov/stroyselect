@@ -26,8 +26,12 @@ const admin: E2ECredentials | null = adminEmail && adminPassword ? { email: admi
 
 const fixtures: RouteFixtures | null = makeRouteFixtures();
 const appDir = path.join(process.cwd(), "app");
+const e2eDir = path.join(process.cwd(), "tests", "e2e");
 const sourcePagePatterns = discoverRoutes(appDir, /^page\.(?:tsx|ts|jsx|js)$/);
 const sourceApiPatterns = discoverRoutes(appDir, /^route\.(?:tsx|ts|jsx|js)$/);
+const sourceE2eSpecs = fs.readdirSync(e2eDir).filter((name) => name.endsWith(".spec.ts")).sort();
+const packageJson = JSON.parse(fs.readFileSync(path.join(process.cwd(), "package.json"), "utf8")) as { scripts?: Record<string, string> };
+const productionE2eCommand = String(packageJson.scripts?.["test:e2e:production:seeded"] ?? "");
 
 const EXPECTED_API_PATTERNS = [
   "/api/contracts/[projectId]/docx",
@@ -184,7 +188,9 @@ async function auditRenderedPage(page: Page, pattern: string, route: string, rol
         const text = element.textContent?.replace(/\s+/g, " ").trim();
         const placeholder = element.getAttribute("placeholder")?.trim();
         const value = element instanceof HTMLInputElement && ["submit", "button"].includes(element.type) ? element.value.trim() : "";
-        const labels = "labels" in element && element.labels ? Array.from(element.labels).map((label) => label.textContent?.trim()).filter(Boolean) : [];
+        const labels = element instanceof HTMLInputElement || element instanceof HTMLSelectElement || element instanceof HTMLTextAreaElement
+          ? Array.from(element.labels ?? []).map((label) => label.textContent?.trim()).filter(Boolean)
+          : [];
         const nestedAlt = element.querySelector("img[alt]")?.getAttribute("alt")?.trim();
         return Boolean(aria || labelledBy || title || text || placeholder || value || labels.length || nestedAlt);
       };
@@ -233,6 +239,9 @@ test.describe("Full application audit", () => {
     const resolved = sourcePagePatterns.map((pattern) => resolveRoute(pattern, fixtures!));
     expect(new Set(resolved).size, "Every source page should resolve to a unique concrete E2E URL").toBe(resolved.length);
     expect(sourceApiPatterns, "Every route.ts must be explicitly accounted for by the API gate").toEqual(EXPECTED_API_PATTERNS);
+    for (const spec of sourceE2eSpecs) {
+      expect(productionE2eCommand, `Production E2E gate must include tests/e2e/${spec}`).toContain(`tests/e2e/${spec}`);
+    }
   });
 
   for (const role of ["public", "customer", "contractor", "admin"] as const) {
