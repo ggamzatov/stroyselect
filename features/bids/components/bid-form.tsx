@@ -162,7 +162,7 @@ export function BidForm({ projectId, existingBid }: Props) {
 }
 
 function Field({ label, description, icon, error, children }: { label: string; description?: string; icon?: React.ReactNode; error?: string; children: React.ReactNode }) {
-  return <div><div className="mb-2"><div className="flex items-center gap-2"><span className="text-primary">{icon}</span><p className="text-sm font-semibold text-foreground">{label}</p></div>{description && <p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p>}</div>{children}{error && <p className="mt-2 text-sm font-medium text-destructive">{error}</p>}</div>;
+  return <label className="block"><span className="mb-2 block"><span className="flex items-center gap-2"><span className="text-primary">{icon}</span><span className="text-sm font-semibold text-foreground">{label}</span></span>{description && <span className="mt-1 block text-xs leading-5 text-muted-foreground">{description}</span>}</span>{children}{error && <span className="mt-2 block text-sm font-medium text-destructive">{error}</span>}</label>;
 }
 
 function Notice({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
