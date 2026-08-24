@@ -16,6 +16,21 @@ function slugify(value: string, index: number) {
   return `workspace-section-${base || index + 1}-${index + 1}`;
 }
 
+function ensureUniqueTargetId(target: HTMLElement, preferredId: string, seenIds: Set<string>) {
+  let candidate = preferredId;
+  let suffix = 2;
+
+  while (true) {
+    const existing = document.getElementById(candidate);
+    if (!seenIds.has(candidate) && (!existing || existing === target)) break;
+    candidate = `${preferredId}-${suffix}`;
+    suffix += 1;
+  }
+
+  if (target.id !== candidate) target.id = candidate;
+  return candidate;
+}
+
 export function WorkspacePageNavigator() {
   const pathname = usePathname();
   const [items, setItems] = useState<NavItem[]>([]);
@@ -39,17 +54,25 @@ export function WorkspacePageNavigator() {
         .filter((heading) => heading.offsetParent !== null)
         .filter((heading) => (heading.textContent ?? "").trim().length > 0);
 
-      const seen = new Set<string>();
+      const seenLabels = new Set<string>();
+      const seenTargets = new Set<HTMLElement>();
+      const seenIds = new Set<string>();
       const next: NavItem[] = [];
+
       headings.forEach((heading, index) => {
         const label = (heading.textContent ?? "").replace(/\s+/g, " ").trim();
-        if (!label || seen.has(label)) return;
-        seen.add(label);
-        const id = heading.closest<HTMLElement>("section, article")?.id || heading.id || slugify(label, index);
+        if (!label || seenLabels.has(label)) return;
+
         const target = heading.closest<HTMLElement>("section, article") ?? heading;
-        if (!target.id) target.id = id;
+        if (seenTargets.has(target)) return;
+
+        const id = ensureUniqueTargetId(target, target.id || slugify(label, index), seenIds);
         target.style.scrollMarginTop = "9.5rem";
-        next.push({ id: target.id, label });
+
+        seenLabels.add(label);
+        seenTargets.add(target);
+        seenIds.add(id);
+        next.push({ id, label });
       });
 
       setItems(next);
