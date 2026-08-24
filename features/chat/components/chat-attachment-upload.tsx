@@ -242,6 +242,7 @@ export function ChatAttachmentUpload({
         ref={inputRef}
         type="file"
         className="sr-only"
+        aria-label="Выбрать файл для вложения"
         accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,.zip"
         onChange={
           handleFileChange
@@ -442,9 +443,9 @@ function formatFileSize(
   }
 
   return `${(
-    bytes /
-    (1024 * 1024)
-  ).toFixed(1)} МБ`;
+      bytes /
+      (1024 * 1024)
+    ).toFixed(1)} МБ`;
 }
 
 function getFileTypeLabel(
