@@ -46,7 +46,7 @@ export function ProjectDocumentCenter({ projectId, role, documents, backHref }: 
             <input type="hidden" name="projectId" value={projectId} />
             <input name="title" required minLength={2} maxLength={240} placeholder="Название документа" className="stroy-input" />
             <select name="category" defaultValue="other" className="stroy-input">{CATEGORIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
-            <input name="file" type="file" required accept="image/jpeg,image/png,image/webp,application/pdf,.doc,.docx,.xls,.xlsx" className="stroy-input" />
+            <input name="file" type="file" required accept="image/jpeg,image/png,image/webp,application/pdf,.doc,.docx,.xls,.xlsx" aria-label="Выбрать файл документа" className="stroy-input" />
             <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground"><Plus className="h-4 w-4" />Загрузить</button>
           </form>
         </section>
@@ -64,7 +64,7 @@ export function ProjectDocumentCenter({ projectId, role, documents, backHref }: 
                   <input type="hidden" name="category" value={document.category} />
                   <input type="hidden" name="title" value={document.title} />
                   <input type="hidden" name="parentDocumentId" value={document.id} />
-                  <label className="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-xl border border-border bg-background px-4 text-xs font-semibold text-foreground">Новая версия<input name="file" type="file" required className="sr-only" onChange={(event) => event.currentTarget.form?.requestSubmit()} /></label>
+                  <label className="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-xl border border-border bg-background px-4 text-xs font-semibold text-foreground">Новая версия<input name="file" type="file" required aria-label={`Выбрать новую версию документа ${document.title}`} className="sr-only" onChange={(event) => event.currentTarget.form?.requestSubmit()} /></label>
                 </form>
                 <form action={deleteProjectDocument}>
                   <input type="hidden" name="id" value={document.id} /><input type="hidden" name="projectId" value={projectId} />
