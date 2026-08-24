@@ -2,56 +2,612 @@
 
 import Link from "next/link";
 import { useActionState, useState, useTransition } from "react";
-import { BadgeCheck,Banknote,CalendarClock,CheckCircle2,CircleDollarSign,FilePenLine,Receipt,ShieldAlert,XCircle } from "lucide-react";
-import { cancelChangeOrder,createChangeOrder,decideChangeOrder,recordProjectPayment } from "@/features/workspace/actions/change-orders";
-import { cancelProjectPaymentConfirmation,confirmProjectPayment,disputeProjectPayment } from "@/features/workspace/actions/payment-confirmations";
+import {
+  BadgeCheck,
+  Banknote,
+  CalendarClock,
+  CheckCircle2,
+  CircleDollarSign,
+  FilePenLine,
+  Receipt,
+  ShieldAlert,
+  XCircle,
+} from "lucide-react";
 
-type Payment={id:string;stageId:string|null;amount:number;paidAt:string;note:string|null;confirmationStatus:string;customerConfirmedAt:string|null;contractorConfirmedAt:string|null;disputedAt:string|null;disputeReason:string|null;cancellationReason:string|null;currentUserConfirmed:boolean};
-type Data={role:"customer"|"contractor";project:{id:string;title:string;status:string;originalContract:number;approvedDelta:number;currentContract:number;paidTotal:number;remaining:number;originalDurationDays:number;currentDurationDays:number};stages:Array<{id:string;title:string;status:string;sortOrder:number;progressWeight:number;stagePrice:number;paymentDuePercent:number|null;paymentDueAmount:number|null;plannedAmount:number;paidAmount:number;remainingAmount:number;paymentProgress:number}>;changes:Array<{id:string;requestedByCurrentUser:boolean;title:string;reason:string;scopeChange:string;amountDelta:number;durationDeltaDays:number;status:string;decisionComment:string|null;createdAt:string}>;payments:Payment[]};
-type Result={success:boolean;message:string}|null;
-type OperationKeys={changeOrder:string;payment:string};
+import {
+  cancelChangeOrder,
+  createChangeOrder,
+  decideChangeOrder,
+  recordProjectPayment,
+} from "@/features/workspace/actions/change-orders";
+import {
+  cancelProjectPaymentConfirmation,
+  confirmProjectPayment,
+  disputeProjectPayment,
+} from "@/features/workspace/actions/payment-confirmations";
 
-export function ProjectBudgetControl({data,backHref,operationKeys}:{data:Data;backHref:string;operationKeys:OperationKeys}){
- const [changeKey,setChangeKey]=useState(operationKeys.changeOrder);
- const [paymentKey,setPaymentKey]=useState(operationKeys.payment);
- const [changeState,changeAction,changePending]=useActionState<Result,FormData>(async(_,form)=>{const result=await createChangeOrder(form);if(result.success)setChangeKey(crypto.randomUUID());return result},null);
- const [paymentState,paymentAction,paymentPending]=useActionState<Result,FormData>(async(_,form)=>{const result=await recordProjectPayment(form);if(result.success)setPaymentKey(crypto.randomUUID());return result},null);
- const [decisionState,decisionAction,decisionPending]=useActionState<Result,FormData>(async(_,form)=>decideChangeOrder(form),null);
- const [cancelState,cancelAction]=useActionState<Result,FormData>(async(_,form)=>cancelChangeOrder(form),null);
+type Payment = {
+  id: string;
+  stageId: string | null;
+  amount: number;
+  paidAt: string;
+  note: string | null;
+  confirmationStatus: string;
+  customerConfirmedAt: string | null;
+  contractorConfirmedAt: string | null;
+  disputedAt: string | null;
+  disputeReason: string | null;
+  cancellationReason: string | null;
+  currentUserConfirmed: boolean;
+};
 
- return <main className="min-h-screen bg-background"><div className="app-container py-8 md:py-12">
-  <Link href={backHref} className="text-sm font-semibold text-muted-foreground hover:text-primary">← Вернуться в рабочее пространство</Link>
-  <section className="mt-5 rounded-[2rem] border border-border bg-card p-6 md:p-8"><p className="text-sm font-semibold text-primary">Контроль этапов и бюджета</p><h1 className="mt-2 text-3xl font-black tracking-[-0.04em] md:text-5xl">Бюджет, этапы и платежи</h1><p className="mt-3 break-words text-sm text-muted-foreground">{data.project.title}. Каждый платёж имеет отдельный статус подтверждения обеими сторонами.</p></section>
-  <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Metric icon={<Banknote className="h-5 w-5"/>} label="Исходная стоимость" value={money(data.project.originalContract)}/><Metric icon={<FilePenLine className="h-5 w-5"/>} label="Согласованные изменения" value={signedMoney(data.project.approvedDelta)}/><Metric icon={<CircleDollarSign className="h-5 w-5"/>} label="Текущая стоимость" value={money(data.project.currentContract)}/><Metric icon={<Receipt className="h-5 w-5"/>} label="Осталось оплатить" value={money(data.project.remaining)}/></section>
+type Data = {
+  role: "customer" | "contractor";
+  project: {
+    id: string;
+    title: string;
+    status: string;
+    originalContract: number;
+    approvedDelta: number;
+    currentContract: number;
+    paidTotal: number;
+    remaining: number;
+    originalDurationDays: number;
+    currentDurationDays: number;
+  };
+  stages: Array<{
+    id: string;
+    title: string;
+    status: string;
+    sortOrder: number;
+    progressWeight: number;
+    stagePrice: number;
+    paymentDuePercent: number | null;
+    paymentDueAmount: number | null;
+    plannedAmount: number;
+    paidAmount: number;
+    remainingAmount: number;
+    paymentProgress: number;
+  }>;
+  changes: Array<{
+    id: string;
+    requestedByCurrentUser: boolean;
+    title: string;
+    reason: string;
+    scopeChange: string;
+    amountDelta: number;
+    durationDeltaDays: number;
+    status: string;
+    decisionComment: string | null;
+    createdAt: string;
+  }>;
+  payments: Payment[];
+};
 
-  <section className="mt-6 rounded-[1.75rem] border border-border bg-card p-5 md:p-6"><h2 className="text-xl font-black">План платежей по этапам</h2><p className="mt-1 text-sm text-muted-foreground">В фактической оплате учитываются только платежи, подтверждённые обеими сторонами.</p><div className="mt-5 space-y-3">{data.stages.length===0?<p className="text-sm text-muted-foreground">Этапы ещё не созданы.</p>:data.stages.map(stage=><div key={stage.id} className="rounded-xl border border-border p-4"><div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:justify-between"><div className="min-w-0"><p className="break-words font-bold">{stage.title}</p><p className="text-xs text-muted-foreground">{stageStatus(stage.status)} · вес {stage.progressWeight}%</p></div><div className="shrink-0 sm:text-right"><strong>{money(stage.paidAmount)} / {money(stage.plannedAmount)}</strong><p className="text-xs text-muted-foreground">осталось {money(stage.remainingAmount)}</p></div></div><div className="mt-3 h-2 overflow-hidden rounded-full bg-secondary"><div className="h-full bg-primary" style={{width:`${stage.paymentProgress}%`}}/></div></div>)}</div></section>
+type Result = { success: boolean; message: string } | null;
+type OperationKeys = { changeOrder: string; payment: string };
 
-  <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]"><div className="space-y-6">
-   <section className="rounded-[1.75rem] border border-border bg-card p-5 md:p-6"><h2 className="text-xl font-black">Изменения к договору</h2><div className="mt-5 space-y-4">{data.changes.length===0?<p className="text-sm text-muted-foreground">Изменений пока нет.</p>:data.changes.map(change=><article key={change.id} className="rounded-xl border border-border p-4"><div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:justify-between"><div className="min-w-0"><Status status={change.status}/><h3 className="mt-2 break-words font-bold">{change.title}</h3><p className="text-xs text-muted-foreground">{formatDateTime(change.createdAt)}</p></div><strong className="shrink-0">{signedMoney(change.amountDelta)}</strong></div><p className="mt-3 break-words text-sm"><b>Причина:</b> {change.reason}</p><p className="mt-2 break-words text-sm"><b>Объём:</b> {change.scopeChange}</p>{change.decisionComment&&<p className="mt-2 break-words text-sm">Комментарий: {change.decisionComment}</p>}{change.status==="pending"&&data.role==="customer"&&<form action={decisionAction} className="mt-4 space-y-2"><input type="hidden" name="projectId" value={data.project.id}/><input type="hidden" name="changeOrderId" value={change.id}/><textarea name="comment" className="min-h-20 w-full rounded-xl border p-2" placeholder="Комментарий к решению"/><div className="flex flex-wrap gap-2"><button disabled={decisionPending} name="decision" value="approved" className="rounded-xl bg-emerald-600 px-4 py-2 text-white">Согласовать</button><button disabled={decisionPending} name="decision" value="rejected" className="rounded-xl border px-4 py-2 text-red-700">Отклонить</button></div></form>}{change.status==="pending"&&data.role==="contractor"&&change.requestedByCurrentUser&&<form action={cancelAction} className="mt-3"><input type="hidden" name="projectId" value={data.project.id}/><input type="hidden" name="changeOrderId" value={change.id}/><button className="text-sm text-red-600">Отменить запрос</button></form>}</article>)}</div><ActionMessage state={decisionState??cancelState}/></section>
-   <section className="rounded-[1.75rem] border border-border bg-card p-5"><h2 className="text-xl font-black">История платежей</h2><p className="mt-1 text-sm text-muted-foreground">Подтверждение каждой стороны фиксируется отдельно.</p><div className="mt-4 space-y-3">{data.payments.length===0?<p className="text-sm text-muted-foreground">Платежей пока нет.</p>:data.payments.map(payment=><PaymentCard key={payment.id} payment={payment} projectId={data.project.id} role={data.role} stageTitle={payment.stageId?data.stages.find(stage=>stage.id===payment.stageId)?.title:null}/>)}</div></section>
-  </div>
-  <aside className="space-y-5">{data.role==="contractor"&&<section className="rounded-[1.75rem] border bg-card p-5"><h2 className="font-black">Запросить изменение</h2><form action={changeAction} className="mt-4 space-y-3"><input type="hidden" name="projectId" value={data.project.id}/><input type="hidden" name="idempotencyKey" value={changeKey}/><Field name="title" placeholder="Название изменения" required/><textarea name="reason" required placeholder="Причина изменения" className="min-h-20 w-full rounded-xl border p-2"/><textarea name="scopeChange" required placeholder="Что именно меняется" className="min-h-24 w-full rounded-xl border p-2"/><Field name="amountDelta" type="number" step="0.01" defaultValue="0" required/><Field name="durationDeltaDays" type="number" defaultValue="0" required/><button disabled={changePending} className="min-h-11 w-full rounded-xl bg-primary text-primary-foreground">Отправить на согласование</button></form><ActionMessage state={changeState}/></section>}{data.role==="customer"&&<section className="rounded-[1.75rem] border bg-card p-5"><h2 className="font-black">Зафиксировать платёж</h2><form action={paymentAction} className="mt-4 space-y-3"><input type="hidden" name="projectId" value={data.project.id}/><input type="hidden" name="idempotencyKey" value={paymentKey}/><select name="stageId" className="min-h-11 w-full rounded-xl border bg-background px-3"><option value="">Без привязки к этапу</option>{data.stages.filter(stage=>stage.remainingAmount>0).map(stage=><option key={stage.id} value={stage.id}>{stage.title} — осталось {money(stage.remainingAmount)}</option>)}</select><Field name="amount" type="number" step="0.01" min="0.01" max={data.project.remaining} placeholder="Сумма, ₽" required/><Field name="paidAt" type="date" defaultValue={new Date().toISOString().slice(0,10)} required/><textarea name="note" placeholder="Комментарий" className="min-h-20 w-full rounded-xl border p-2"/><button disabled={paymentPending} className="min-h-11 w-full rounded-xl bg-secondary">Добавить платёж</button></form><ActionMessage state={paymentState}/></section>}</aside></div>
- </div></main>;
+export function ProjectBudgetControl({
+  data,
+  backHref,
+  operationKeys,
+}: {
+  data: Data;
+  backHref: string;
+  operationKeys: OperationKeys;
+}) {
+  const [changeKey, setChangeKey] = useState(operationKeys.changeOrder);
+  const [paymentKey, setPaymentKey] = useState(operationKeys.payment);
+  const [changeState, changeAction, changePending] = useActionState<Result, FormData>(
+    async (_, form) => {
+      const result = await createChangeOrder(form);
+      if (result.success) setChangeKey(crypto.randomUUID());
+      return result;
+    },
+    null,
+  );
+  const [paymentState, paymentAction, paymentPending] = useActionState<Result, FormData>(
+    async (_, form) => {
+      const result = await recordProjectPayment(form);
+      if (result.success) setPaymentKey(crypto.randomUUID());
+      return result;
+    },
+    null,
+  );
+  const [decisionState, decisionAction, decisionPending] = useActionState<Result, FormData>(
+    async (_, form) => decideChangeOrder(form),
+    null,
+  );
+  const [cancelState, cancelAction] = useActionState<Result, FormData>(
+    async (_, form) => cancelChangeOrder(form),
+    null,
+  );
+
+  return (
+    <main className="min-h-screen bg-background">
+      <div className="app-container py-8 md:py-12">
+        <Link href={backHref} className="text-sm font-semibold text-muted-foreground hover:text-primary">
+          ← Вернуться в рабочее пространство
+        </Link>
+
+        <section className="mt-5 rounded-[2rem] border border-border bg-card p-6 md:p-8">
+          <p className="text-sm font-semibold text-primary">Контроль этапов и бюджета</p>
+          <h1 className="mt-2 text-3xl font-black tracking-[-0.04em] md:text-5xl">Бюджет, этапы и платежи</h1>
+          <p className="mt-3 break-words text-sm text-muted-foreground">
+            {data.project.title}. Каждый платёж имеет отдельный статус подтверждения обеими сторонами.
+          </p>
+        </section>
+
+        <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <Metric icon={<Banknote className="h-5 w-5" />} label="Исходная стоимость" value={money(data.project.originalContract)} />
+          <Metric icon={<FilePenLine className="h-5 w-5" />} label="Согласованные изменения" value={signedMoney(data.project.approvedDelta)} />
+          <Metric icon={<CircleDollarSign className="h-5 w-5" />} label="Текущая стоимость" value={money(data.project.currentContract)} />
+          <Metric icon={<Receipt className="h-5 w-5" />} label="Осталось оплатить" value={money(data.project.remaining)} />
+        </section>
+
+        <section className="mt-6 rounded-[1.75rem] border border-border bg-card p-5 md:p-6">
+          <h2 className="text-xl font-black">План платежей по этапам</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            В фактической оплате учитываются только платежи, подтверждённые обеими сторонами.
+          </p>
+          <div className="mt-5 space-y-3">
+            {data.stages.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Этапы ещё не созданы.</p>
+            ) : (
+              data.stages.map((stage) => (
+                <div key={stage.id} className="rounded-xl border border-border p-4">
+                  <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="break-words font-bold">{stage.title}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {stageStatus(stage.status)} · вес {stage.progressWeight}%
+                      </p>
+                    </div>
+                    <div className="shrink-0 sm:text-right">
+                      <strong>
+                        {money(stage.paidAmount)} / {money(stage.plannedAmount)}
+                      </strong>
+                      <p className="text-xs text-muted-foreground">осталось {money(stage.remainingAmount)}</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-secondary">
+                    <div className="h-full bg-primary" style={{ width: `${stage.paymentProgress}%` }} />
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+
+        <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+          <div className="space-y-6">
+            <section className="rounded-[1.75rem] border border-border bg-card p-5 md:p-6">
+              <h2 className="text-xl font-black">Изменения к договору</h2>
+              <div className="mt-5 space-y-4">
+                {data.changes.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Изменений пока нет.</p>
+                ) : (
+                  data.changes.map((change) => (
+                    <article key={change.id} className="rounded-xl border border-border p-4">
+                      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:justify-between">
+                        <div className="min-w-0">
+                          <Status status={change.status} />
+                          <h3 className="mt-2 break-words font-bold">{change.title}</h3>
+                          <p className="text-xs text-muted-foreground">{formatDateTime(change.createdAt)}</p>
+                        </div>
+                        <strong className="shrink-0">{signedMoney(change.amountDelta)}</strong>
+                      </div>
+                      <p className="mt-3 break-words text-sm">
+                        <b>Причина:</b> {change.reason}
+                      </p>
+                      <p className="mt-2 break-words text-sm">
+                        <b>Объём:</b> {change.scopeChange}
+                      </p>
+                      {change.decisionComment && (
+                        <p className="mt-2 break-words text-sm">Комментарий: {change.decisionComment}</p>
+                      )}
+                      {change.status === "pending" && data.role === "customer" && (
+                        <form action={decisionAction} className="mt-4 space-y-2">
+                          <input type="hidden" name="projectId" value={data.project.id} />
+                          <input type="hidden" name="changeOrderId" value={change.id} />
+                          <textarea
+                            name="comment"
+                            className="min-h-20 w-full rounded-xl border p-2"
+                            placeholder="Комментарий к решению"
+                          />
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              disabled={decisionPending}
+                              name="decision"
+                              value="approved"
+                              className="rounded-xl bg-emerald-600 px-4 py-2 text-white"
+                            >
+                              Согласовать
+                            </button>
+                            <button
+                              disabled={decisionPending}
+                              name="decision"
+                              value="rejected"
+                              className="rounded-xl border px-4 py-2 text-red-700"
+                            >
+                              Отклонить
+                            </button>
+                          </div>
+                        </form>
+                      )}
+                      {change.status === "pending" &&
+                        data.role === "contractor" &&
+                        change.requestedByCurrentUser && (
+                          <form action={cancelAction} className="mt-3">
+                            <input type="hidden" name="projectId" value={data.project.id} />
+                            <input type="hidden" name="changeOrderId" value={change.id} />
+                            <button className="text-sm text-red-600">Отменить запрос</button>
+                          </form>
+                        )}
+                    </article>
+                  ))
+                )}
+              </div>
+              <ActionMessage state={decisionState ?? cancelState} />
+            </section>
+
+            <section className="rounded-[1.75rem] border border-border bg-card p-5">
+              <h2 className="text-xl font-black">История платежей</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Подтверждение каждой стороны фиксируется отдельно.</p>
+              <div className="mt-4 space-y-3">
+                {data.payments.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Платежей пока нет.</p>
+                ) : (
+                  data.payments.map((payment) => (
+                    <PaymentCard
+                      key={payment.id}
+                      payment={payment}
+                      projectId={data.project.id}
+                      role={data.role}
+                      stageTitle={
+                        payment.stageId ? data.stages.find((stage) => stage.id === payment.stageId)?.title : null
+                      }
+                    />
+                  ))
+                )}
+              </div>
+            </section>
+          </div>
+
+          <aside className="space-y-5">
+            {data.role === "contractor" && (
+              <section className="rounded-[1.75rem] border bg-card p-5">
+                <h2 className="font-black">Запросить изменение</h2>
+                <form action={changeAction} className="mt-4 space-y-3">
+                  <input type="hidden" name="projectId" value={data.project.id} />
+                  <input type="hidden" name="idempotencyKey" value={changeKey} />
+                  <input
+                    name="title"
+                    placeholder="Название изменения"
+                    required
+                    className="min-h-11 w-full rounded-xl border bg-background px-3 text-sm"
+                  />
+                  <textarea
+                    name="reason"
+                    required
+                    placeholder="Причина изменения"
+                    className="min-h-20 w-full rounded-xl border p-2"
+                  />
+                  <textarea
+                    name="scopeChange"
+                    required
+                    placeholder="Что именно меняется"
+                    className="min-h-24 w-full rounded-xl border p-2"
+                  />
+                  <label className="block space-y-1 text-sm font-semibold">
+                    <span>Изменение стоимости, ₽</span>
+                    <input
+                      name="amountDelta"
+                      type="number"
+                      step="0.01"
+                      defaultValue="0"
+                      required
+                      className="min-h-11 w-full rounded-xl border bg-background px-3 text-sm font-normal"
+                    />
+                  </label>
+                  <label className="block space-y-1 text-sm font-semibold">
+                    <span>Изменение срока, дней</span>
+                    <input
+                      name="durationDeltaDays"
+                      type="number"
+                      defaultValue="0"
+                      required
+                      className="min-h-11 w-full rounded-xl border bg-background px-3 text-sm font-normal"
+                    />
+                  </label>
+                  <button disabled={changePending} className="min-h-11 w-full rounded-xl bg-primary text-primary-foreground">
+                    Отправить на согласование
+                  </button>
+                </form>
+                <ActionMessage state={changeState} />
+              </section>
+            )}
+
+            {data.role === "customer" && (
+              <section className="rounded-[1.75rem] border bg-card p-5">
+                <h2 className="font-black">Зафиксировать платёж</h2>
+                <form action={paymentAction} className="mt-4 space-y-3">
+                  <input type="hidden" name="projectId" value={data.project.id} />
+                  <input type="hidden" name="idempotencyKey" value={paymentKey} />
+                  <label className="block space-y-1 text-sm font-semibold">
+                    <span>Этап платежа</span>
+                    <select
+                      name="stageId"
+                      className="min-h-11 w-full rounded-xl border bg-background px-3 font-normal"
+                    >
+                      <option value="">Без привязки к этапу</option>
+                      {data.stages
+                        .filter((stage) => stage.remainingAmount > 0)
+                        .map((stage) => (
+                          <option key={stage.id} value={stage.id}>
+                            {stage.title} — осталось {money(stage.remainingAmount)}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                  <label className="block space-y-1 text-sm font-semibold">
+                    <span>Сумма, ₽</span>
+                    <input
+                      name="amount"
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      max={data.project.remaining}
+                      required
+                      className="min-h-11 w-full rounded-xl border bg-background px-3 text-sm font-normal"
+                    />
+                  </label>
+                  <label className="block space-y-1 text-sm font-semibold">
+                    <span>Дата платежа</span>
+                    <input
+                      name="paidAt"
+                      type="date"
+                      defaultValue={new Date().toISOString().slice(0, 10)}
+                      required
+                      className="min-h-11 w-full rounded-xl border bg-background px-3 text-sm font-normal"
+                    />
+                  </label>
+                  <label className="block space-y-1 text-sm font-semibold">
+                    <span>Комментарий</span>
+                    <textarea name="note" className="min-h-20 w-full rounded-xl border p-2 font-normal" />
+                  </label>
+                  <button disabled={paymentPending} className="min-h-11 w-full rounded-xl bg-secondary">
+                    Добавить платёж
+                  </button>
+                </form>
+                <ActionMessage state={paymentState} />
+              </section>
+            )}
+          </aside>
+        </div>
+      </div>
+    </main>
+  );
 }
 
-function PaymentCard({payment,projectId,role,stageTitle}:{payment:Payment;projectId:string;role:"customer"|"contractor";stageTitle:string|null|undefined}){
- const [message,setMessage]=useState("");const [pending,startTransition]=useTransition();const [reason,setReason]=useState("");const status=payment.confirmationStatus;
- function confirm(){setMessage("");startTransition(async()=>{const result=await confirmProjectPayment({paymentId:payment.id,projectId});setMessage(result.message)})}
- function dispute(){if(reason.trim().length<5){setMessage("Укажите причину спора минимум из 5 символов");return}setMessage("");startTransition(async()=>{const result=await disputeProjectPayment({paymentId:payment.id,projectId,reason});setMessage(result.message)})}
- function cancel(){if(reason.trim().length<5){setMessage("Укажите причину отмены минимум из 5 символов");return}setMessage("");startTransition(async()=>{const result=await cancelProjectPaymentConfirmation({paymentId:payment.id,projectId,reason});setMessage(result.message)})}
- return <article className="rounded-xl border p-4"><div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><p className="font-semibold">{formatDate(payment.paidAt)}</p>{stageTitle&&<p className="break-words text-xs text-muted-foreground">{stageTitle}</p>}{payment.note&&<p className="mt-1 break-words text-sm text-muted-foreground">{payment.note}</p>}<PaymentStatus payment={payment}/></div><strong className="shrink-0">{money(payment.amount)}</strong></div>
- {status!=="cancelled"&&status!=="disputed"&&<div className="mt-4 rounded-xl bg-secondary/35 p-3"><div className="grid gap-2 sm:grid-cols-2"><span className="text-xs font-semibold">Заказчик: {payment.customerConfirmedAt?"подтверждено":"ожидается"}</span><span className="text-xs font-semibold">Подрядчик: {payment.contractorConfirmedAt?"подтверждено":"ожидается"}</span></div>{!payment.currentUserConfirmed&&status!=="confirmed"&&<button disabled={pending} onClick={confirm} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-xl bg-primary px-4 text-xs font-bold text-primary-foreground"><CheckCircle2 className="h-4 w-4"/>Подтвердить платёж</button>}</div>}
- {status==="disputed"&&payment.disputeReason&&<p className="mt-3 break-words rounded-xl bg-red-50 p-3 text-sm text-red-800">Причина спора: {payment.disputeReason}</p>}{status==="cancelled"&&payment.cancellationReason&&<p className="mt-3 break-words rounded-xl bg-secondary p-3 text-sm">Причина отмены: {payment.cancellationReason}</p>}
- {status!=="confirmed"&&status!=="cancelled"&&<div className="mt-3"><textarea value={reason} onChange={event=>setReason(event.target.value)} maxLength={1000} placeholder={role==="customer"?"Причина спора или отмены":"Причина спора"} className="min-h-20 w-full rounded-xl border bg-background p-2 text-sm"/><div className="mt-2 flex flex-wrap gap-2"><button disabled={pending} onClick={dispute} className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-red-200 px-3 text-xs font-semibold text-red-700"><ShieldAlert className="h-4 w-4"/>Оспорить</button>{role==="customer"&&<button disabled={pending} onClick={cancel} className="inline-flex min-h-9 items-center gap-2 rounded-xl border px-3 text-xs font-semibold text-muted-foreground"><XCircle className="h-4 w-4"/>Отменить запись</button>}</div></div>}
- {message&&<p className="mt-3 break-words text-xs font-semibold text-foreground">{message}</p>}</article>;
+function PaymentCard({
+  payment,
+  projectId,
+  role,
+  stageTitle,
+}: {
+  payment: Payment;
+  projectId: string;
+  role: "customer" | "contractor";
+  stageTitle: string | null | undefined;
+}) {
+  const [message, setMessage] = useState("");
+  const [pending, startTransition] = useTransition();
+  const [reason, setReason] = useState("");
+  const status = payment.confirmationStatus;
+
+  function confirm() {
+    setMessage("");
+    startTransition(async () => {
+      const result = await confirmProjectPayment({ paymentId: payment.id, projectId });
+      setMessage(result.message);
+    });
+  }
+
+  function dispute() {
+    if (reason.trim().length < 5) {
+      setMessage("Укажите причину спора минимум из 5 символов");
+      return;
+    }
+    setMessage("");
+    startTransition(async () => {
+      const result = await disputeProjectPayment({ paymentId: payment.id, projectId, reason });
+      setMessage(result.message);
+    });
+  }
+
+  function cancel() {
+    if (reason.trim().length < 5) {
+      setMessage("Укажите причину отмены минимум из 5 символов");
+      return;
+    }
+    setMessage("");
+    startTransition(async () => {
+      const result = await cancelProjectPaymentConfirmation({ paymentId: payment.id, projectId, reason });
+      setMessage(result.message);
+    });
+  }
+
+  return (
+    <article className="rounded-xl border p-4">
+      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className="font-semibold">{formatDate(payment.paidAt)}</p>
+          {stageTitle && <p className="break-words text-xs text-muted-foreground">{stageTitle}</p>}
+          {payment.note && <p className="mt-1 break-words text-sm text-muted-foreground">{payment.note}</p>}
+          <PaymentStatus payment={payment} />
+        </div>
+        <strong className="shrink-0">{money(payment.amount)}</strong>
+      </div>
+
+      {status !== "cancelled" && status !== "disputed" && (
+        <div className="mt-4 rounded-xl bg-secondary/35 p-3">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <span className="text-xs font-semibold">
+              Заказчик: {payment.customerConfirmedAt ? "подтверждено" : "ожидается"}
+            </span>
+            <span className="text-xs font-semibold">
+              Подрядчик: {payment.contractorConfirmedAt ? "подтверждено" : "ожидается"}
+            </span>
+          </div>
+          {!payment.currentUserConfirmed && status !== "confirmed" && (
+            <button
+              disabled={pending}
+              onClick={confirm}
+              className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-xl bg-primary px-4 text-xs font-bold text-primary-foreground"
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              Подтвердить платёж
+            </button>
+          )}
+        </div>
+      )}
+
+      {status === "disputed" && payment.disputeReason && (
+        <p className="mt-3 break-words rounded-xl bg-red-50 p-3 text-sm text-red-800">
+          Причина спора: {payment.disputeReason}
+        </p>
+      )}
+      {status === "cancelled" && payment.cancellationReason && (
+        <p className="mt-3 break-words rounded-xl bg-secondary p-3 text-sm">
+          Причина отмены: {payment.cancellationReason}
+        </p>
+      )}
+
+      {status !== "confirmed" && status !== "cancelled" && (
+        <div className="mt-3">
+          <textarea
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            maxLength={1000}
+            placeholder={role === "customer" ? "Причина спора или отмены" : "Причина спора"}
+            className="min-h-20 w-full rounded-xl border bg-background p-2 text-sm"
+          />
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button
+              disabled={pending}
+              onClick={dispute}
+              className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-red-200 px-3 text-xs font-semibold text-red-700"
+            >
+              <ShieldAlert className="h-4 w-4" />
+              Оспорить
+            </button>
+            {role === "customer" && (
+              <button
+                disabled={pending}
+                onClick={cancel}
+                className="inline-flex min-h-9 items-center gap-2 rounded-xl border px-3 text-xs font-semibold text-muted-foreground"
+              >
+                <XCircle className="h-4 w-4" />
+                Отменить запись
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {message && <p className="mt-3 break-words text-xs font-semibold text-foreground">{message}</p>}
+    </article>
+  );
 }
-function PaymentStatus({payment}:{payment:Payment}){const status=payment.confirmationStatus;const label=status==="confirmed"?"Подтверждён обеими сторонами":status==="disputed"?"Оспорен":status==="cancelled"?"Отменён":"Ожидает подтверждения";const cls=status==="confirmed"?"text-emerald-700":status==="disputed"?"text-red-700":status==="cancelled"?"text-muted-foreground":"text-amber-700";return <p className={`mt-2 text-xs font-bold ${cls}`}>{label}</p>}
-function Field(props:React.InputHTMLAttributes<HTMLInputElement>){const labels:Record<string,string>={amountDelta:"Изменение стоимости, ₽",durationDeltaDays:"Изменение срока, дней",paidAt:"Дата платежа"};const accessibleName=props["aria-label"]??props.placeholder??labels[String(props.name??"")];return <input {...props} aria-label={accessibleName} className="min-h-11 w-full rounded-xl border bg-background px-3 text-sm"/>}
-function Metric({icon,label,value}:{icon:React.ReactNode;label:string;value:string}){return <div className="rounded-[1.5rem] border bg-card p-5"><div className="text-primary">{icon}</div><p className="mt-4 text-xs text-muted-foreground">{label}</p><p className="mt-2 break-words text-xl font-black">{value}</p></div>}
-function Status({status}:{status:string}){const config=status==="approved"?{label:"Согласовано",icon:<BadgeCheck className="h-3 w-3"/>}:status==="rejected"?{label:"Отклонено",icon:<XCircle className="h-3 w-3"/>}:{label:"На согласовании",icon:<CalendarClock className="h-3 w-3"/>};return <span className="inline-flex items-center gap-1 text-xs font-bold">{config.icon}{config.label}</span>}
-function ActionMessage({state}:{state:Result}){return state?<p className={`mt-3 break-words rounded-xl p-3 text-sm ${state.success?"bg-emerald-50 text-emerald-800":"bg-red-50 text-red-800"}`}>{state.message}</p>:null}
-function stageStatus(status:string){const labels:Record<string,string>={planned:"Запланирован",in_progress:"В работе",awaiting_review:"Ожидает приёмки",completed:"Завершён",cancelled:"Отменён"};return labels[status]??"Текущий этап"}
-function money(value:number){return `${new Intl.NumberFormat("ru-RU").format(value)} ₽`}
-function signedMoney(value:number){return `${value>0?"+":""}${money(value)}`}
-function formatDate(value:string){const date=new Date(`${value}T00:00:00`);return Number.isNaN(date.getTime())?value:new Intl.DateTimeFormat("ru-RU",{dateStyle:"medium"}).format(date)}
-function formatDateTime(value:string){const date=new Date(value);return Number.isNaN(date.getTime())?value:new Intl.DateTimeFormat("ru-RU",{dateStyle:"medium",timeStyle:"short"}).format(date)}
+
+function PaymentStatus({ payment }: { payment: Payment }) {
+  const status = payment.confirmationStatus;
+  const label =
+    status === "confirmed"
+      ? "Подтверждён обеими сторонами"
+      : status === "disputed"
+        ? "Оспорен"
+        : status === "cancelled"
+          ? "Отменён"
+          : "Ожидает подтверждения";
+  const cls =
+    status === "confirmed"
+      ? "text-emerald-700"
+      : status === "disputed"
+        ? "text-red-700"
+        : status === "cancelled"
+          ? "text-muted-foreground"
+          : "text-amber-700";
+  return <p className={`mt-2 text-xs font-bold ${cls}`}>{label}</p>;
+}
+
+function Metric({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div className="rounded-[1.5rem] border bg-card p-5">
+      <div className="text-primary">{icon}</div>
+      <p className="mt-4 text-xs text-muted-foreground">{label}</p>
+      <p className="mt-2 break-words text-xl font-black">{value}</p>
+    </div>
+  );
+}
+
+function Status({ status }: { status: string }) {
+  const config =
+    status === "approved"
+      ? { label: "Согласовано", icon: <BadgeCheck className="h-3 w-3" /> }
+      : status === "rejected"
+        ? { label: "Отклонено", icon: <XCircle className="h-3 w-3" /> }
+        : { label: "На согласовании", icon: <CalendarClock className="h-3 w-3" /> };
+  return (
+    <span className="inline-flex items-center gap-1 text-xs font-bold">
+      {config.icon}
+      {config.label}
+    </span>
+  );
+}
+
+function ActionMessage({ state }: { state: Result }) {
+  return state ? (
+    <p
+      className={`mt-3 break-words rounded-xl p-3 text-sm ${
+        state.success ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-800"
+      }`}
+    >
+      {state.message}
+    </p>
+  ) : null;
+}
+
+function stageStatus(status: string) {
+  const labels: Record<string, string> = {
+    planned: "Запланирован",
+    in_progress: "В работе",
+    awaiting_review: "Ожидает приёмки",
+    completed: "Завершён",
+    cancelled: "Отменён",
+  };
+  return labels[status] ?? "Текущий этап";
+}
+
+function money(value: number) {
+  return `${new Intl.NumberFormat("ru-RU").format(value)} ₽`;
+}
+
+function signedMoney(value: number) {
+  return `${value > 0 ? "+" : ""}${money(value)}`;
+}
+
+function formatDate(value: string) {
+  const date = new Date(`${value}T00:00:00`);
+  return Number.isNaN(date.getTime())
+    ? value
+    : new Intl.DateTimeFormat("ru-RU", { dateStyle: "medium" }).format(date);
+}
+
+function formatDateTime(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? value
+    : new Intl.DateTimeFormat("ru-RU", { dateStyle: "medium", timeStyle: "short" }).format(date);
+}
