@@ -72,8 +72,8 @@ export async function recordAdEridAndSchedule(formData:FormData):Promise<never>{
   if(!order)redirect("/admin/ads?error=state");
   const now=new Date();
   const from=startNow?new Date(now.getTime()-60_000):parseMskDateTime(clean(formData.get("scheduledFrom")));
-  const to=startNow?new Date(now.getTime()+order.duration_days_snapshot*86_400_000):parseMskDateTime(clean(formData.get("scheduledTo")));
-  if(!from||!to||to<=from||to.getTime()-from.getTime()>order.duration_days_snapshot*86_400_000+300_000)redirect("/admin/ads?error=schedule");
+  const to=startNow&&from?new Date(from.getTime()+order.duration_days_snapshot*86_400_000):parseMskDateTime(clean(formData.get("scheduledTo")));
+  if(!from||!to||to<=from||to.getTime()-from.getTime()>order.duration_days_snapshot*86_400_000)redirect("/admin/ads?error=schedule");
   const targetStatus=from<=now&&to>now?"active":"scheduled";
 
   const client=await db.connect();
