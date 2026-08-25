@@ -12,10 +12,13 @@ const PAYOUT_STAGE_ID="00000000-0000-4000-8000-000000000502";
 const REFUND_STAGE_ID="00000000-0000-4000-8000-000000000503";
 const PAYOUT_INTENT_ID="00000000-0000-4000-8000-000000002303";
 const REFUND_INTENT_ID="00000000-0000-4000-8000-000000002304";
-const PAYOUT_MINOR=85_000_000;
+const PAYOUT_GROSS_MINOR=85_000_000;
+const PAYOUT_NET_MINOR=76_500_000;
 const REFUND_MINOR=1_500_000;
-const PAYOUT_PROVIDER_ID=`e2e-project-payment-${PAYOUT_MINOR}-${PAYOUT_INTENT_ID}`;
+const PAYOUT_PROVIDER_ID=`e2e-project-payment-${PAYOUT_GROSS_MINOR}-${PAYOUT_INTENT_ID}`;
 const REFUND_PROVIDER_ID=`e2e-project-payment-${REFUND_MINOR}-${REFUND_INTENT_ID}`;
+const PAYOUT_RESULT_ID=`e2e-payout-${PAYOUT_NET_MINOR}-${PAYOUT_INTENT_ID}`;
+const REFUND_RESULT_ID=`e2e-refund-${REFUND_MINOR}-${REFUND_INTENT_ID}`;
 
 const pool=new Pool({connectionString:process.env.DATABASE_URL,max:1});
 const client=await pool.connect();
@@ -27,7 +30,7 @@ try{
   await client.query(`DELETE FROM public.payment_release_failures WHERE payment_intent_id=ANY($1::uuid[])`,[[PAYOUT_INTENT_ID,REFUND_INTENT_ID]]);
   await client.query(`DELETE FROM public.project_payment_intents WHERE id=ANY($1::uuid[])`,[[PAYOUT_INTENT_ID,REFUND_INTENT_ID]]);
 
-  const stages=await client.query<{id:string;project_id:string;status:string;price:string|number}>(`
+  const stages=await client.query(`
     SELECT id,project_id,status::text,price
     FROM public.project_stages
     WHERE id=ANY($1::uuid[])
@@ -58,13 +61,15 @@ try{
     E2E_FINANCE_REFUND_INTENT_ID:REFUND_INTENT_ID,
     E2E_FINANCE_PAYOUT_PROVIDER_ID:PAYOUT_PROVIDER_ID,
     E2E_FINANCE_REFUND_PROVIDER_ID:REFUND_PROVIDER_ID,
+    E2E_FINANCE_PAYOUT_RESULT_ID:PAYOUT_RESULT_ID,
+    E2E_FINANCE_REFUND_RESULT_ID:REFUND_RESULT_ID,
   };
   for(const [key,value] of Object.entries(additions)){
     const line=`${key}=${value}`;const pattern=new RegExp(`^${key}=.*$`,`m`);
     envText=pattern.test(envText)?envText.replace(pattern,line):`${envText.trimEnd()}\n${line}\n`;
   }
   await fs.writeFile(envPath,envText,{mode:0o600});
-  console.log("E2E finance fixture готов: accepted stages + 2 isolated safe-deal intents");
+  console.log("E2E finance fixture готов: accepted stages + async safe-deal intents");
 }catch(error){
   await client.query("ROLLBACK");
   console.error("E2E finance seed failed:",error);
