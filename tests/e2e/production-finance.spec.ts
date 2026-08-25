@@ -53,6 +53,7 @@ test.describe("production finance lifecycle",()=>{
     await expect(page).toHaveURL(/\/admin\/finance\?refunded=1/);
     refundArticle=page.locator("article").filter({hasText:refundStageTitle}).first();
     await expect(refundArticle.getByText("Возврат: Ожидает",{exact:true})).toBeVisible();
+    await expect(refundArticle.getByRole("button",{name:"Выплатить подрядчику"})).toHaveCount(0);
 
     const refundDone=await request.post("/api/payments/yookassa/webhook",{data:{event:"refund.succeeded",object:{id:refundResultId}}});
     expect(refundDone.status()).toBe(200);
