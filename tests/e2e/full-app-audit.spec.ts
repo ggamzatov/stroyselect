@@ -34,6 +34,7 @@ const packageJson = JSON.parse(fs.readFileSync(path.join(process.cwd(), "package
 const productionE2eCommand = String(packageJson.scripts?.["test:e2e:production:seeded"] ?? "");
 
 const EXPECTED_API_PATTERNS = [
+  "/api/ads/events",
   "/api/contracts/[projectId]/docx",
   "/api/errors/client",
   "/api/health/live",
@@ -281,6 +282,11 @@ test.describe("Full application audit", () => {
       data: { eventName: "catalog_viewed", contractorId: fixtures!.companyId, metadata: { source: "playwright", path: "/contractors" } },
     });
     expect(marketplaceEvent.status()).toBe(200);
+
+    const invalidAdEvent = await request.post("/api/ads/events", {
+      data: { orderId: "invalid", eventType: "impression", eventKey: "full-app-probe", pagePath: "/" },
+    });
+    expect(invalidAdEvent.status()).toBe(400);
 
     const maintenance = await request.get("/api/internal/maintenance");
     expect(maintenance.status(), "Maintenance endpoint must reject calls without CRON_SECRET").toBe(401);
