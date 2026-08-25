@@ -39,7 +39,7 @@
     "test:e2e:prelaunch:seeded": "npm run e2e:prepare:seeded && node --env-file-if-exists=.env.local --env-file=.env.e2e.local ./node_modules/@playwright/test/cli.js test tests/e2e/pre-launch-quality.spec.ts",
     "test:e2e:full-app:seeded": "npm run e2e:prepare:seeded && node --env-file-if-exists=.env.local --env-file=.env.e2e.local ./node_modules/@playwright/test/cli.js test tests/e2e/full-app-audit.spec.ts",
     "test:e2e:all:seeded": "npm run e2e:prepare:seeded && node --env-file-if-exists=.env.local --env-file=.env.e2e.local ./node_modules/@playwright/test/cli.js test",
-    "test:e2e:production:seeded": "npm run e2e:prepare:seeded && node --env-file-if-exists=.env.local --env-file=.env.e2e.local ./node_modules/@playwright/test/cli.js test tests/e2e/advertising.spec.ts tests/e2e/communication-scheduling.spec.ts tests/e2e/full-app-audit.spec.ts tests/e2e/marketplace-flow.spec.ts tests/e2e/material-delivery.spec.ts tests/e2e/pre-launch-quality.spec.ts tests/e2e/production-hardening.spec.ts tests/e2e/public-smoke.spec.ts tests/e2e/public-v1.spec.ts tests/e2e/ui-regression.spec.ts"
+    "test:e2e:production:seeded": "npm run e2e:prepare:seeded && node --env-file-if-exists=.env.local --env-file=.env.e2e.local ./node_modules/@playwright/test/cli.js test tests/e2e/advertising.spec.ts tests/e2e/communication-scheduling.spec.ts tests/e2e/full-app-audit.spec.ts tests/e2e/marketplace-flow.spec.ts tests/e2e/material-delivery.spec.ts tests/e2e/pre-launch-quality.spec.ts tests/e2e/production-finance.spec.ts tests/e2e/production-hardening.spec.ts tests/e2e/public-smoke.spec.ts tests/e2e/public-v1.spec.ts tests/e2e/ui-regression.spec.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1110.0",
