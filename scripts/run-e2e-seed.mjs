@@ -13,4 +13,5 @@ await import("./seed-e2e-ops.mjs");
 await import("./seed-e2e-materials.mjs");
 await import("./seed-e2e-full-app.mjs");
 await import("./seed-e2e-ads.mjs");
+await import("./seed-e2e-finance.mjs");
 await import("./reset-e2e-auth.mjs");
