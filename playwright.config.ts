@@ -38,6 +38,7 @@ export default defineConfig({
           PLAYWRIGHT_BASE_URL: baseURL,
           E2E_ALLOW_INSECURE_SESSION: "1",
           YANDEX_DELIVERY_E2E_MOCK: "1",
+          YOOKASSA_E2E_MOCK: "1",
         },
       },
 });
