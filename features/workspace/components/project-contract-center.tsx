@@ -1,62 +1,23 @@
-import { BadgeCheck, FileSignature, ShieldCheck } from "lucide-react";
-
+import Link from "next/link";
+import { BadgeCheck,FileDown,FileSignature,Printer,ShieldCheck } from "lucide-react";
 import type { ProjectContractView } from "@/features/workspace/queries/get-project-contract";
-import {
-  approveProjectContract,
-  createProjectContract,
-} from "@/features/workspace/actions/project-contracts";
+import { approveProjectContract } from "@/features/workspace/actions/project-contracts";
+import { ProjectContractBuilder } from "@/features/workspace/components/project-contract-builder";
 
-export function ProjectContractCenter({ contract }: { contract: ProjectContractView }) {
-  const viewerApproved = contract.viewerRole === "customer"
-    ? Boolean(contract.customerApprovedAt)
-    : Boolean(contract.contractorApprovedAt);
-
-  return (
-    <div className="app-container py-8 md:py-10">
-      <section className="rounded-[2rem] border border-border bg-card p-6 shadow-[var(--shadow-soft)] md:p-8">
-        <div className="flex items-start justify-between gap-5">
-          <div>
-            <p className="text-sm font-semibold text-primary">Договор и согласование</p>
-            <h1 className="mt-2 text-3xl font-black tracking-tight">{contract.projectTitle}</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">Договор формируется из выбранного предложения. Изменения стоимости, сроков и объёма после согласования оформляются через change order.</p>
-          </div>
-          <FileSignature className="h-10 w-10 text-primary" />
-        </div>
-      </section>
-
-      {!contract.contractId ? (
-        <section className="mt-6 rounded-[1.75rem] border border-border bg-card p-6 shadow-[var(--shadow-soft)]">
-          {contract.viewerRole === "customer" && contract.hasSelectedContractor ? (
-            <><h2 className="text-xl font-bold">Создать договор из принятого предложения</h2><p className="mt-2 text-sm text-muted-foreground">СтройВыбор перенесёт стоимость, срок, состав работ, материалы, исключения, порядок оплаты и гарантию.</p><form action={createProjectContract} className="mt-5"><input type="hidden" name="projectId" value={contract.projectId} /><button className="rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground">Сформировать договор</button></form></>
-          ) : (
-            <p className="text-sm text-muted-foreground">Договор ещё не сформирован заказчиком.</p>
-          )}
-        </section>
-      ) : (
-        <>
-          <section className="mt-6 rounded-[1.75rem] border border-border bg-card p-6 shadow-[var(--shadow-soft)]">
-            <div className="flex flex-wrap items-center justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Версия {contract.versionNo}</p><h2 className="mt-1 text-xl font-bold">{contract.title}</h2></div><span className="rounded-full bg-secondary px-3 py-2 text-xs font-bold text-primary">{formatStatus(contract.status)}</span></div>
-            <pre className="mt-6 whitespace-pre-wrap rounded-2xl border border-border bg-background p-5 font-sans text-sm leading-7 text-foreground">{contract.body}</pre>
-          </section>
-
-          <section className="mt-6 grid gap-4 md:grid-cols-2">
-            <ApprovalCard label="Заказчик" approvedAt={contract.customerApprovedAt} />
-            <ApprovalCard label="Подрядчик" approvedAt={contract.contractorApprovedAt} />
-          </section>
-
-          {!viewerApproved && contract.status !== "cancelled" && (
-            <section className="mt-6 rounded-[1.75rem] border border-primary/20 bg-card p-6 shadow-[var(--shadow-soft)]">
-              <div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 text-primary" /><div><h2 className="font-bold">Согласовать текущую версию</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">Это фиксирует согласие с текущей версией внутри СтройВыбора. Юридическая квалификация такого согласования зависит от выбранной модели электронного документооборота.</p></div></div>
-              <form action={approveProjectContract} className="mt-5"><input type="hidden" name="projectId" value={contract.projectId} /><button className="rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground">Согласовать версию</button></form>
-            </section>
-          )}
-        </>
-      )}
-    </div>
-  );
+export function ProjectContractCenter({contract}:{contract:ProjectContractView}){
+ const viewerApproved=contract.viewerRole==="customer"?Boolean(contract.customerApprovedAt):Boolean(contract.contractorApprovedAt);
+ const roleBase=contract.viewerRole==="customer"?"customer":"contractor";
+ return <div className="app-container py-8 md:py-10">
+ <section className="rounded-[2rem] border border-border bg-card p-6 shadow-[var(--shadow-soft)] md:p-8"><div className="flex min-w-0 items-start justify-between gap-5"><div className="min-w-0"><p className="text-sm font-semibold text-primary">Конструктор договора и электронное согласование</p><h1 className="mt-2 break-words text-3xl font-black tracking-tight">{contract.projectTitle}</h1><p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">Выберите условия конкретного проекта, проверьте сформированный текст и только затем подписывайте. Каждая новая редакция сохраняется отдельно; подписи старой версии не переносятся.</p></div><FileSignature className="h-10 w-10 shrink-0 text-primary"/></div></section>
+ {!contract.contractId?<section className="mt-6 rounded-[1.75rem] border border-border bg-card p-6">{contract.viewerRole==="customer"&&contract.hasSelectedContractor?<><h2 className="text-xl font-bold">Составить договор</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">Пройдите разделы конструктора и включите только нужные условия. После формирования появится полный текст, который можно проверить до подписания.</p><div className="mt-5"><ProjectContractBuilder projectId={contract.projectId}/></div></>:<p className="text-sm text-muted-foreground">Договор ещё не сформирован заказчиком.</p>}</section>:<>
+ <section className="mt-6 rounded-[1.75rem] border border-border bg-card p-6"><div className="flex min-w-0 flex-wrap items-center justify-between gap-4"><div className="min-w-0"><p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Версия {contract.versionNo}</p><h2 className="mt-1 break-words text-xl font-bold">{contract.title}</h2></div><div className="flex flex-wrap items-center gap-2"><span className="shrink-0 rounded-full bg-secondary px-3 py-2 text-xs font-bold text-primary">{formatStatus(contract.status)}</span><Link href={`/${roleBase}/work/${contract.projectId}/contract/print`} target="_blank" className="inline-flex items-center gap-2 rounded-xl border border-border px-3 py-2 text-xs font-bold"><Printer className="h-4 w-4"/>Печать / PDF</Link><a href={`/api/contracts/${contract.projectId}/docx${contract.versionNo?`?version=${contract.versionNo}`:""}`} className="inline-flex items-center gap-2 rounded-xl border border-border px-3 py-2 text-xs font-bold"><FileDown className="h-4 w-4"/>Скачать DOCX</a></div></div><pre className="mt-6 max-w-full whitespace-pre-wrap break-words rounded-2xl border border-border bg-background p-5 font-sans text-sm leading-7 [overflow-wrap:anywhere]">{contract.body}</pre>
+ {contract.viewerRole==="customer"&&<div className="mt-6 border-t border-border pt-6"><h3 className="text-lg font-bold">Изменить условия и создать новую версию</h3><p className="mt-2 text-sm leading-6 text-muted-foreground">Измените параметры ниже и сформируйте новую версию. Подписи прежней версии не переносятся автоматически.</p><div className="mt-5"><ProjectContractBuilder projectId={contract.projectId} regenerate/></div></div>}
+ </section>
+ {contract.versions.length>0&&<section className="mt-6 rounded-[1.75rem] border border-border bg-card p-6"><h2 className="text-xl font-black">Архив версий договора</h2><p className="mt-1 text-sm text-muted-foreground">Редакции неизменяемы и сохраняются для аудита договорённостей сторон.</p><div className="mt-4 space-y-3">{contract.versions.map(version=><div key={version.versionNo} className="flex min-w-0 flex-col gap-3 rounded-xl border border-border p-4 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="break-words font-bold">Версия {version.versionNo} · {version.title}</p><p className="text-xs text-muted-foreground">Создана {formatDate(version.createdAt)} · шаблон {version.legalTemplateVersion}</p><p className="mt-1 text-xs font-semibold text-muted-foreground">{version.customerApprovedAt&&version.contractorApprovedAt?"Подписана обеими сторонами":"Подписи не завершены"}</p></div><a href={`/api/contracts/${contract.projectId}/docx?version=${version.versionNo}`} className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-border px-3 text-xs font-bold"><FileDown className="h-4 w-4"/>DOCX</a></div>)}</div></section>}
+ <section className="mt-6 grid gap-4 md:grid-cols-2"><ApprovalCard label="Заказчик" approvedAt={contract.customerApprovedAt}/><ApprovalCard label="Подрядчик" approvedAt={contract.contractorApprovedAt}/></section>
+ {!viewerApproved&&contract.status!=="cancelled"&&<section className="mt-6 rounded-[1.75rem] border border-primary/20 bg-card p-6"><div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary"/><div className="min-w-0"><h2 className="font-bold">Подтвердить текущую версию</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">Подтверждение относится только к указанной версии и фиксируется вместе с аккаунтом, датой и техническими доказательствами.</p></div></div><form action={approveProjectContract} className="mt-5 space-y-4"><input type="hidden" name="projectId" value={contract.projectId}/><label className="flex items-start gap-3 rounded-2xl border border-border p-4 text-sm leading-6"><input required type="checkbox" name="electronicSignatureAgreement" value="accepted" className="mt-1 h-4 w-4 shrink-0 accent-[var(--primary)]"/><span className="min-w-0 break-words">Я прочитал(а) текущую версию договора, согласен(на) с её условиями и соглашаюсь использовать действие в моём аутентифицированном аккаунте как простую электронную подпись по правилам, указанным в договоре. Я обязуюсь сохранять данные доступа в тайне.</span></label><button className="rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground">Подписать текущую версию</button></form></section>}</>}
+ </div>
 }
-
-function ApprovalCard({ label, approvedAt }: { label: string; approvedAt: string | Date | null }) {
-  return <div className="rounded-[1.5rem] border border-border bg-card p-5 shadow-[var(--shadow-soft)]"><div className="flex items-center gap-2"><BadgeCheck className={`h-5 w-5 ${approvedAt ? "text-emerald-600" : "text-muted-foreground"}`} /><strong>{label}</strong></div><p className="mt-2 text-sm text-muted-foreground">{approvedAt ? `Согласовано ${new Intl.DateTimeFormat("ru-RU").format(new Date(approvedAt))}` : "Ожидает согласования"}</p></div>;
-}
-function formatStatus(status: string | null) { return status === "active" ? "Согласован" : status === "pending_approval" ? "Ожидает согласования" : status === "completed" ? "Завершён" : status === "cancelled" ? "Отменён" : "Черновик"; }
+function ApprovalCard({label,approvedAt}:{label:string;approvedAt:string|Date|null}){return <div className="rounded-[1.5rem] border border-border bg-card p-5"><div className="flex items-center gap-2"><BadgeCheck className={`h-5 w-5 ${approvedAt?"text-emerald-600":"text-muted-foreground"}`}/><strong>{label}</strong></div><p className="mt-2 text-sm text-muted-foreground">{approvedAt?`Подписано ${formatDate(approvedAt)}`:"Ожидает подписи"}</p></div>}
+function formatDate(value:string|Date){return new Intl.DateTimeFormat("ru-RU").format(new Date(value))}
+function formatStatus(status:string|null){return status==="active"?"Подписан сторонами":status==="pending_approval"?"Ожидает подписания":status==="completed"?"Завершён":status==="cancelled"?"Отменён":"Черновик"}

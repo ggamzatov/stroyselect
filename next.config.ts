@@ -37,6 +37,9 @@ if (process.env.NODE_ENV === "production") {
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   output: "standalone",
+  experimental: {
+    globalNotFound: true,
+  },
 
   async headers() {
     return [

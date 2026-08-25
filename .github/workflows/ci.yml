@@ -6,6 +6,7 @@ on:
       - main
       - product/project-intake-matching
       - audit/production-hardening
+      - legal/russian-compliance-contracts
   pull_request:
 
 permissions:
@@ -68,6 +69,12 @@ jobs:
       - name: Authorization audit
         run: npm run authorization:audit
 
+      - name: Production readiness audit
+        run: npm run production:audit
+
+      - name: Source consistency audit
+        run: npm run source:audit
+
       - name: Lint
         run: npm run lint
 
@@ -79,3 +86,6 @@ jobs:
 
       - name: Run seeded production E2E gate
         run: npm run test:e2e:production:seeded
+
+      - name: Audit production dependencies
+        run: npm run dependency:audit

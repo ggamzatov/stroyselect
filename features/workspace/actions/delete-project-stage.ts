@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db/pool";
 import { requireActiveUser } from "@/lib/auth/require-active-user";
 import { requireActiveProject } from "@/lib/projects/require-active-project";
+import { requireActiveContract } from "@/lib/projects/require-active-contract";
 
 export type DeleteProjectStageResult = {
   success: boolean;
@@ -42,6 +43,11 @@ export async function deleteProjectStage(
     return { success: false, message: activeProject.message };
   }
 
+  const contract = await requireActiveContract(projectId);
+  if (!contract.success) {
+    return { success: false, message: contract.message };
+  }
+
   const companyResult = await db.query<{ id: string }>(
     `
       SELECT id
@@ -76,11 +82,37 @@ export async function deleteProjectStage(
     };
   }
 
+  if (activeProject.project.status === "in_progress") {
+    return {
+      success: false,
+      message: "После начала работ удаление этапа меняет согласованный план. Оформите изменение проекта вместо удаления.",
+    };
+  }
+
   const client = await db.connect();
   let stage: StageRow | undefined;
 
   try {
     await client.query("BEGIN");
+
+    const projectLock = await client.query(
+      `
+        SELECT id
+        FROM public.projects
+        WHERE id=$1::uuid
+          AND selected_contractor_id=$2::uuid
+          AND status='contractor_selected'
+          AND is_admin_blocked=false
+          AND COALESCE(risk_hold,false)=false
+        LIMIT 1
+        FOR UPDATE
+      `,
+      [projectId, company.id]
+    );
+    if (!projectLock.rowCount) {
+      await client.query("ROLLBACK");
+      return { success: false, message: "План этапов уже нельзя изменять" };
+    }
 
     const stageResult = await client.query<StageRow>(
       `

@@ -3,6 +3,7 @@ import "server-only";
 import { db } from "@/lib/db/pool";
 import { requireActiveUser } from "@/lib/auth/require-active-user";
 
+export type ProjectContractVersionSummary={versionNo:number;title:string;createdAt:string|Date;customerApprovedAt:string|Date|null;contractorApprovedAt:string|Date|null;legalTemplateVersion:string};
 export type ProjectContractView = {
   projectId: string;
   projectTitle: string;
@@ -16,6 +17,7 @@ export type ProjectContractView = {
   customerApprovedAt: string | Date | null;
   contractorApprovedAt: string | Date | null;
   viewerRole: "customer" | "contractor";
+  versions:ProjectContractVersionSummary[];
 };
 
 export async function getProjectContract(projectId: string): Promise<ProjectContractView | null> {
@@ -23,20 +25,7 @@ export async function getProjectContract(projectId: string): Promise<ProjectCont
   if (!auth.success) return null;
 
   const result = await db.query<{
-    project_id: string;
-    project_title: string;
-    customer_id: string;
-    selected_contractor_id: string | null;
-    contractor_owner_id: string | null;
-    contract_id: string | null;
-    status: string | null;
-    current_version: number | null;
-    version_no: number | null;
-    version_title: string | null;
-    body: string | null;
-    commercial_terms: unknown;
-    customer_approved_at: string | Date | null;
-    contractor_approved_at: string | Date | null;
+    project_id: string;project_title: string;customer_id: string;selected_contractor_id: string | null;contractor_owner_id: string | null;contract_id: string | null;status: string | null;current_version: number | null;version_no: number | null;version_title: string | null;body: string | null;commercial_terms: unknown;customer_approved_at: string | Date | null;contractor_approved_at: string | Date | null;
   }>(
     `SELECT p.id AS project_id,p.title AS project_title,p.customer_id,p.selected_contractor_id,
             cc.owner_id AS contractor_owner_id,pc.id AS contract_id,pc.status,pc.current_version,
@@ -51,28 +40,20 @@ export async function getProjectContract(projectId: string): Promise<ProjectCont
   );
   const row = result.rows[0];
   if (!row) return null;
-  const viewerRole = row.customer_id === auth.user.id
-    ? "customer"
-    : row.contractor_owner_id === auth.user.id
-      ? "contractor"
-      : null;
+  const viewerRole = row.customer_id === auth.user.id ? "customer" : row.contractor_owner_id === auth.user.id ? "contractor" : null;
   if (!viewerRole) return null;
 
+  let versions:ProjectContractVersionSummary[]=[];
+  if(row.contract_id){
+    const history=await db.query<{version_no:number;title:string;created_at:string|Date;customer_approved_at:string|Date|null;contractor_approved_at:string|Date|null;legal_template_version:string}>(`
+      SELECT version_no,title,created_at,customer_approved_at,contractor_approved_at,legal_template_version
+      FROM public.project_contract_versions WHERE contract_id=$1::uuid ORDER BY version_no DESC
+    `,[row.contract_id]);
+    versions=history.rows.map(v=>({versionNo:v.version_no,title:v.title,createdAt:v.created_at,customerApprovedAt:v.customer_approved_at,contractorApprovedAt:v.contractor_approved_at,legalTemplateVersion:v.legal_template_version}));
+  }
+
   return {
-    projectId: row.project_id,
-    projectTitle: row.project_title,
-    hasSelectedContractor: Boolean(row.selected_contractor_id),
-    contractId: row.contract_id,
-    status: row.status,
-    versionNo: row.version_no,
-    title: row.version_title,
-    body: row.body,
-    commercialTerms: isRecord(row.commercial_terms) ? row.commercial_terms : {},
-    customerApprovedAt: row.customer_approved_at,
-    contractorApprovedAt: row.contractor_approved_at,
-    viewerRole,
+    projectId: row.project_id,projectTitle: row.project_title,hasSelectedContractor: Boolean(row.selected_contractor_id),contractId: row.contract_id,status: row.status,versionNo: row.version_no,title: row.version_title,body: row.body,commercialTerms: isRecord(row.commercial_terms) ? row.commercial_terms : {},customerApprovedAt: row.customer_approved_at,contractorApprovedAt: row.contractor_approved_at,viewerRole,versions,
   };
 }
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
+function isRecord(value: unknown): value is Record<string, unknown> {return typeof value === "object" && value !== null && !Array.isArray(value);}

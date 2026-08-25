@@ -29,19 +29,19 @@ export function CompanyContactsSection({ register, errors, disabled }: Props) {
 
       <div className="mt-6 grid gap-5 md:grid-cols-2">
         <Field field="contactPhone" icon={<Phone className="h-4 w-4" />} label="Телефон" required error={errors.contactPhone?.message}>
-          <input disabled={disabled} className={inputClass(Boolean(errors.contactPhone))} placeholder="+7 999 000-00-00" {...register("contactPhone")} />
+          <input id="contactPhone" disabled={disabled} className={inputClass(Boolean(errors.contactPhone))} placeholder="+7 999 000-00-00" {...register("contactPhone")} />
         </Field>
 
         <Field field="contactEmail" icon={<Mail className="h-4 w-4" />} label="Email" required error={errors.contactEmail?.message}>
-          <input type="email" disabled={disabled} className={inputClass(Boolean(errors.contactEmail))} placeholder="company@example.ru" {...register("contactEmail")} />
+          <input id="contactEmail" type="email" disabled={disabled} className={inputClass(Boolean(errors.contactEmail))} placeholder="company@example.ru" {...register("contactEmail")} />
         </Field>
 
         <Field field="website" icon={<Globe2 className="h-4 w-4" />} label="Сайт" error={errors.website?.message}>
-          <input disabled={disabled} className={inputClass(Boolean(errors.website))} placeholder="https://example.ru" {...register("website")} />
+          <input id="website" disabled={disabled} className={inputClass(Boolean(errors.website))} placeholder="https://example.ru" {...register("website")} />
         </Field>
 
         <Field field="telegram" icon={<MessageCircle className="h-4 w-4" />} label="Telegram" error={errors.telegram?.message}>
-          <input disabled={disabled} className={inputClass(Boolean(errors.telegram))} placeholder="@company" {...register("telegram")} />
+          <input id="telegram" disabled={disabled} className={inputClass(Boolean(errors.telegram))} placeholder="@company" {...register("telegram")} />
         </Field>
       </div>
     </section>
@@ -57,7 +57,7 @@ function Field({ field, icon, label, required, error, children }: { field?: stri
     <div data-company-field={field}>
       <div className="flex items-center gap-2">
         <span className="text-primary">{icon}</span>
-        <label className="text-sm font-semibold text-foreground">
+        <label htmlFor={field} className="text-sm font-semibold text-foreground">
           {label}{required && <span className="ml-1 text-destructive">*</span>}
         </label>
       </div>

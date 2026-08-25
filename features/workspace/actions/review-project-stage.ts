@@ -6,6 +6,7 @@ import { z } from "zod";
 import { db } from "@/lib/db/pool";
 import { requireActiveUser } from "@/lib/auth/require-active-user";
 import { requireActiveProject } from "@/lib/projects/require-active-project";
+import { requireActiveContract } from "@/lib/projects/require-active-contract";
 
 const reviewSchema = z.object({
   stageId: z.string().uuid(),
@@ -33,6 +34,7 @@ type StageRow = {
 };
 
 type HoldRow = {
+  status: string;
   risk_hold: boolean;
   risk_hold_reason: string | null;
 };
@@ -75,6 +77,15 @@ export async function reviewProjectStage(
     return { success: false, message: "У вас нет доступа к этому проекту" };
   }
 
+  if (activeProject.project.status !== "in_progress") {
+    return { success: false, message: "Приёмка этапов доступна только пока проект находится в работе" };
+  }
+
+  const contract = await requireActiveContract(parsed.data.projectId);
+  if (!contract.success) {
+    return { success: false, message: contract.message };
+  }
+
   const client = await db.connect();
 
   try {
@@ -82,7 +93,7 @@ export async function reviewProjectStage(
 
     const holdResult = await client.query<HoldRow>(
       `
-        SELECT risk_hold, risk_hold_reason
+        SELECT status::text AS status,risk_hold,risk_hold_reason
         FROM public.projects
         WHERE id = $1::uuid
           AND customer_id = $2::uuid
@@ -97,6 +108,11 @@ export async function reviewProjectStage(
     if (!project) {
       await client.query("ROLLBACK");
       return { success: false, message: "Проект не найден" };
+    }
+
+    if (project.status !== "in_progress") {
+      await client.query("ROLLBACK");
+      return { success: false, message: "Проект уже не находится в работе" };
     }
 
     if (project.risk_hold) {
@@ -167,7 +183,7 @@ export async function reviewProjectStage(
           activeUser.user.id,
           "Этап принят заказчиком",
           stage.title,
-          JSON.stringify({ stage_id: stage.id }),
+          JSON.stringify({ stage_id: stage.id, contract_id: contract.contractId, contract_version: contract.versionNo }),
         ]
       );
 
@@ -210,7 +226,7 @@ export async function reviewProjectStage(
         activeUser.user.id,
         "Этап возвращён на доработку",
         comment,
-        JSON.stringify({ stage_id: stage.id, stage_title: stage.title }),
+        JSON.stringify({ stage_id: stage.id, stage_title: stage.title, contract_id: contract.contractId, contract_version: contract.versionNo }),
       ]
     );
 

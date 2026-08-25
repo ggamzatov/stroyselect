@@ -14,21 +14,23 @@ const LOGIN_EMAIL_MAX_FAILURES=20;
 const LOGIN_LOCK_MINUTES=15;
 const LOGIN_ATTEMPT_RETENTION_HOURS=48;
 
-type UserRow={id:string;password_hash:string|null;is_active:boolean;email_confirmed_at:Date|string|null};
+type UserRow={id:string;password_hash:string|null;is_active:boolean;email_confirmed_at:Date|string|null;must_change_password:boolean};
 type LoginAttemptRow={attempt_key:string;locked_until:Date|string|null};
 type LoginAttemptKeys={composite:string;email:string};
 
 export async function loginUser(input:LoginInput){
- const parsed=loginSchema.safeParse(input);if(!parsed.success)return{success:false,message:"Проверьте введенные данные"};
+ const parsed=loginSchema.safeParse(input);if(!parsed.success)return{success:false,message:"Проверьте введённые данные"};
  const email=parsed.data.email.trim().toLowerCase();const password=parsed.data.password;const attemptKeys=await getLoginAttemptKeys(email);
  await cleanupStaleLoginAttempts();if(await isLoginLocked(attemptKeys))return{success:false,message:"Слишком много попыток входа. Попробуйте позже."};
- const result=await db.query<UserRow>(`SELECT id,password_hash,is_active,email_confirmed_at FROM public.users WHERE lower(email)=$1::text LIMIT 1`,[email]);const user=result.rows[0];
+ const result=await db.query<UserRow>(`SELECT id,password_hash,is_active,email_confirmed_at,must_change_password FROM public.users WHERE lower(email)=$1::text LIMIT 1`,[email]);const user=result.rows[0];
  if(!user||!user.password_hash){await registerLoginFailure(attemptKeys);return{success:false,message:"Неверная электронная почта или пароль"}}
  let matches=false;try{matches=await bcrypt.compare(password,user.password_hash)}catch(error){console.error("Ошибка проверки пароля:",error);return{success:false,message:"Не удалось выполнить вход"}}
  if(!matches){await registerLoginFailure(attemptKeys);return{success:false,message:"Неверная электронная почта или пароль"}}
- if(!user.is_active){await registerLoginFailure(attemptKeys);return{success:false,message:"Учетная запись отключена"}}
- if(!user.email_confirmed_at){await clearLoginFailures(attemptKeys);return{success:false,message:"Подтвердите email перед входом. Можно запросить новое письмо на странице подтверждения."}}
- await clearLoginFailures(attemptKeys);await createUserSession(user.id);redirect("/dashboard");
+ if(!user.is_active){await registerLoginFailure(attemptKeys);return{success:false,message:"Учётная запись отключена"}}
+ if(!user.email_confirmed_at){await clearLoginFailures(attemptKeys);return{success:false,message:"Подтвердите электронную почту перед входом. Можно запросить новое письмо на странице подтверждения."}}
+ await clearLoginFailures(attemptKeys);await createUserSession(user.id);
+ if(user.must_change_password) redirect("/change-password");
+ redirect("/dashboard");
 }
 
 async function getLoginAttemptKeys(email:string):Promise<LoginAttemptKeys>{const ip=await getRequestIp();return{composite:hashAttemptKey(`email-ip\n${email}\n${ip}`),email:hashAttemptKey(`email\n${email}`)}}

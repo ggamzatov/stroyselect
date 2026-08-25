@@ -34,6 +34,7 @@ export function CompanyExperienceSection({
       <div className="mt-6 grid gap-5 md:grid-cols-2">
         <NumberField field="foundedYear" label="Год начала работы" required error={errors.foundedYear?.message} icon={<CalendarDays className="h-4 w-4" />}>
           <input
+            id="foundedYear"
             type="number"
             disabled={disabled}
             className={inputClass(Boolean(errors.foundedYear))}
@@ -44,6 +45,7 @@ export function CompanyExperienceSection({
 
         <NumberField field="employeeCount" label="Количество сотрудников" required error={errors.employeeCount?.message} icon={<UsersRound className="h-4 w-4" />}>
           <input
+            id="employeeCount"
             type="number"
             min={1}
             disabled={disabled}
@@ -54,11 +56,11 @@ export function CompanyExperienceSection({
         </NumberField>
 
         <NumberField field="minimumProjectBudget" label="Минимальный бюджет проекта" icon={<Banknote className="h-4 w-4" />}>
-          <input type="number" min={0} disabled={disabled} className="stroy-input" {...register("minimumProjectBudget")} />
+          <input id="minimumProjectBudget" type="number" min={0} disabled={disabled} className="stroy-input" {...register("minimumProjectBudget")} />
         </NumberField>
 
         <NumberField field="maximumProjectBudget" label="Максимальный бюджет проекта" error={errors.maximumProjectBudget?.message} icon={<Banknote className="h-4 w-4" />}>
-          <input type="number" min={1} disabled={disabled} className={inputClass(Boolean(errors.maximumProjectBudget))} {...register("maximumProjectBudget")} />
+          <input id="maximumProjectBudget" type="number" min={1} disabled={disabled} className={inputClass(Boolean(errors.maximumProjectBudget))} {...register("maximumProjectBudget")} />
         </NumberField>
       </div>
 
@@ -129,7 +131,7 @@ function NumberField({ field, label, required, error, icon, children }: { field?
     <div data-company-field={field}>
       <div className="flex items-center gap-2">
         <span className="text-primary">{icon}</span>
-        <label className="text-sm font-semibold text-foreground">
+        <label htmlFor={field} className="text-sm font-semibold text-foreground">
           {label}{required && <span className="ml-1 text-destructive">*</span>}
         </label>
       </div>

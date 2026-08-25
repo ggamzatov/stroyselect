@@ -32,6 +32,7 @@ const PROJECT_SCOPE_HINTS = [
   "getAccess(",
   "getProjectAccess",
   "getProjectChatAccess",
+  "getMaterialProjectParticipant(",
   "requireProjectParticipant",
   "assertProject",
   "selected_contractor_id",

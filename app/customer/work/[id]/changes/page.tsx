@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { getCurrentProfile } from "@/lib/auth/get-current-profile";
 import { getProjectBudgetControl } from "@/features/workspace/queries/get-project-budget-control";
-import { ProjectBudgetControl } from "@/features/workspace/components/project-budget-control";
+import { ProjectBudgetControlV2 } from "@/features/workspace/components/project-budget-control-v2";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -15,7 +15,7 @@ export default async function CustomerProjectChangesPage({ params }: Props) {
   if (data.role !== "customer") redirect("/dashboard");
 
   return (
-    <ProjectBudgetControl
+    <ProjectBudgetControlV2
       data={data}
       backHref={`/customer/work/${id}`}
       operationKeys={{ changeOrder: randomUUID(), payment: randomUUID() }}

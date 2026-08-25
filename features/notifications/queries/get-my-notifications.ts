@@ -18,6 +18,7 @@ export async function getMyNotifications(limit = 20) {
   const safeLimit = Math.min(Math.max(Math.trunc(limit), 1), 100);
 
   try {
+    const visibilityClause = `COALESCE((n.metadata->>'in_app_visible')::boolean,true)=true`;
     const [itemsResult, countResult] = await Promise.all([
       db.query<NotificationRow>(
         `
@@ -39,14 +40,14 @@ export async function getMyNotifications(limit = 20) {
             p.last_name AS actor_last_name
           FROM public.notifications n
           LEFT JOIN public.profiles p ON p.id = n.actor_id
-          WHERE n.user_id = $1
+          WHERE n.user_id = $1 AND ${visibilityClause}
           ORDER BY n.created_at DESC
           LIMIT $2
         `,
         [userId, safeLimit]
       ),
       db.query<{ count: string | number }>(
-        `SELECT COUNT(*) AS count FROM public.notifications WHERE user_id = $1 AND is_read = false`,
+        `SELECT COUNT(*) AS count FROM public.notifications n WHERE n.user_id = $1 AND n.is_read = false AND ${visibilityClause}`,
         [userId]
       ),
     ]);

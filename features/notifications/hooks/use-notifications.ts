@@ -2,7 +2,6 @@
 
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { getMyNotifications } from "@/features/notifications/queries/get-my-notifications";
 
 export function useNotifications(userId: string) {
   const router = useRouter();
@@ -19,9 +18,23 @@ export function useNotifications(userId: string) {
 
       inFlightRef.current = true;
       try {
-        const result = await getMyNotifications(1);
-        const latest = result.notifications[0];
-        const signature = `${latest?.id ?? "none"}:${latest?.is_read ? "1" : "0"}:${result.unreadCount}`;
+        const response = await fetch("/api/notifications/status", {
+          method: "GET",
+          credentials: "same-origin",
+          cache: "no-store",
+          headers: { Accept: "application/json" },
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const result = (await response.json()) as {
+          latest: { id: string; isRead: boolean } | null;
+          unreadCount: number;
+        };
+
+        const signature = `${result.latest?.id ?? "none"}:${result.latest?.isRead ? "1" : "0"}:${result.unreadCount}`;
 
         if (signatureRef.current === null) {
           signatureRef.current = signature;
@@ -39,7 +52,7 @@ export function useNotifications(userId: string) {
       }
     }
 
-    const timer = window.setInterval(() => void checkNotifications(), 4000);
+    const timer = window.setInterval(() => void checkNotifications(), 10_000);
 
     function handleVisibilityChange() {
       if (document.visibilityState === "visible") void checkNotifications();

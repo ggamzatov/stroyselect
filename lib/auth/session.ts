@@ -6,11 +6,8 @@ import { cookies, headers } from "next/headers";
 
 import { db } from "@/lib/db/pool";
 
-const SESSION_COOKIE =
-  process.env.NODE_ENV === "production"
-    ? "__Host-stroyselect_session"
-    : "stroyselect_session";
-
+const PRODUCTION_SESSION_COOKIE = "__Host-stroyselect_session";
+const LOCAL_SESSION_COOKIE = "stroyselect_session";
 const SESSION_TTL_DAYS = 30;
 const LAST_SEEN_UPDATE_INTERVAL_MS = 5 * 60 * 1000;
 const MAX_ACTIVE_SESSIONS_PER_USER = 10;
@@ -21,6 +18,11 @@ type SessionRow = {
   expires_at: Date | string;
   revoked_at: Date | string | null;
   last_seen_at: Date | string;
+};
+
+type SessionCookiePolicy = {
+  name: string;
+  secure: boolean;
 };
 
 function hashToken(token: string) {
@@ -39,6 +41,21 @@ function getSessionExpiresAt() {
 
 function toDate(value: Date | string) {
   return value instanceof Date ? value : new Date(value);
+}
+
+async function getSessionCookiePolicy(): Promise<SessionCookiePolicy> {
+  const headerStore = await headers();
+  const forwardedHost = headerStore.get("x-forwarded-host")?.split(",")[0]?.trim();
+  const host = (forwardedHost || headerStore.get("host") || "").toLowerCase();
+  const isLoopback = /^(?:127\.0\.0\.1|localhost)(?::\d+)?$/i.test(host);
+  const allowInsecureE2E =
+    process.env.E2E_ALLOW_INSECURE_SESSION === "1" && isLoopback;
+  const secure = process.env.NODE_ENV === "production" && !allowInsecureE2E;
+
+  return {
+    name: secure ? PRODUCTION_SESSION_COOKIE : LOCAL_SESSION_COOKIE,
+    secure,
+  };
 }
 
 async function getRequestMetadata() {
@@ -113,10 +130,11 @@ export async function createUserSession(userId: string) {
     client.release();
   }
 
+  const policy = await getSessionCookiePolicy();
   const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE, token, {
+  cookieStore.set(policy.name, token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: policy.secure,
     sameSite: "lax",
     path: "/",
     expires: expiresAt,
@@ -125,8 +143,9 @@ export async function createUserSession(userId: string) {
 }
 
 export async function getCurrentSessionUserId(): Promise<string | null> {
+  const policy = await getSessionCookiePolicy();
   const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE)?.value;
+  const token = cookieStore.get(policy.name)?.value;
 
   if (!token) return null;
 
@@ -171,8 +190,9 @@ export async function getCurrentSessionUserId(): Promise<string | null> {
 }
 
 export async function destroyCurrentSession() {
+  const policy = await getSessionCookiePolicy();
   const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE)?.value;
+  const token = cookieStore.get(policy.name)?.value;
 
   if (token) {
     const tokenHash = hashToken(token);
@@ -187,7 +207,7 @@ export async function destroyCurrentSession() {
     );
   }
 
-  cookieStore.delete(SESSION_COOKIE);
+  cookieStore.delete(policy.name);
 }
 
 export async function revokeAllUserSessions(userId: string) {

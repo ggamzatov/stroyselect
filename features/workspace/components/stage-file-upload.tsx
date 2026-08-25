@@ -295,6 +295,7 @@ export function StageFileUpload({
         <div className="relative">
           <select
             name="fileCategory"
+            aria-label="Тип материала"
             defaultValue="progress_photo"
             className="stroy-select appearance-none pr-12"
           >
@@ -340,6 +341,7 @@ export function StageFileUpload({
           ref={fileInputRef}
           type="file"
           name="file"
+          aria-label="Файл по этапу"
           required
           accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx"
           className="sr-only"
@@ -498,6 +500,7 @@ export function StageFileUpload({
       >
         <textarea
           name="description"
+          aria-label="Комментарий к файлу"
           rows={3}
           maxLength={1000}
           className="stroy-textarea"

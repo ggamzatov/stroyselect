@@ -18,11 +18,11 @@ export function CompanyMainSection({ register, errors, disabled }: Props) {
     >
       <div className="grid gap-5 md:grid-cols-2">
         <Field field="publicName" label="Публичное название" required error={errors.publicName?.message}>
-          <input disabled={disabled} className={inputClass(Boolean(errors.publicName))} placeholder="Например, СтройДом" {...register("publicName")} />
+          <input id="publicName" disabled={disabled} className={inputClass(Boolean(errors.publicName))} placeholder="Например, СтройДом" {...register("publicName")} />
         </Field>
 
         <Field field="companyType" label="Тип подрядчика" required error={errors.companyType?.message}>
-          <select disabled={disabled} className={selectClass(Boolean(errors.companyType))} {...register("companyType")}>
+          <select id="companyType" disabled={disabled} className={selectClass(Boolean(errors.companyType))} {...register("companyType")}>
             <option value="individual">Частная бригада</option>
             <option value="self_employed">Самозанятый</option>
             <option value="entrepreneur">Индивидуальный предприниматель</option>
@@ -32,16 +32,16 @@ export function CompanyMainSection({ register, errors, disabled }: Props) {
 
         <div className="md:col-span-2">
           <Field field="legalName" label="Юридическое название" required error={errors.legalName?.message}>
-            <input disabled={disabled} className={inputClass(Boolean(errors.legalName))} placeholder="ИП Иванов Иван Иванович" {...register("legalName")} />
+            <input id="legalName" disabled={disabled} className={inputClass(Boolean(errors.legalName))} placeholder="ИП Иванов Иван Иванович" {...register("legalName")} />
           </Field>
         </div>
 
         <Field field="inn" label="ИНН" required error={errors.inn?.message}>
-          <input disabled={disabled} inputMode="numeric" className={inputClass(Boolean(errors.inn))} {...register("inn")} />
+          <input id="inn" disabled={disabled} inputMode="numeric" className={inputClass(Boolean(errors.inn))} {...register("inn")} />
         </Field>
 
         <Field field="ogrn" label="ОГРН или ОГРНИП" required error={errors.ogrn?.message}>
-          <input disabled={disabled} inputMode="numeric" className={inputClass(Boolean(errors.ogrn))} {...register("ogrn")} />
+          <input id="ogrn" disabled={disabled} inputMode="numeric" className={inputClass(Boolean(errors.ogrn))} {...register("ogrn")} />
         </Field>
 
         <div className="md:col-span-2">
@@ -52,7 +52,7 @@ export function CompanyMainSection({ register, errors, disabled }: Props) {
             description="Минимум 50 символов."
             error={errors.description?.message}
           >
-            <textarea disabled={disabled} rows={7} className={textareaClass(Boolean(errors.description))} placeholder="Расскажите об опыте компании..." {...register("description")} />
+            <textarea id="description" disabled={disabled} rows={7} className={textareaClass(Boolean(errors.description))} placeholder="Расскажите об опыте компании..." {...register("description")} />
           </Field>
         </div>
       </div>
@@ -88,7 +88,7 @@ function FormSection({ title, description, icon, children }: { title: string; de
 function Field({ field, label, required, description, error, children }: { field?: string; label: string; required?: boolean; description?: string; error?: string; children: React.ReactNode }) {
   return (
     <div data-company-field={field}>
-      <label className="text-sm font-semibold text-foreground">
+      <label htmlFor={field} className="text-sm font-semibold text-foreground">
         {label}{required && <span className="ml-1 text-destructive">*</span>}
       </label>
       {description && <p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p>}

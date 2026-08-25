@@ -1,93 +1,31 @@
-import { Activity, AlarmClock, Handshake, Repeat2, Target, UsersRound } from "lucide-react";
+import Link from "next/link";
+import { Activity, AlarmClock, AlertTriangle, Handshake, Repeat2, Target, UsersRound } from "lucide-react";
 
 import { db } from "@/lib/db/pool";
+import { OperationalAlertActions } from "@/features/admin/components/operational-alert-actions";
 
-type KpiRow = {
-  matched_pairs: string | number;
-  matched_bid_pairs: string | number;
-  total_bids: string | number;
-  accepted_bids: string | number;
-  customers_with_projects: string | number;
-  repeat_customers: string | number;
-  verified_contractors: string | number;
-  active_bidding_contractors_90d: string | number;
-  overdue_tasks: string | number;
-  overdue_followups: string | number;
-  open_projects_without_bid_48h: string | number;
-};
+type KpiRow = {matched_pairs:string|number;matched_bid_pairs:string|number;total_bids:string|number;accepted_bids:string|number;customers_with_projects:string|number;repeat_customers:string|number;verified_contractors:string|number;active_bidding_contractors_90d:string|number;critical_alerts:string|number;warning_alerts:string|number;open_alerts:string|number;};
+type AlertRow={alert_key:string;alert_type:string;severity:string;project_id:string|null;contractor_id:string|null;title:string;detail:string;detected_at:string|Date;status:string;};
+type EventRow={event_name:string;total:string|number;latest_at:string|Date|null};
 
-type EventRow = { event_name: string; total: string | number; latest_at: string | Date | null };
-
-export default async function AdminOperationsPage() {
-  const [kpiResult, eventsResult] = await Promise.all([
-    db.query<KpiRow>(`
-      WITH matched AS (
-        SELECT DISTINCT project_id,contractor_id FROM public.project_match_snapshots
-      ),
-      matched_bids AS (
-        SELECT DISTINCT m.project_id,m.contractor_id
-        FROM matched m JOIN public.project_bids pb
-          ON pb.project_id=m.project_id AND pb.contractor_id=m.contractor_id
-      ),
-      customer_projects AS (
-        SELECT customer_id,COUNT(*) AS cnt FROM public.projects GROUP BY customer_id
-      )
-      SELECT
-        (SELECT COUNT(*) FROM matched) AS matched_pairs,
-        (SELECT COUNT(*) FROM matched_bids) AS matched_bid_pairs,
-        (SELECT COUNT(*) FROM public.project_bids) AS total_bids,
-        (SELECT COUNT(*) FROM public.project_bids WHERE status::text='accepted') AS accepted_bids,
-        (SELECT COUNT(*) FROM customer_projects) AS customers_with_projects,
-        (SELECT COUNT(*) FROM customer_projects WHERE cnt>1) AS repeat_customers,
-        (SELECT COUNT(*) FROM public.contractor_companies WHERE verification_status::text='verified') AS verified_contractors,
-        (SELECT COUNT(DISTINCT contractor_id) FROM public.project_bids WHERE created_at>=now()-interval '90 days') AS active_bidding_contractors_90d,
-        (SELECT COUNT(*) FROM public.project_advisor_tasks WHERE is_completed=false AND due_at<now()) AS overdue_tasks,
-        (SELECT COUNT(*) FROM public.project_candidate_crm WHERE next_follow_up_at<now() AND stage<>'archived') AS overdue_followups,
-        (SELECT COUNT(*) FROM public.projects p
-         WHERE p.status::text IN ('published','collecting_bids')
-           AND p.created_at<now()-interval '48 hours'
-           AND NOT EXISTS(SELECT 1 FROM public.project_bids pb WHERE pb.project_id=p.id)) AS open_projects_without_bid_48h
-    `),
-    db.query<EventRow>(`
-      SELECT event_name,COUNT(*) AS total,MAX(occurred_at) AS latest_at
-      FROM public.marketplace_events
-      WHERE occurred_at>=now()-interval '30 days'
-      GROUP BY event_name ORDER BY total DESC,event_name
-    `),
-  ]);
-  const kpi = kpiResult.rows[0];
-  const matched = n(kpi?.matched_pairs);
-  const matchedBid = n(kpi?.matched_bid_pairs);
-  const bids = n(kpi?.total_bids);
-  const accepted = n(kpi?.accepted_bids);
-  const customers = n(kpi?.customers_with_projects);
-  const repeats = n(kpi?.repeat_customers);
-  const verified = n(kpi?.verified_contractors);
-  const activeContractors = n(kpi?.active_bidding_contractors_90d);
-
-  return (
-    <div className="space-y-6">
-      <section className="rounded-[2rem] border border-border bg-card p-6 shadow-[var(--shadow-soft)] md:p-8"><p className="text-sm font-semibold text-primary">Public V1 Operations</p><h1 className="mt-2 text-3xl font-black tracking-[-0.04em] md:text-4xl">Операционный центр marketplace</h1><p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">Контроль качества подбора, конверсии в найм, повторных заказчиков, активности подрядчиков и просроченных действий.</p></section>
-
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric icon={Target} label="Match → предложение" value={`${percent(matchedBid,matched)}%`} note={`${matchedBid} из ${matched} сохранённых пар matching`} />
-        <Metric icon={Handshake} label="Предложение → найм" value={`${percent(accepted,bids)}%`} note={`${accepted} принятых из ${bids} предложений`} />
-        <Metric icon={Repeat2} label="Повторные заказчики" value={`${percent(repeats,customers)}%`} note={`${repeats} клиентов создали больше одного проекта`} />
-        <Metric icon={UsersRound} label="Активность подрядчиков" value={`${percent(activeContractors,verified)}%`} note={`${activeContractors} verified-подрядчиков подавали bid за 90 дней`} />
-      </section>
-
-      <section className="grid gap-4 md:grid-cols-3">
-        <Attention label="Просроченные задачи" value={n(kpi?.overdue_tasks)} note="Advisor tasks с истёкшим due_at" />
-        <Attention label="Просроченные follow-up" value={n(kpi?.overdue_followups)} note="Кандидаты, которым нужен следующий контакт" />
-        <Attention label="Без предложения >48 ч" value={n(kpi?.open_projects_without_bid_48h)} note="Опубликованные проекты без единого bid" />
-      </section>
-
-      <section className="rounded-[1.75rem] border border-border bg-card p-6 shadow-[var(--shadow-soft)]"><div className="flex items-center gap-2"><Activity className="h-5 w-5 text-primary" /><h2 className="text-xl font-bold">События за 30 дней</h2></div><div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{eventsResult.rows.length ? eventsResult.rows.map((event) => <div key={event.event_name} className="rounded-2xl border border-border bg-background p-4"><p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{event.event_name}</p><p className="mt-2 text-2xl font-black">{n(event.total)}</p><p className="mt-1 text-xs text-muted-foreground">Последнее: {event.latest_at ? new Intl.DateTimeFormat("ru-RU",{dateStyle:"medium",timeStyle:"short"}).format(new Date(event.latest_at)) : "—"}</p></div>) : <p className="text-sm text-muted-foreground">Новые события появятся после запуска событийного ledger.</p>}</div></section>
-    </div>
-  );
+export default async function AdminOperationsPage(){
+ const [kpiResult,alertsResult,eventsResult]=await Promise.all([
+  db.query<KpiRow>(`WITH matched AS (SELECT DISTINCT project_id,contractor_id FROM public.project_match_snapshots),matched_bids AS (SELECT DISTINCT m.project_id,m.contractor_id FROM matched m JOIN public.project_bids pb ON pb.project_id=m.project_id AND pb.contractor_id=m.contractor_id),customer_projects AS (SELECT customer_id,COUNT(*) cnt FROM public.projects GROUP BY customer_id) SELECT (SELECT COUNT(*) FROM matched) matched_pairs,(SELECT COUNT(*) FROM matched_bids) matched_bid_pairs,(SELECT COUNT(*) FROM public.project_bids) total_bids,(SELECT COUNT(*) FROM public.project_bids WHERE status::text='accepted') accepted_bids,(SELECT COUNT(*) FROM customer_projects) customers_with_projects,(SELECT COUNT(*) FROM customer_projects WHERE cnt>1) repeat_customers,(SELECT COUNT(*) FROM public.contractor_companies WHERE verification_status::text='verified') verified_contractors,(SELECT COUNT(DISTINCT contractor_id) FROM public.project_bids WHERE created_at>=now()-interval '90 days') active_bidding_contractors_90d,(SELECT COUNT(*) FROM public.marketplace_operational_alerts WHERE severity='critical') critical_alerts,(SELECT COUNT(*) FROM public.marketplace_operational_alerts WHERE severity='warning') warning_alerts,(SELECT COUNT(*) FROM public.marketplace_operational_alerts) open_alerts`),
+  db.query<AlertRow>(`SELECT alert_key,alert_type,severity,project_id,contractor_id,title,detail,detected_at,status FROM public.marketplace_operational_alerts ORDER BY CASE severity WHEN 'critical' THEN 1 WHEN 'warning' THEN 2 ELSE 3 END,detected_at ASC LIMIT 100`),
+  db.query<EventRow>(`SELECT event_name,COUNT(*) total,MAX(occurred_at) latest_at FROM public.marketplace_events WHERE occurred_at>=now()-interval '30 days' GROUP BY event_name ORDER BY total DESC,event_name`)
+ ]);
+ const kpi=kpiResult.rows[0];const matched=n(kpi?.matched_pairs),matchedBid=n(kpi?.matched_bid_pairs),bids=n(kpi?.total_bids),accepted=n(kpi?.accepted_bids),customers=n(kpi?.customers_with_projects),repeats=n(kpi?.repeat_customers),verified=n(kpi?.verified_contractors),activeContractors=n(kpi?.active_bidding_contractors_90d);
+ return <div className="space-y-6">
+  <section className="rounded-[2rem] border border-border bg-card p-6 shadow-[var(--shadow-soft)] md:p-8"><p className="text-sm font-semibold text-primary">Public V1 Operations</p><h1 className="mt-2 text-3xl font-black tracking-[-0.04em] md:text-4xl">Операционный центр marketplace</h1><p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">SLA-контроль проектов, откликов, договоров, этапов и действий сопровождения. Критические ситуации автоматически попадают в очередь ниже.</p></section>
+  <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Metric icon={Target} label="Match → предложение" value={`${percent(matchedBid,matched)}%`} note={`${matchedBid} из ${matched} сохранённых пар matching`}/><Metric icon={Handshake} label="Предложение → найм" value={`${percent(accepted,bids)}%`} note={`${accepted} принятых из ${bids} предложений`}/><Metric icon={Repeat2} label="Повторные заказчики" value={`${percent(repeats,customers)}%`} note={`${repeats} клиентов создали больше одного проекта`}/><Metric icon={UsersRound} label="Активность подрядчиков" value={`${percent(activeContractors,verified)}%`} note={`${activeContractors} подтверждённых подрядчиков подавали предложения за 90 дней`}/></section>
+  <section className="grid gap-4 md:grid-cols-3"><Attention label="Критические" value={n(kpi?.critical_alerts)} note="Нарушения SLA, требующие приоритетного вмешательства"/><Attention label="Предупреждения" value={n(kpi?.warning_alerts)} note="Ситуации, которые уже вышли за целевой срок"/><Attention label="Всего открыто" value={n(kpi?.open_alerts)} note="Активная операционная очередь"/></section>
+  <section className="rounded-[1.75rem] border border-border bg-card p-6 shadow-[var(--shadow-soft)]"><div className="flex items-center gap-2"><AlertTriangle className="h-5 w-5 text-primary"/><div><h2 className="text-xl font-bold">Очередь SLA</h2><p className="mt-1 text-xs text-muted-foreground">Сортировка: критические → предупреждения → информационные.</p></div></div><div className="mt-5 space-y-3">{alertsResult.rows.length?alertsResult.rows.map(a=><article key={a.alert_key} className="min-w-0 rounded-2xl border border-border bg-background p-5"><div className="flex min-w-0 flex-col gap-3 md:flex-row md:items-start md:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className={severityClass(a.severity)}>{severityLabel(a.severity)}</span>{a.status==='in_progress'&&<span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-bold text-primary">В работе</span>}</div><h3 className="mt-3 break-words font-bold">{a.title}</h3><p className="mt-2 break-words text-sm leading-6 text-muted-foreground">{a.detail}</p><p className="mt-2 text-xs text-muted-foreground">В очереди: {age(a.detected_at)}</p></div><div className="flex shrink-0 flex-wrap gap-2">{a.project_id&&<Link href={`/admin/projects/${a.project_id}`} className="rounded-xl border border-border px-3 py-2 text-xs font-semibold">Открыть проект</Link>}{a.contractor_id&&<Link href={`/admin/contractors/${a.contractor_id}`} className="rounded-xl border border-border px-3 py-2 text-xs font-semibold">Подрядчик</Link>}</div></div><OperationalAlertActions alertKey={a.alert_key} status={a.status}/></article>):<p className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">Открытых нарушений SLA нет.</p>}</div></section>
+  <section className="rounded-[1.75rem] border border-border bg-card p-6 shadow-[var(--shadow-soft)]"><div className="flex items-center gap-2"><Activity className="h-5 w-5 text-primary"/><h2 className="text-xl font-bold">События за 30 дней</h2></div><div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{eventsResult.rows.length?eventsResult.rows.map(e=><div key={e.event_name} className="rounded-2xl border border-border bg-background p-4"><p className="break-words text-xs font-bold uppercase tracking-wider text-muted-foreground">{e.event_name}</p><p className="mt-2 text-2xl font-black">{n(e.total)}</p><p className="mt-1 text-xs text-muted-foreground">Последнее: {e.latest_at?new Intl.DateTimeFormat("ru-RU",{dateStyle:"medium",timeStyle:"short"}).format(new Date(e.latest_at)):"—"}</p></div>):<p className="text-sm text-muted-foreground">Событий пока нет.</p>}</div></section>
+ </div>;
 }
-
-function Metric({ icon: Icon,label,value,note }: { icon: typeof Target; label:string; value:string; note:string }) { return <article className="rounded-[1.5rem] border border-border bg-card p-5 shadow-[var(--shadow-soft)]"><Icon className="h-5 w-5 text-primary" /><p className="mt-4 text-sm font-semibold text-muted-foreground">{label}</p><p className="mt-1 text-3xl font-black">{value}</p><p className="mt-2 text-xs leading-5 text-muted-foreground">{note}</p></article>; }
-function Attention({ label,value,note }: { label:string; value:number; note:string }) { return <article className="rounded-[1.5rem] border border-border bg-card p-5 shadow-[var(--shadow-soft)]"><div className="flex items-center justify-between gap-3"><AlarmClock className="h-5 w-5 text-primary" /><strong className="text-3xl">{value}</strong></div><p className="mt-3 font-bold">{label}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{note}</p></article>; }
-function n(value: unknown) { const number=Number(value??0); return Number.isFinite(number)?number:0; }
-function percent(value:number,base:number) { return base>0?Math.round((value/base)*100):0; }
+function Metric({icon:Icon,label,value,note}:{icon:typeof Target;label:string;value:string;note:string}){return <article className="rounded-[1.5rem] border border-border bg-card p-5 shadow-[var(--shadow-soft)]"><Icon className="h-5 w-5 text-primary"/><p className="mt-4 text-sm font-semibold text-muted-foreground">{label}</p><p className="mt-1 text-3xl font-black">{value}</p><p className="mt-2 text-xs leading-5 text-muted-foreground">{note}</p></article>}
+function Attention({label,value,note}:{label:string;value:number;note:string}){return <article className="rounded-[1.5rem] border border-border bg-card p-5 shadow-[var(--shadow-soft)]"><div className="flex items-center justify-between gap-3"><AlarmClock className="h-5 w-5 text-primary"/><strong className="text-3xl">{value}</strong></div><p className="mt-3 font-bold">{label}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{note}</p></article>}
+function n(v:unknown){const x=Number(v??0);return Number.isFinite(x)?x:0}function percent(v:number,b:number){return b>0?Math.round(v/b*100):0}
+function severityLabel(v:string){return v==='critical'?'Критично':v==='warning'?'Предупреждение':'Информация'}
+function severityClass(v:string){return `rounded-full px-2.5 py-1 text-xs font-bold ${v==='critical'?'bg-red-50 text-red-700':v==='warning'?'bg-amber-50 text-amber-700':'bg-secondary text-primary'}`}
+function age(v:string|Date){const ms=Math.max(0,Date.now()-new Date(v).getTime()),h=Math.floor(ms/3600000);return h<24?`${h} ч`:`${Math.floor(h/24)} дн.`}

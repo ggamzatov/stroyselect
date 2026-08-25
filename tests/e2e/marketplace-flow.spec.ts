@@ -31,6 +31,29 @@ test.describe("marketplace journey", () => {
     await page.goto("/customer/projects/new");
 
     await expect(page.getByText("Шаг 1 из 4")).toBeVisible();
+
+    const categorySelect = page.getByLabel("Категория работ");
+    const categoryOptions = await categorySelect.locator("option").evaluateAll((options) =>
+      options.map((option) => ({
+        value: (option as HTMLOptionElement).value,
+        label: (option.textContent ?? "").trim(),
+      }))
+    );
+    const constructionCategory =
+      categoryOptions.find((option) => /^Общестроительные работы$/i.test(option.label)) ??
+      categoryOptions.find((option) => /общестро/i.test(option.label)) ??
+      categoryOptions.find(
+        (option) => /строит/i.test(option.label) && !/ремонт|отделк/i.test(option.label)
+      ) ??
+      categoryOptions.find((option) => /строит|общестро/i.test(option.label));
+    expect(
+      constructionCategory,
+      `В E2E-справочнике должна быть строительная категория. Доступно: ${categoryOptions
+        .map((option) => option.label)
+        .join(", ")}`
+    ).toBeTruthy();
+    await categorySelect.selectOption(constructionCategory!.value);
+
     await page.getByLabel("Название проекта").fill("E2E Новый структурированный проект");
     await page
       .getByLabel("Что нужно сделать")
@@ -41,26 +64,55 @@ test.describe("marketplace journey", () => {
     await expect(page.getByText("Шаг 2 из 4")).toBeVisible();
     await expect(page.getByText("Черновик сохранён", { exact: true }).first()).toBeVisible();
 
-    await page.getByLabel("Вид работ").fill("Общестроительные работы");
+    await page.locator('input[name="workType"]').fill("Общестроительные работы");
     await page
-      .getByLabel("Состав и объём работ")
+      .locator('textarea[name="scopeDetails"]')
       .fill("Подготовка основания, монтаж основных конструкций, отделочные работы и сдача объекта.");
-    await page.getByLabel("Текущее состояние объекта").fill("Подготовленный объект");
-    await page.getByLabel("Размеры и количества").fill("120 м²");
-    await page.getByLabel("Уровень результата").selectOption("standard");
-    await page.getByLabel("Предпочтения по материалам").fill("Без специальных ограничений");
+
+    const currentCondition = page.locator('input[name="currentCondition"]');
+    if (await currentCondition.isVisible().catch(() => false)) {
+      await currentCondition.fill("Подготовленный объект");
+    }
+
+    const dimensions = page.locator('input[name="dimensions"]');
+    if (await dimensions.isVisible().catch(() => false)) {
+      await dimensions.fill("120 м²");
+    }
+
+    const finishLevel = page.locator('select[name="finishLevel"]');
+    if (await finishLevel.isVisible().catch(() => false)) {
+      await finishLevel.selectOption("standard");
+    }
+
+    const materialPreferences = page.locator('input[name="materialPreferences"]');
+    if (await materialPreferences.isVisible().catch(() => false)) {
+      await materialPreferences.fill("Без специальных ограничений");
+    }
 
     await page.getByRole("button", { name: "Сохранить и продолжить" }).click();
     await expect(page.getByText("Шаг 3 из 4")).toBeVisible();
 
-    await page.getByLabel("Разрешения и допуски").selectOption("not_needed");
-    await page.getByLabel("Проект / схема / дизайн").selectOption("ready");
-    await page.getByLabel("Адрес или ориентир").fill("E2E тестовый объект");
-    await page.getByLabel("Условия выезда и доступа").fill("Свободный доступ в рабочее время");
+    const address = page.locator('input[name="address"]');
+    const permitReadiness = page.locator('select[name="permitReadiness"]');
+    if (await permitReadiness.isVisible().catch(() => false)) {
+      await permitReadiness.selectOption("not_needed");
+    }
+
+    const designReadiness = page.locator('select[name="designReadiness"]');
+    if (await designReadiness.isVisible().catch(() => false)) {
+      await designReadiness.selectOption("ready");
+    }
+
+    await address.fill("E2E тестовый объект");
+
+    const travelConstraints = page.locator('textarea[name="travelConstraints"]');
+    if (await travelConstraints.isVisible().catch(() => false)) {
+      await travelConstraints.fill("Свободный доступ в рабочее время");
+    }
 
     await page.getByRole("button", { name: "Сохранить и продолжить" }).click();
     await expect(page.getByText("Шаг 4 из 4")).toBeVisible();
-
+    await expect(page.getByRole("heading", { name: "Бюджет и сроки" })).toBeVisible();
     await page.getByLabel("Бюджет от, ₽").fill("500000");
     await page.getByLabel("Бюджет до, ₽").fill("900000");
     await page.getByLabel("Желаемое начало").fill("2026-09-01");
@@ -76,9 +128,9 @@ test.describe("marketplace journey", () => {
     await expect(page.getByText("Шаг 1 из 4")).toBeVisible();
     await page.getByRole("button", { name: "Сохранить и продолжить" }).click();
     await expect(page.getByText("Шаг 2 из 4")).toBeVisible();
-    await expect(page.getByLabel("Вид работ")).toHaveValue("Общестроительные работы");
-    await expect(page.getByLabel("Размеры и количества")).toHaveValue("120 м²");
-    await expect(page.getByLabel("Уровень результата")).toHaveValue("standard");
+    await expect(page.locator('input[name="workType"]')).toHaveValue("Общестроительные работы");
+    await expect(page.locator('input[name="dimensions"]')).toHaveValue("120 м²");
+    await expect(page.locator('select[name="finishLevel"]')).toHaveValue("standard");
   });
 
   test("customer sees matching and invitation pipeline", async ({ page }) => {

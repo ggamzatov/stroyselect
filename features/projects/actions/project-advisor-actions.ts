@@ -259,10 +259,10 @@ export async function toggleAdvisorTask(input: {
     const result = await client.query(
       `
         UPDATE public.project_advisor_tasks
-        SET is_completed = $1,
-            completed_at = CASE WHEN $1 THEN now() ELSE NULL END,
+        SET is_completed = $1::boolean,
+            completed_at = CASE WHEN $1::boolean THEN now() ELSE NULL END,
             updated_at = now()
-        WHERE id = $2 AND project_id = $3 AND customer_id = $4
+        WHERE id = $2::uuid AND project_id = $3::uuid AND customer_id = $4::uuid
         RETURNING id
       `,
       [input.completed, input.taskId, input.projectId, auth.user.id]

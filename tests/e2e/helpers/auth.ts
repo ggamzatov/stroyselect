@@ -16,7 +16,34 @@ export async function login(page: Page, account: E2ECredentials) {
   await page.getByLabel("Электронная почта").fill(account.email);
   await page.getByLabel("Пароль").fill(account.password);
   await page.getByRole("button", { name: "Войти" }).click();
-  await expect(page).not.toHaveURL(/\/login(?:\?|$)/, { timeout: 15_000 });
+
+  try {
+    await expect(page).not.toHaveURL(/\/login(?:\?|$)/, { timeout: 8_000 });
+  } catch (error) {
+    const currentUrl = page.url();
+    const message = await page
+      .locator("form")
+      .getByText(/.+/)
+      .filter({ has: page.locator("[role='alert'], .text-red-700, .text-red-600") })
+      .first()
+      .textContent({ timeout: 500 })
+      .catch(() => null);
+    const bodyText = await page.locator("body").innerText({ timeout: 500 }).catch(() => "");
+    const cookies = await page.context().cookies().catch(() => []);
+    const sessionCookies = cookies
+      .filter((cookie) => cookie.name.includes("stroyselect_session"))
+      .map((cookie) => `${cookie.name}; secure=${cookie.secure}; domain=${cookie.domain}; path=${cookie.path}`)
+      .join(" | ");
+
+    throw new Error(
+      `E2E login failed for ${account.email}. ` +
+        `Form message: ${message?.trim() || "нет сообщения"}. ` +
+        `Session cookies: ${sessionCookies || "нет session cookie"}. ` +
+        `Current URL: ${currentUrl}. ` +
+        `Page text: ${bodyText.replace(/\s+/g, " ").slice(0, 700) || "нет текста"}.\n` +
+        `Original assertion: ${String(error)}`
+    );
+  }
 }
 
 export async function logout(page: Page) {

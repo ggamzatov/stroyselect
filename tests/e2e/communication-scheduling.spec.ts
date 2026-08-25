@@ -30,8 +30,9 @@ test.describe("project communication scheduling", () => {
     await page.getByLabel("Место или ссылка").fill("E2E тестовый объект");
     await page.getByRole("button", { name: "Предложить время" }).click();
 
-    await expect(page.getByText(appointmentTitle, { exact: true })).toBeVisible();
-    await expect(page.locator("body")).toContainText(/Ожидает подтверждения/i);
+    const proposedCard = page.locator("article").filter({ hasText: appointmentTitle });
+    await expect(proposedCard).toHaveCount(1);
+    await expect(proposedCard).toContainText(/Ожидает подтверждения/i);
   });
 
   test("contractor confirms the proposed site visit", async ({ page }) => {
@@ -40,8 +41,11 @@ test.describe("project communication scheduling", () => {
     await login(page, contractor!);
     await page.goto(`/contractor/work/${workspaceProjectId}/appointments`);
 
-    const card = page.locator("article").filter({ hasText: appointmentTitle });
-    await expect(card).toBeVisible();
+    const card = page
+      .locator("article")
+      .filter({ hasText: appointmentTitle })
+      .filter({ has: page.getByRole("button", { name: "Подтвердить" }) });
+    await expect(card).toHaveCount(1);
     await card.getByRole("button", { name: "Подтвердить" }).click();
     await expect(card).toContainText(/Подтверждено/i);
   });
