@@ -116,6 +116,28 @@ export async function getYooKassaObject(objectType: "payment" | "refund" | "payo
       } satisfies ApiObject;
     }
   }
+  if(e2eMockEnabled()&&objectType==="refund"){
+    const match=id.match(/^e2e-refund-(\d+)-([0-9a-f-]{36})$/i);
+    if(match){
+      return{
+        id,
+        status:"succeeded",
+        amount:{value:(Number(match[1])/100).toFixed(2),currency:"RUB"},
+        metadata:{payment_intent_id:match[2]},
+      } satisfies ApiObject;
+    }
+  }
+  if(e2eMockEnabled()&&objectType==="payout"){
+    const match=id.match(/^e2e-payout-(\d+)-([0-9a-f-]{36})$/i);
+    if(match){
+      return{
+        id,
+        status:"succeeded",
+        amount:{value:(Number(match[1])/100).toFixed(2),currency:"RUB"},
+        metadata:{payment_intent_id:match[2]},
+      } satisfies ApiObject;
+    }
+  }
   if(e2eMockEnabled())return{id,status:"succeeded"} satisfies ApiObject;
   const path = objectType === "payment" ? `/payments/${encodeURIComponent(id)}` : objectType === "refund" ? `/refunds/${encodeURIComponent(id)}` : objectType === "payout" ? `/payouts/${encodeURIComponent(id)}` : `/deals/${encodeURIComponent(id)}`;
   return request<ApiObject>(path, { method: "GET" });
@@ -129,7 +151,7 @@ export async function createSafeDealPayout(input: {
   description: string;
   idempotenceKey?:string;
 }) {
-  if(e2eMockEnabled())return{id:`e2e-payout-${input.paymentIntentId}`,status:"succeeded"} satisfies PayoutResponse;
+  if(e2eMockEnabled())return{id:`e2e-payout-${Math.round(input.amount*100)}-${input.paymentIntentId}`,status:"pending"} satisfies PayoutResponse;
   return request<PayoutResponse>("/payouts", {
     method: "POST",
     idempotenceKey: input.idempotenceKey??`payout-${input.paymentIntentId}`,
@@ -150,7 +172,7 @@ export async function createPaymentRefund(input: {
   description: string;
   idempotenceKey?:string;
 }) {
-  if(e2eMockEnabled())return{id:`e2e-refund-${input.paymentIntentId}`,status:"succeeded"} satisfies RefundResponse;
+  if(e2eMockEnabled())return{id:`e2e-refund-${Math.round(input.amount*100)}-${input.paymentIntentId}`,status:"pending"} satisfies RefundResponse;
   return request<RefundResponse>("/refunds", {
     method: "POST",
     idempotenceKey: input.idempotenceKey??`refund-${input.paymentIntentId}`,
@@ -158,6 +180,7 @@ export async function createPaymentRefund(input: {
       payment_id: input.paymentId,
       amount: { value: input.amount.toFixed(2), currency: "RUB" },
       description: input.description.slice(0, 128),
+      metadata:{payment_intent_id:input.paymentIntentId},
     }),
   });
 }
