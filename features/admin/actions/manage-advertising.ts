@@ -28,7 +28,7 @@ export async function setAdAdvertiserStatus(formData:FormData):Promise<never>{
   const status=clean(formData.get("status"));
   const notes=clean(formData.get("notes")).slice(0,2000);
   if(!validUuid(advertiserId)||!["verified","rejected","suspended","pending"].includes(status))redirect("/admin/ads?error=advertiser");
-  await db.query(`UPDATE public.ad_advertisers SET status=$2,verification_notes=$3,verified_by=CASE WHEN $2='verified' THEN $4::uuid ELSE verified_by END,verified_at=CASE WHEN $2='verified' THEN now() ELSE NULL END,updated_at=now() WHERE id=$1::uuid`,[advertiserId,status,notes||null,user.id]);
+  await db.query(`UPDATE public.ad_advertisers SET status=$2::varchar,verification_notes=$3,verified_by=CASE WHEN $2::varchar='verified' THEN $4::uuid ELSE verified_by END,verified_at=CASE WHEN $2::varchar='verified' THEN now() ELSE NULL END,updated_at=now() WHERE id=$1::uuid`,[advertiserId,status,notes||null,user.id]);
   redirect("/admin/ads?saved=advertiser");
 }
 
@@ -116,6 +116,6 @@ export async function reconcileAdLevyQuarter(formData:FormData):Promise<never>{
   const status=clean(formData.get("status"));
   const notes=clean(formData.get("notes")).slice(0,3000);
   if(!/^\d{4}-\d{2}-\d{2}$/.test(quarterStart)||assessedMinor===null||!["reconciled","paid"].includes(status))redirect("/admin/ads?error=levy");
-  await db.query(`UPDATE public.ad_levy_quarter_estimates SET assessed_levy_minor=$2,status=$3,notes=$4,paid_at=CASE WHEN $3='paid' THEN now() ELSE paid_at END,updated_at=now() WHERE quarter_start=$1::date`,[quarterStart,assessedMinor,status,notes||null]);
+  await db.query(`UPDATE public.ad_levy_quarter_estimates SET assessed_levy_minor=$2,status=$3::varchar,notes=$4,paid_at=CASE WHEN $3::varchar='paid' THEN now() ELSE paid_at END,updated_at=now() WHERE quarter_start=$1::date`,[quarterStart,assessedMinor,status,notes||null]);
   redirect("/admin/ads?saved=levy");
 }
