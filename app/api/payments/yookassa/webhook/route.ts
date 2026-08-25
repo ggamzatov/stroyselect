@@ -6,6 +6,7 @@ type WebhookBody={event?:string;object?:{id?:string}};
 type YooPayment={id:string;status:string;paid?:boolean;amount:{value:string;currency:string};metadata?:Record<string,string>;payment_method?:{id?:string;saved?:boolean}};
 type SubscriptionPayment={id:string;contractor_id:string;plan_id:string|null;status:string;amount_minor:string|number;currency:string;duration_months_snapshot:number;auto_renew_requested:boolean};
 type MaterialPayment={id:string;order_id:string;status:string;amount_minor:string|number;currency:string;order_status:string};
+type AdPayment={id:string;order_id:string;status:string;amount_minor:string|number;currency:string;order_status:string};
 
 export async function POST(request:Request){
   const shopId=process.env.YOOKASSA_SHOP_ID?.trim();
@@ -24,10 +25,59 @@ export async function POST(request:Request){
   if(!response.ok)return NextResponse.json({ok:false},{status:502});
   const provider=await response.json() as YooPayment;
 
+  if(provider.metadata?.payment_scope==="ad_order"||provider.metadata?.local_ad_payment_id){
+    return processAdPayment(provider,providerPaymentId);
+  }
   if(provider.metadata?.payment_scope==="material_order"||provider.metadata?.local_material_payment_id){
     return processMaterialPayment(provider,providerPaymentId);
   }
   return processSubscriptionPayment(provider,providerPaymentId);
+}
+
+async function processAdPayment(provider:YooPayment,providerPaymentId:string){
+  const client=await db.connect();
+  try{
+    await client.query("BEGIN");
+    const localResult=await client.query<AdPayment>(`
+      SELECT ap.id,ap.order_id,ap.status,ap.amount_minor,ap.currency,ao.status AS order_status
+      FROM public.ad_order_payments ap
+      JOIN public.ad_orders ao ON ao.id=ap.order_id
+      WHERE ap.provider_payment_id=$1
+      LIMIT 1 FOR UPDATE OF ap,ao
+    `,[providerPaymentId]);
+    const local=localResult.rows[0];
+    if(!local){await client.query("ROLLBACK");return NextResponse.json({ok:true,ignored:"unknown_ad_payment"});}
+
+    if(provider.status==="canceled"){
+      if(local.status==="pending")await client.query(`UPDATE public.ad_order_payments SET status='cancelled',updated_at=now() WHERE id=$1::uuid`,[local.id]);
+      await client.query("COMMIT");
+      return NextResponse.json({ok:true});
+    }
+    if(provider.status!=="succeeded"||provider.paid===false){await client.query("COMMIT");return NextResponse.json({ok:true,ignored:"not_succeeded"});}
+    if(local.status==="succeeded"){await client.query("COMMIT");return NextResponse.json({ok:true,idempotent:true});}
+
+    const providerMinor=Math.round(Number(provider.amount.value)*100);
+    if(providerMinor!==Number(local.amount_minor)||provider.amount.currency!==local.currency){
+      await client.query("ROLLBACK");
+      console.error("Несовпадение суммы платежа рекламы",{providerPaymentId,providerMinor,localAmount:local.amount_minor});
+      return NextResponse.json({ok:false,error:"amount_mismatch"},{status:409});
+    }
+    if(provider.metadata?.local_ad_payment_id&&provider.metadata.local_ad_payment_id!==local.id){await client.query("ROLLBACK");return NextResponse.json({ok:false,error:"metadata_mismatch"},{status:409});}
+    if(provider.metadata?.ad_order_id&&provider.metadata.ad_order_id!==local.order_id){await client.query("ROLLBACK");return NextResponse.json({ok:false,error:"order_mismatch"},{status:409});}
+    if(local.order_status!=="awaiting_payment"){
+      await client.query("ROLLBACK");
+      return NextResponse.json({ok:false,error:"order_state_mismatch"},{status:409});
+    }
+
+    await client.query(`UPDATE public.ad_order_payments SET status='succeeded',paid_at=now(),updated_at=now() WHERE id=$1::uuid`,[local.id]);
+    await client.query(`UPDATE public.ad_orders SET status='paid' WHERE id=$1::uuid AND status='awaiting_payment'`,[local.order_id]);
+    await client.query("COMMIT");
+    return NextResponse.json({ok:true});
+  }catch(error){
+    await client.query("ROLLBACK");
+    console.error("Ошибка обработки YooKassa webhook рекламы:",error);
+    return NextResponse.json({ok:false},{status:500});
+  }finally{client.release();}
 }
 
 async function processMaterialPayment(provider:YooPayment,providerPaymentId:string){

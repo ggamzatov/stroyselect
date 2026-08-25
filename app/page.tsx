@@ -12,6 +12,8 @@ import {
   UsersRound,
 } from "lucide-react";
 
+import { AdSlot } from "@/features/ads/components/ad-slot";
+
 export default function HomePage() {
   return (
     <main className="min-h-screen bg-background">
@@ -95,6 +97,8 @@ export default function HomePage() {
           <HeroDashboardPreview />
         </div>
       </section>
+
+      <AdSlot placement="home_premium" className="app-container pt-8" />
 
       <section className="app-container py-20">
         <div className="mx-auto max-w-3xl text-center">

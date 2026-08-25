@@ -5,9 +5,35 @@ import {getAppBaseUrl,sendTransactionalEmail} from "@/lib/email/send-transaction
 export const dynamic="force-dynamic";
 export const maxDuration=60;
 
-export async function GET(request:Request){if(!authorized(request))return Response.json({ok:false},{status:401});try{await db.query("SELECT public.stroyselect_housekeeping()");const reminders=await createDueReminders();const email=await deliverQueuedEmail();return Response.json({ok:true,reminders,email,ranAt:new Date().toISOString()},{headers:{"Cache-Control":"no-store"}})}catch(error){console.error("Scheduled maintenance failed",error);return Response.json({ok:false,message:"Не удалось выполнить обслуживание"},{status:500,headers:{"Cache-Control":"no-store"}})}}
+export async function GET(request:Request){if(!authorized(request))return Response.json({ok:false},{status:401});try{await db.query("SELECT public.stroyselect_housekeeping()");const ads=await syncAdvertisingSchedules();const reminders=await createDueReminders();const email=await deliverQueuedEmail();return Response.json({ok:true,ads,reminders,email,ranAt:new Date().toISOString()},{headers:{"Cache-Control":"no-store"}})}catch(error){console.error("Scheduled maintenance failed",error);return Response.json({ok:false,message:"Не удалось выполнить обслуживание"},{status:500,headers:{"Cache-Control":"no-store"}})}}
 
 function authorized(request:Request){const secret=process.env.CRON_SECRET?.trim();if(!secret)return false;const header=request.headers.get("authorization")??"";const candidate=header.startsWith("Bearer ")?header.slice(7):"";const a=Buffer.from(secret);const b=Buffer.from(candidate);return a.length===b.length&&timingSafeEqual(a,b)}
+
+async function syncAdvertisingSchedules(){
+  const activated=await db.query<{order_id:string}>(`
+    WITH changed AS (
+      UPDATE public.ad_orders
+      SET status='active'
+      WHERE status='scheduled' AND scheduled_from<=now() AND scheduled_to>now()
+      RETURNING id
+    )
+    INSERT INTO public.ad_moderation_events(order_id,action,note)
+    SELECT id,'activated','Показ автоматически активирован по расписанию' FROM changed
+    RETURNING order_id
+  `);
+  const completed=await db.query<{order_id:string}>(`
+    WITH changed AS (
+      UPDATE public.ad_orders
+      SET status='completed'
+      WHERE status IN ('scheduled','active') AND scheduled_to<=now()
+      RETURNING id
+    )
+    INSERT INTO public.ad_moderation_events(order_id,action,note)
+    SELECT id,'completed','Показ автоматически завершён по расписанию' FROM changed
+    RETURNING order_id
+  `);
+  return{activated:activated.rowCount??0,completed:completed.rowCount??0};
+}
 
 async function createDueReminders(){let created=0;const appointments=await db.query<{id:string;project_id:string;title:string;scheduled_start:Date|string;customer_id:string;contractor_user_id:string|null}>(`SELECT pa.id,pa.project_id,pa.title,pa.scheduled_start,p.customer_id,cc.owner_id AS contractor_user_id FROM public.project_appointments pa JOIN public.projects p ON p.id=pa.project_id LEFT JOIN public.contractor_companies cc ON cc.id=p.selected_contractor_id WHERE pa.reminder_at IS NOT NULL AND pa.reminder_at<=now() AND pa.reminder_sent_at IS NULL AND pa.status IN ('proposed','confirmed') ORDER BY pa.reminder_at ASC LIMIT 100`);for(const row of appointments.rows){for(const userId of [row.customer_id,row.contractor_user_id].filter((v):v is string=>Boolean(v))){if(await insertNotification({userId,projectId:row.project_id,type:"appointment_reminder",title:"Напоминание о встрече",body:`«${row.title}» запланирована на ${new Date(row.scheduled_start).toLocaleString("ru-RU",{timeZone:"Europe/Moscow"})}`,url:userId===row.customer_id?`/customer/work/${row.project_id}/appointments`:`/contractor/work/${row.project_id}/appointments`,key:`appointment-reminder:${row.id}:${userId}`}))created++}await db.query(`UPDATE public.project_appointments SET reminder_sent_at=now(),updated_at=now() WHERE id=$1::uuid`,[row.id])}
 const stages=await db.query<{id:string;project_id:string;title:string;planned_end_date:Date|string;customer_id:string;contractor_user_id:string|null}>(`SELECT ps.id,ps.project_id,ps.title,ps.planned_end_date,p.customer_id,cc.owner_id AS contractor_user_id FROM public.project_stages ps JOIN public.projects p ON p.id=ps.project_id LEFT JOIN public.contractor_companies cc ON cc.id=p.selected_contractor_id WHERE ps.planned_end_date IS NOT NULL AND ps.status NOT IN ('completed','cancelled') AND ps.planned_end_date<=current_date+1 AND (ps.due_reminder_sent_at IS NULL OR (ps.planned_end_date<current_date AND ps.overdue_notified_at IS NULL)) ORDER BY ps.planned_end_date ASC LIMIT 100`);for(const row of stages.rows){const end=new Date(row.planned_end_date);const overdue=end.getTime()<Date.now()-24*60*60*1000;for(const userId of [row.customer_id,row.contractor_user_id].filter((v):v is string=>Boolean(v))){if(await insertNotification({userId,projectId:row.project_id,type:overdue?"stage_overdue":"stage_due_soon",title:overdue?"Этап просрочен":"Срок этапа приближается",body:`Этап «${row.title}»: плановая дата завершения ${end.toLocaleDateString("ru-RU")}.`,url:userId===row.customer_id?`/customer/work/${row.project_id}`:`/contractor/work/${row.project_id}`,key:`stage-${overdue?"overdue":"due"}:${row.id}:${userId}`}))created++}await db.query(`UPDATE public.project_stages SET due_reminder_sent_at=COALESCE(due_reminder_sent_at,now()),overdue_notified_at=CASE WHEN $2 THEN COALESCE(overdue_notified_at,now()) ELSE overdue_notified_at END,updated_at=now() WHERE id=$1::uuid`,[row.id,overdue])}return created}

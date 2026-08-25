@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { BadgeCheck, BriefcaseBusiness, CircleCheck, Info, MapPin, Search, Star } from "lucide-react";
 
+import { AdSlot } from "@/features/ads/components/ad-slot";
 import { getContractorCatalog } from "@/features/contractors/catalog/queries/get-contractor-catalog";
 import { getContractorCatalogOptions } from "@/features/contractors/catalog/queries/get-contractor-catalog-options";
 
@@ -59,13 +60,15 @@ export default async function PublicContractorsPage({ searchParams }: Props) {
           <div className="mt-6"><Link href="/register" className="inline-flex rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground">Создать проект</Link></div>
         </header>
 
+        <AdSlot placement="contractor_boost" city={params.city ?? null} className="mt-6" />
+
         <form className="mt-6 rounded-[1.5rem] border border-border bg-card p-4 shadow-[var(--shadow-soft)]">
           <div className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_190px_230px_160px_190px_auto]">
             <label className="relative min-w-0"><Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><input name="search" defaultValue={params.search ?? ""} className="stroy-input pl-10" placeholder="Название подрядчика" /></label>
-            <select name="city" defaultValue={params.city ?? ""} className="stroy-select"><option value="">Все города</option>{options.cities.map((city) => <option key={city.value} value={city.value}>{city.label}</option>)}</select>
-            <select name="categoryId" defaultValue={params.categoryId ?? ""} className="stroy-select"><option value="">Все специализации</option>{options.categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select>
-            <select name="minRating" defaultValue={params.minRating ?? ""} className="stroy-select"><option value="">Любой рейтинг</option><option value="4.5">От 4,5</option><option value="4">От 4,0</option><option value="3.5">От 3,5</option></select>
-            <select name="sort" defaultValue={sort} className="stroy-select"><option value="recommended">Рекомендуемые</option><option value="rating">По рейтингу</option><option value="reviews">По отзывам</option><option value="completed">По опыту</option><option value="newest">Новые профили</option></select>
+            <select name="city" aria-label="Город" defaultValue={params.city ?? ""} className="stroy-select"><option value="">Все города</option>{options.cities.map((city) => <option key={city.value} value={city.value}>{city.label}</option>)}</select>
+            <select name="categoryId" aria-label="Специализация" defaultValue={params.categoryId ?? ""} className="stroy-select"><option value="">Все специализации</option>{options.categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select>
+            <select name="minRating" aria-label="Минимальный рейтинг" defaultValue={params.minRating ?? ""} className="stroy-select"><option value="">Любой рейтинг</option><option value="4.5">От 4,5</option><option value="4">От 4,0</option><option value="3.5">От 3,5</option></select>
+            <select name="sort" aria-label="Сортировка" defaultValue={sort} className="stroy-select"><option value="recommended">Рекомендуемые</option><option value="rating">По рейтингу</option><option value="reviews">По отзывам</option><option value="completed">По опыту</option><option value="newest">Новые профили</option></select>
             <button className="rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground">Найти</button>
           </div>
 

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import {
   ArrowRight, BadgeCheck, Banknote, BriefcaseBusiness, CalendarDays, FolderSearch, Mail, MapPin, SearchX, Sparkles, TriangleAlert,
 } from "lucide-react";
+import { AdSlot } from "@/features/ads/components/ad-slot";
 import { getCurrentProfile } from "@/lib/auth/get-current-profile";
 import { getAvailableProjects } from "@/features/projects/queries/get-available-projects";
 
@@ -40,6 +41,8 @@ export default async function ContractorProjectsPage() {
             <div className="flex items-start gap-3"><TriangleAlert className="mt-0.5 h-5 w-5 shrink-0" /><div><p className="text-sm font-semibold">Диагностическое сообщение</p><p className="mt-1 break-words text-sm leading-6 opacity-85">{debugMessage}</p></div></div>
           </div>
         )}
+
+        <AdSlot placement="project_feed" className="mt-6" />
 
         {projects.length === 0 ? <EmptyProjects /> : (
           <section className="mt-8 grid items-stretch gap-5 xl:grid-cols-2">

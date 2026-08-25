@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowRight, BadgeCheck, BriefcaseBusiness, Building2, FolderKanban, ShieldCheck, Wrench } from "lucide-react";
+import { ArrowRight, BadgeCheck, BriefcaseBusiness, Building2, FolderKanban, Megaphone, ShieldCheck, Wrench } from "lucide-react";
 import { getCurrentProfile } from "@/lib/auth/get-current-profile";
 import { getMyContractorCompany } from "@/features/contractors/queries/get-my-contractor-company";
 import { getMyBidsCount } from "@/features/bids/queries/get-my-bids-count";
@@ -34,10 +34,11 @@ export default async function ContractorDashboardPage() {
 
         <section className="mt-8">
           <div className="mb-4"><p className="text-sm font-medium text-muted-foreground">Обзор</p><h2 className="mt-1 text-2xl font-bold tracking-tight text-foreground">Текущая активность</h2></div>
-          <div className="grid gap-5 md:grid-cols-3">
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
             <DashboardCard title="Новые проекты" value={projectsCount} href="/contractor/projects" linkText="Посмотреть проекты" icon={<FolderKanban className="h-5 w-5" />} />
             <DashboardCard title="Мои предложения" value={bidsCount} href="/contractor/bids" linkText="Открыть предложения" icon={<BriefcaseBusiness className="h-5 w-5" />} />
             <DashboardCard title="Мои объекты" value="→" href="/contractor/work" linkText="Перейти к объектам" icon={<Building2 className="h-5 w-5" />} />
+            <DashboardCard title="Реклама" value="AD" href="/contractor/advertising" linkText="Продвигать компанию" icon={<Megaphone className="h-5 w-5" />} />
           </div>
         </section>
 
