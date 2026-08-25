@@ -297,6 +297,7 @@ export function PortfolioFileUpload({
       <input
         ref={inputRef}
         type="file"
+        aria-label="Фотографии портфолио"
         multiple
         accept="image/jpeg,image/png,image/webp"
         className="sr-only"
