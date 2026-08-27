@@ -37,6 +37,11 @@ if (process.env.NODE_ENV === "production") {
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   output: "standalone",
+  logging: {
+    // Next.js dev logging includes Server Function arguments by default.
+    // Keep it disabled so credentials and other sensitive form values never reach terminal logs.
+    serverFunctions: false,
+  },
   experimental: {
     globalNotFound: true,
   },
