@@ -10,6 +10,7 @@ import {
   FolderKanban,
   Home,
   House,
+  Megaphone,
   Search,
   UserRound,
 } from "lucide-react";
@@ -22,36 +23,13 @@ type ContractorShellProps = {
 };
 
 const navigation = [
-  {
-    label: "Главная",
-    href: "/contractor/dashboard",
-    icon: Home,
-  },
-  {
-    label: "Проекты",
-    href: "/contractor/projects",
-    icon: FolderKanban,
-  },
-  {
-    label: "Предложения",
-    href: "/contractor/bids",
-    icon: FileText,
-  },
-  {
-    label: "Мои объекты",
-    href: "/contractor/work",
-    icon: BriefcaseBusiness,
-  },
-  {
-    label: "Подписка",
-    href: "/contractor/subscription",
-    icon: CreditCard,
-  },
-  {
-    label: "Компания",
-    href: "/contractor/company",
-    icon: Building2,
-  },
+  { label: "Главная", href: "/contractor/dashboard", icon: Home },
+  { label: "Заказы", href: "/contractor/projects", icon: FolderKanban },
+  { label: "Мои объекты", href: "/contractor/work", icon: BriefcaseBusiness },
+  { label: "Предложения", href: "/contractor/bids", icon: FileText },
+  { label: "Продвижение", href: "/contractor/advertising", icon: Megaphone },
+  { label: "Подписка", href: "/contractor/subscription", icon: CreditCard },
+  { label: "Настройки компании", href: "/contractor/company", icon: Building2 },
 ];
 
 export function ContractorShell({
@@ -65,7 +43,7 @@ export function ContractorShell({
   return (
     <div className="min-h-screen bg-background">
       <div className="mx-auto flex min-h-screen max-w-[1720px]">
-        <aside className="sticky top-0 hidden h-screen w-[248px] shrink-0 flex-col border-r border-border bg-card px-4 py-6 xl:flex">
+        <aside className="sticky top-0 hidden h-screen w-[258px] shrink-0 flex-col border-r border-border bg-card px-4 py-6 xl:flex">
           <Link
             href="/contractor/dashboard"
             className="flex min-h-12 items-center gap-3 rounded-2xl px-2"
@@ -74,9 +52,7 @@ export function ContractorShell({
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-[0_8px_22px_rgba(8,122,80,0.2)]">
               <House className="h-6 w-6" aria-hidden="true" />
             </span>
-            <span className="text-[20px] font-black tracking-[-0.045em] text-foreground">
-              СтройВыбор
-            </span>
+            <span className="text-[20px] font-black tracking-[-0.045em] text-foreground">СтройВыбор</span>
           </Link>
 
           <nav className="mt-8 space-y-1" aria-label="Основная навигация подрядчика">
@@ -112,9 +88,9 @@ export function ContractorShell({
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
               <Search className="h-4 w-4" aria-hidden="true" />
             </span>
-            <p className="mt-3 text-sm font-bold text-foreground">Найти новый проект</p>
+            <p className="mt-3 text-sm font-bold text-foreground">Найти новый заказ</p>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              Откройте подборку доступных заказов.
+              Откройте подборку по вашей специализации и географии.
             </p>
           </Link>
 
@@ -146,18 +122,16 @@ export function ContractorShell({
                 <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
                   <House className="h-5 w-5" aria-hidden="true" />
                 </span>
-                <span className="hidden text-base font-black tracking-tight text-foreground sm:inline">
-                  СтройВыбор
-                </span>
+                <span className="hidden text-base font-black tracking-tight text-foreground sm:inline">СтройВыбор</span>
               </Link>
 
               <Link
                 href="/contractor/projects"
                 className="mx-auto hidden min-h-11 w-full max-w-[520px] items-center gap-3 rounded-xl border border-border bg-card px-4 text-sm text-muted-foreground shadow-sm transition hover:border-primary/25 hover:text-foreground md:flex"
-                aria-label="Перейти к поиску новых проектов"
+                aria-label="Перейти к поиску новых заказов"
               >
                 <Search className="h-4 w-4" aria-hidden="true" />
-                <span className="truncate">Поиск проектов по специализации и городу…</span>
+                <span className="truncate">Поиск заказов, объектов и специализаций…</span>
               </Link>
 
               <div className="flex shrink-0 items-center gap-2 sm:gap-3">
@@ -187,36 +161,11 @@ export function ContractorShell({
         aria-label="Мобильная навигация подрядчика"
       >
         <div className="mx-auto grid max-w-xl grid-cols-5 items-end">
-          <MobileItem
-            href="/contractor/dashboard"
-            label="Главная"
-            active={isActivePath(pathname, "/contractor/dashboard")}
-            icon={<Home className="h-5 w-5" aria-hidden="true" />}
-          />
-          <MobileItem
-            href="/contractor/projects"
-            label="Проекты"
-            active={isActivePath(pathname, "/contractor/projects")}
-            icon={<FolderKanban className="h-5 w-5" aria-hidden="true" />}
-          />
-          <MobileItem
-            href="/contractor/bids"
-            label="Предложения"
-            active={isActivePath(pathname, "/contractor/bids")}
-            icon={<FileText className="h-5 w-5" aria-hidden="true" />}
-          />
-          <MobileItem
-            href="/contractor/work"
-            label="Объекты"
-            active={isActivePath(pathname, "/contractor/work")}
-            icon={<BriefcaseBusiness className="h-5 w-5" aria-hidden="true" />}
-          />
-          <MobileItem
-            href="/contractor/company"
-            label="Компания"
-            active={isActivePath(pathname, "/contractor/company")}
-            icon={<Building2 className="h-5 w-5" aria-hidden="true" />}
-          />
+          <MobileItem href="/contractor/dashboard" label="Главная" active={isActivePath(pathname, "/contractor/dashboard")} icon={<Home className="h-5 w-5" aria-hidden="true" />} />
+          <MobileItem href="/contractor/projects" label="Заказы" active={isActivePath(pathname, "/contractor/projects")} icon={<FolderKanban className="h-5 w-5" aria-hidden="true" />} />
+          <MobileItem href="/contractor/work" label="Объекты" active={isActivePath(pathname, "/contractor/work")} icon={<BriefcaseBusiness className="h-5 w-5" aria-hidden="true" />} />
+          <MobileItem href="/contractor/bids" label="Предложения" active={isActivePath(pathname, "/contractor/bids")} icon={<FileText className="h-5 w-5" aria-hidden="true" />} />
+          <MobileItem href="/contractor/company" label="Компания" active={isActivePath(pathname, "/contractor/company")} icon={<Building2 className="h-5 w-5" aria-hidden="true" />} />
         </div>
       </nav>
     </div>
