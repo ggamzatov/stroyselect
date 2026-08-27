@@ -1,6 +1,6 @@
 import Link from "next/link";
-
 import {
+  ArrowRight,
   BadgeCheck,
   BriefcaseBusiness,
   Building2,
@@ -9,226 +9,133 @@ import {
   UsersRound,
 } from "lucide-react";
 
-import type {
-  ContractorCatalogItem,
-} from
-  "@/features/contractors/catalog/types/contractor-catalog";
+import type { ContractorCatalogItem } from "@/features/contractors/catalog/types/contractor-catalog";
 
 type Props = {
-  contractor:
-    ContractorCatalogItem;
+  contractor: ContractorCatalogItem;
 };
 
-export function ContractorCatalogCard({
-  contractor,
-}: Props) {
+export function ContractorCatalogCard({ contractor }: Props) {
   const primaryArea =
-    contractor.areas.find(
-      (area) =>
-        area.is_primary
-    ) ??
-    contractor.areas[0] ??
-    null;
-
-  const visibleServices =
-    contractor.services.slice(
-      0,
-      3
-    );
+    contractor.areas.find((area) => area.is_primary) ?? contractor.areas[0] ?? null;
+  const visibleServices = contractor.services.slice(0, 3);
 
   return (
-    <article className="group flex h-full flex-col rounded-[1.75rem] border border-border bg-card p-6 shadow-[var(--shadow-soft)] transition duration-200 hover:-translate-y-0.5 hover:shadow-lg">
-      <div className="flex items-start gap-4">
-        <div className="flex h-13 w-13 shrink-0 items-center justify-center rounded-[1.15rem] bg-secondary text-primary">
-          <Building2 className="h-6 w-6" />
-        </div>
+    <article className="ui-v2-panel group flex h-full min-w-0 flex-col p-5 transition hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-[var(--shadow-card)] sm:p-6">
+      <div className="flex min-w-0 items-start gap-3.5">
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-secondary text-primary">
+          <Building2 className="h-5 w-5" aria-hidden="true" />
+        </span>
 
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex min-w-0 items-start justify-between gap-3">
             <div className="min-w-0">
-              <h2 className="break-words text-xl font-black tracking-tight text-foreground">
-                {
-                  contractor.public_name
-                }
-              </h2>
-
-              <p className="mt-1 text-xs font-medium text-muted-foreground">
-                {formatCompanyType(
-                  contractor.company_type
-                )}
+              <div className="flex min-w-0 items-center gap-2">
+                <h2 className="truncate text-lg font-black tracking-[-0.02em] text-foreground">
+                  {contractor.public_name}
+                </h2>
+                {contractor.verification_status === "verified" ? (
+                  <BadgeCheck className="h-4 w-4 shrink-0 fill-primary text-primary-foreground" aria-label="Подрядчик проверен" />
+                ) : null}
+              </div>
+              <p className="mt-0.5 text-xs font-medium text-muted-foreground">
+                {formatCompanyType(contractor.company_type)}
               </p>
             </div>
 
-            {contractor.verification_status ===
-              "verified" && (
-              <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
-                <BadgeCheck className="h-3.5 w-3.5" />
-
-                Проверен
+            {contractor.accepts_new_projects ? (
+              <span className="shrink-0 rounded-full bg-[#e8f5dc] px-2.5 py-1 text-[10px] font-bold text-[#4b7f13]">
+                Принимает проекты
               </span>
-            )}
+            ) : null}
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
-            <div className="flex items-center gap-1.5">
-              <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
-
-              {contractor.rating_count >
-              0 ? (
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5">
+              <Star className="h-4 w-4 fill-amber-400 text-amber-400" aria-hidden="true" />
+              {contractor.rating_count > 0 ? (
                 <>
-                  <span className="font-bold text-foreground">
-                    {contractor.rating.toFixed(
-                      1
-                    )}
-                  </span>
-
-                  <span className="text-xs text-muted-foreground">
-                    ·{" "}
-                    {
-                      contractor.rating_count
-                    }{" "}
-                    {formatReviewCount(
-                      contractor.rating_count
-                    )}
-                  </span>
+                  <strong className="text-sm text-foreground">{contractor.rating.toFixed(1)}</strong>
+                  <span>({contractor.rating_count})</span>
                 </>
               ) : (
-                <span className="text-sm text-muted-foreground">
-                  Нет отзывов
-                </span>
+                <span>Нет отзывов</span>
               )}
-            </div>
-
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <BriefcaseBusiness className="h-4 w-4 text-primary" />
-
-              {
-                contractor.completed_projects_count
-              }{" "}
-              {formatProjectCount(
-                contractor.completed_projects_count
-              )}
-            </div>
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <BriefcaseBusiness className="h-4 w-4 text-primary" aria-hidden="true" />
+              {contractor.completed_projects_count} {formatProjectCount(contractor.completed_projects_count)}
+            </span>
           </div>
         </div>
       </div>
 
-      {contractor.description && (
-        <p className="mt-5 line-clamp-3 text-sm leading-6 text-muted-foreground">
-          {
-            contractor.description
-          }
-        </p>
-      )}
-
-      {visibleServices.length >
-        0 && (
-        <div className="mt-5 flex flex-wrap gap-2">
-          {visibleServices.map(
-            (service) => (
-              <span
-                key={
-                  service.id
-                }
-                className="rounded-full border border-border bg-secondary/55 px-3 py-1.5 text-xs font-semibold text-foreground"
-              >
-                {
-                  service.name
-                }
-              </span>
-            )
-          )}
-
-          {contractor.services.length >
-            visibleServices.length && (
-            <span className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-semibold text-muted-foreground">
-              +
-              {contractor
-                .services
-                .length -
-                visibleServices.length}
+      {visibleServices.length > 0 ? (
+        <div className="mt-4 flex flex-wrap gap-1.5">
+          {visibleServices.map((service) => (
+            <span
+              key={service.id}
+              className="rounded-full bg-secondary/70 px-2.5 py-1 text-[11px] font-semibold text-secondary-foreground"
+            >
+              {service.name}
             </span>
-          )}
+          ))}
+          {contractor.services.length > visibleServices.length ? (
+            <span className="rounded-full border border-border bg-background px-2.5 py-1 text-[11px] font-semibold text-muted-foreground">
+              +{contractor.services.length - visibleServices.length}
+            </span>
+          ) : null}
         </div>
-      )}
+      ) : null}
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-2">
-        <InfoMiniCard
-          icon={
-            <MapPin className="h-4 w-4" />
-          }
+      {contractor.description ? (
+        <p className="mt-4 line-clamp-2 text-sm leading-6 text-muted-foreground">{contractor.description}</p>
+      ) : null}
+
+      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+        <MiniInfo
+          icon={<MapPin className="h-4 w-4" aria-hidden="true" />}
           label="География"
-          value={
-            primaryArea?.city ??
-            "Не указана"
-          }
+          value={primaryArea?.city ?? "Не указана"}
         />
-
-        <InfoMiniCard
-          icon={
-            <UsersRound className="h-4 w-4" />
-          }
+        <MiniInfo
+          icon={<UsersRound className="h-4 w-4" aria-hidden="true" />}
           label="Команда"
-          value={
-            contractor.employee_count
-              ? `${contractor.employee_count} чел.`
-              : "Не указано"
-          }
+          value={contractor.employee_count ? `${contractor.employee_count} чел.` : "Не указано"}
         />
       </div>
 
-      <div className="mt-5 rounded-[1.25rem] border border-border bg-background/60 p-4">
-        <p className="text-xs text-muted-foreground">
-          Бюджет проектов
-        </p>
-
-        <p className="mt-2 font-bold text-foreground">
-          {formatBudgetRange(
-            contractor.minimum_project_budget,
-            contractor.maximum_project_budget
-          )}
+      <div className="mt-4 rounded-xl border border-border bg-background/70 px-4 py-3">
+        <p className="text-[11px] font-semibold text-muted-foreground">Рабочий бюджет</p>
+        <p className="mt-1 text-sm font-black text-foreground">
+          {formatBudgetRange(contractor.minimum_project_budget, contractor.maximum_project_budget)}
         </p>
       </div>
 
-      <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5">
-        <div>
-          {contractor.accepts_new_projects ? (
-            <p className="text-xs font-semibold text-emerald-600">
-              Принимает новые проекты
+      <div className="mt-auto flex items-end justify-between gap-3 border-t border-border pt-4">
+        <div className="min-w-0">
+          {contractor.portfolio_count > 0 ? (
+            <p className="text-xs font-medium text-muted-foreground">
+              {contractor.portfolio_count} {formatPortfolioCount(contractor.portfolio_count)} в портфолио
             </p>
           ) : (
-            <p className="text-xs font-semibold text-muted-foreground">
-              Новые проекты временно
-              не принимает
-            </p>
-          )}
-
-          {contractor.portfolio_count >
-            0 && (
-            <p className="mt-1 text-xs text-muted-foreground">
-              {
-                contractor.portfolio_count
-              }{" "}
-              {formatPortfolioCount(
-                contractor.portfolio_count
-              )}{" "}
-              в портфолио
-            </p>
+            <p className="text-xs font-medium text-muted-foreground">Портфолио пока не заполнено</p>
           )}
         </div>
 
         <Link
           href={`/customer/contractors/${contractor.id}`}
-          className="inline-flex items-center justify-center rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition group-hover:opacity-90"
+          className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-bold text-primary-foreground transition hover:bg-[#076c47]"
         >
           Открыть профиль
+          <ArrowRight className="h-4 w-4" aria-hidden="true" />
         </Link>
       </div>
     </article>
   );
 }
 
-function InfoMiniCard({
+function MiniInfo({
   icon,
   label,
   value,
@@ -238,161 +145,61 @@ function InfoMiniCard({
   value: string;
 }) {
   return (
-    <div className="rounded-[1rem] border border-border bg-background/60 p-3">
+    <div className="rounded-xl bg-secondary/45 px-3.5 py-3">
       <div className="flex items-center gap-2 text-primary">
         {icon}
-
-        <span className="text-[11px] font-semibold text-muted-foreground">
-          {label}
-        </span>
+        <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">{label}</span>
       </div>
-
-      <p className="mt-2 truncate text-sm font-bold text-foreground">
-        {value}
-      </p>
+      <p className="mt-1.5 truncate text-sm font-bold text-foreground">{value}</p>
     </div>
   );
 }
 
-function formatCompanyType(
-  value:
-    | string
-    | null
-) {
+function formatCompanyType(value: string | null) {
   switch (value) {
     case "individual":
       return "Частная бригада";
-
     case "self_employed":
       return "Самозанятый";
-
     case "entrepreneur":
       return "ИП";
-
     case "company":
       return "Юридическое лицо";
-
     default:
-      return (
-        value ??
-        "Тип не указан"
-      );
+      return value ?? "Тип не указан";
   }
 }
 
-function formatBudgetRange(
-  minimum:
-    | number
-    | null,
-  maximum:
-    | number
-    | null
-) {
-  if (
-    minimum === null &&
-    maximum === null
-  ) {
-    return "Не указан";
+function formatBudgetRange(minimum: number | null, maximum: number | null) {
+  if (minimum === null && maximum === null) return "Не указан";
+  if (minimum !== null && maximum !== null) {
+    return `${formatMoney(minimum)} — ${formatMoney(maximum)}`;
   }
-
-  if (
-    minimum !== null &&
-    maximum !== null
-  ) {
-    return `${formatMoney(
-      minimum
-    )} — ${formatMoney(
-      maximum
-    )}`;
-  }
-
-  if (minimum !== null) {
-    return `от ${formatMoney(
-      minimum
-    )}`;
-  }
-
-  return `до ${formatMoney(
-    maximum!
-  )}`;
+  if (minimum !== null) return `от ${formatMoney(minimum)}`;
+  return `до ${formatMoney(maximum!)}`;
 }
 
-function formatMoney(
-  value: number
-) {
-  return new Intl.NumberFormat(
-    "ru-RU",
-    {
-      style: "currency",
-      currency: "RUB",
-      maximumFractionDigits:
-        0,
-    }
-  ).format(value);
+function formatMoney(value: number) {
+  return new Intl.NumberFormat("ru-RU", {
+    style: "currency",
+    currency: "RUB",
+    maximumFractionDigits: 0,
+  }).format(value);
 }
 
-function formatReviewCount(
-  count: number
-) {
-  return decline(
-    count,
-    "отзыв",
-    "отзыва",
-    "отзывов"
-  );
+function formatProjectCount(count: number) {
+  return decline(count, "проект", "проекта", "проектов");
 }
 
-function formatProjectCount(
-  count: number
-) {
-  return decline(
-    count,
-    "проект",
-    "проекта",
-    "проектов"
-  );
+function formatPortfolioCount(count: number) {
+  return decline(count, "объект", "объекта", "объектов");
 }
 
-function formatPortfolioCount(
-  count: number
-) {
-  return decline(
-    count,
-    "объект",
-    "объекта",
-    "объектов"
-  );
-}
-
-function decline(
-  count: number,
-  one: string,
-  few: string,
-  many: string
-) {
-  const lastTwo =
-    count % 100;
-
-  const last =
-    count % 10;
-
-  if (
-    lastTwo >= 11 &&
-    lastTwo <= 14
-  ) {
-    return many;
-  }
-
-  if (last === 1) {
-    return one;
-  }
-
-  if (
-    last >= 2 &&
-    last <= 4
-  ) {
-    return few;
-  }
-
+function decline(count: number, one: string, few: string, many: string) {
+  const lastTwo = count % 100;
+  const last = count % 10;
+  if (lastTwo >= 11 && lastTwo <= 14) return many;
+  if (last === 1) return one;
+  if (last >= 2 && last <= 4) return few;
   return many;
 }
