@@ -7,6 +7,8 @@ const allowDirectSignedUrl = new Set(["lib/storage/get-signed-file-url.ts"]);
 
 const findings = [];
 
+inspectNextConfig();
+
 for (const root of roots) {
   if (!fs.existsSync(root)) continue;
   walk(root);
@@ -19,6 +21,20 @@ if (findings.length) {
 }
 
 console.log("Security audit passed");
+
+function inspectNextConfig() {
+  const file = "next.config.ts";
+  if (!fs.existsSync(file)) {
+    findings.push(`${file}: required security configuration is missing`);
+    return;
+  }
+
+  const source = fs.readFileSync(file, "utf8");
+  const serverFunctionLoggingDisabled = /logging\s*:\s*\{[\s\S]*?serverFunctions\s*:\s*false[\s\S]*?\}/m.test(source);
+  if (!serverFunctionLoggingDisabled) {
+    findings.push(`${file}: set logging.serverFunctions=false to prevent Server Function arguments from leaking into logs`);
+  }
+}
 
 function walk(dir) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
