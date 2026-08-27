@@ -56,14 +56,14 @@ export function ProjectChat({
     });
 
   return (
-    <div className="overflow-hidden rounded-[1.5rem] border border-border bg-card shadow-[var(--shadow-soft)]">
+    <div className="project-chat-v2 overflow-hidden rounded-[1.4rem] border border-border bg-card shadow-[var(--shadow-card)] sm:rounded-[1.65rem]">
       <ChatHeader
         unreadCount={
           chat.unreadCount
         }
       />
 
-      <div className="max-h-[620px] min-h-[380px] overflow-y-auto bg-background/60 px-4 py-5 sm:px-6">
+      <div className="h-[min(64svh,680px)] min-h-[420px] overflow-y-auto bg-[linear-gradient(180deg,rgba(247,250,248,0.96),rgba(242,247,244,0.98))] px-3 py-4 dark:bg-[linear-gradient(180deg,rgba(16,22,19,0.98),rgba(18,26,22,0.98))] sm:min-h-[480px] sm:px-5 sm:py-5">
         <ChatMessageList
           messages={
             chat.messages
@@ -100,8 +100,8 @@ export function ProjectChat({
       )}
 
       {chat.errorMessage && (
-        <div className="border-t border-border bg-card px-5 pt-4">
-          <div className="rounded-[1.25rem] border border-red-200 bg-red-50 p-4 text-red-900 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-200">
+        <div className="border-t border-border bg-card px-4 pt-3 sm:px-5">
+          <div className="rounded-[1rem] border border-red-200 bg-red-50 p-3.5 text-red-900 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-200">
             <div className="flex items-start gap-3">
               <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0" />
 
@@ -121,7 +121,7 @@ export function ProjectChat({
         </div>
       )}
 
-      <div className="border-t border-border bg-card">
+      <div className="border-t border-border bg-card/98">
         <ChatComposer
           projectId={
             projectId
