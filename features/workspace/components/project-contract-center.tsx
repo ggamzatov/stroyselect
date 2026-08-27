@@ -50,7 +50,10 @@ export function ProjectContractCenter({ contract }: { contract: ProjectContractV
               )}
             </div>
 
-            <h1 className="mt-4 break-words text-2xl font-black tracking-[-0.035em] sm:text-3xl lg:text-4xl">
+            <p className="mt-3 text-xs font-bold uppercase tracking-[0.12em] text-primary">
+              Конструктор договора и электронное согласование
+            </p>
+            <h1 className="mt-2 break-words text-2xl font-black tracking-[-0.035em] sm:text-3xl lg:text-4xl">
               {contract.projectTitle}
             </h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">
