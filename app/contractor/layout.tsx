@@ -1,39 +1,42 @@
-import { redirect } from
-  "next/navigation";
+import { redirect } from "next/navigation";
 
-import { getCurrentProfile } from
-  "@/lib/auth/get-current-profile";
-
-import { DashboardHeader } from
-  "@/features/layout/components/dashboard-header";
+import { ContractorShell } from "@/components/stroy/contractor-shell";
+import { SignOutButton } from "@/features/auth/components/sign-out-button";
+import { NotificationCenter } from "@/features/notifications/components/notification-center";
+import { getMyNotifications } from "@/features/notifications/queries/get-my-notifications";
+import { getCurrentProfile } from "@/lib/auth/get-current-profile";
 
 type Props = {
-  children:
-    React.ReactNode;
+  children: React.ReactNode;
 };
 
-export default async function ContractorLayout({
-  children,
-}: Props) {
-  const {
-    profile,
-  } =
-    await getCurrentProfile();
+export default async function ContractorLayout({ children }: Props) {
+  const [{ profile }, notificationData] = await Promise.all([
+    getCurrentProfile(),
+    getMyNotifications(),
+  ]);
 
-  if (
-    profile.role !==
-    "contractor"
-  ) {
-    redirect(
-      "/dashboard"
-    );
+  if (profile.role !== "contractor") {
+    redirect("/dashboard");
   }
 
-  return (
-    <div className="min-h-screen bg-background">
-      <DashboardHeader />
+  const profileName =
+    [profile.first_name, profile.last_name].filter(Boolean).join(" ") ||
+    "Пользователь";
 
+  return (
+    <ContractorShell
+      profileName={profileName}
+      notificationControl={
+        <NotificationCenter
+          userId={profile.id}
+          notifications={notificationData.notifications}
+          unreadCount={notificationData.unreadCount}
+        />
+      }
+      signOutControl={<SignOutButton />}
+    >
       {children}
-    </div>
+    </ContractorShell>
   );
 }

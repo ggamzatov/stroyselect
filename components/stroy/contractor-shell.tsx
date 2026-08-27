@@ -2,18 +2,23 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-
 import {
   BriefcaseBusiness,
   Building2,
+  CreditCard,
+  FileText,
   FolderKanban,
   Home,
-  Settings,
+  House,
+  Search,
   UserRound,
 } from "lucide-react";
 
 type ContractorShellProps = {
   children: React.ReactNode;
+  profileName: string;
+  notificationControl: React.ReactNode;
+  signOutControl: React.ReactNode;
 };
 
 const navigation = [
@@ -30,169 +35,219 @@ const navigation = [
   {
     label: "Предложения",
     href: "/contractor/bids",
-    icon: BriefcaseBusiness,
+    icon: FileText,
   },
   {
     label: "Мои объекты",
     href: "/contractor/work",
+    icon: BriefcaseBusiness,
+  },
+  {
+    label: "Подписка",
+    href: "/contractor/subscription",
+    icon: CreditCard,
+  },
+  {
+    label: "Компания",
+    href: "/contractor/company",
     icon: Building2,
   },
 ];
 
 export function ContractorShell({
   children,
+  profileName,
+  notificationControl,
+  signOutControl,
 }: ContractorShellProps) {
   const pathname = usePathname();
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="mx-auto flex min-h-screen max-w-[1600px]">
-        {/* Desktop sidebar */}
-
-        <aside className="hidden w-[260px] shrink-0 border-r border-border bg-card/80 px-5 py-6 backdrop-blur-xl lg:flex lg:flex-col">
+      <div className="mx-auto flex min-h-screen max-w-[1720px]">
+        <aside className="sticky top-0 hidden h-screen w-[248px] shrink-0 flex-col border-r border-border bg-card px-4 py-6 xl:flex">
           <Link
             href="/contractor/dashboard"
-            className="flex items-center gap-3 px-2"
+            className="flex min-h-12 items-center gap-3 rounded-2xl px-2"
+            aria-label="СтройВыбор — кабинет подрядчика"
           >
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary text-lg font-bold text-primary-foreground shadow-[0_12px_30px_rgba(107,70,50,0.22)]">
-              S
-            </div>
-
-            <div>
-              <p className="text-lg font-bold tracking-tight text-foreground">
-                StroySelect
-              </p>
-
-              <p className="text-xs text-muted-foreground">
-                Кабинет подрядчика
-              </p>
-            </div>
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-[0_8px_22px_rgba(8,122,80,0.2)]">
+              <House className="h-6 w-6" aria-hidden="true" />
+            </span>
+            <span className="text-[20px] font-black tracking-[-0.045em] text-foreground">
+              СтройВыбор
+            </span>
           </Link>
 
-          <nav className="mt-10 space-y-1">
+          <nav className="mt-8 space-y-1" aria-label="Основная навигация подрядчика">
             {navigation.map((item) => {
               const Icon = item.icon;
-
-              const active =
-                pathname === item.href ||
-                pathname.startsWith(`${item.href}/`);
+              const active = isActivePath(pathname, item.href);
 
               return (
                 <Link
                   key={item.href}
                   href={item.href}
                   className={[
-                    "flex min-h-12 items-center gap-3 rounded-2xl px-4 text-sm font-semibold transition",
+                    "group relative flex min-h-12 items-center gap-3 rounded-xl px-4 text-sm font-semibold transition",
                     active
-                      ? "bg-primary text-primary-foreground shadow-[0_10px_25px_rgba(107,70,50,0.18)]"
-                      : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                      ? "bg-secondary text-primary"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
                   ].join(" ")}
                 >
-                  <Icon className="h-5 w-5" />
-
+                  {active ? (
+                    <span className="absolute inset-y-2 -left-4 w-[3px] rounded-r-full bg-primary" />
+                  ) : null}
+                  <Icon className="h-5 w-5" aria-hidden="true" />
                   {item.label}
                 </Link>
               );
             })}
           </nav>
 
-          <div className="mt-auto border-t border-border pt-5">
+          <Link
+            href="/contractor/projects"
+            className="mt-6 rounded-2xl border border-primary/15 bg-secondary/70 p-4 transition hover:border-primary/25 hover:bg-secondary"
+          >
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+              <Search className="h-4 w-4" aria-hidden="true" />
+            </span>
+            <p className="mt-3 text-sm font-bold text-foreground">Найти новый проект</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              Откройте подборку доступных заказов.
+            </p>
+          </Link>
+
+          <div className="mt-auto space-y-3 border-t border-border pt-5">
             <Link
               href="/contractor/company"
-              className={[
-                "flex min-h-12 items-center gap-3 rounded-2xl px-4 text-sm font-semibold transition",
-                pathname.startsWith("/contractor/company")
-                  ? "bg-secondary text-primary"
-                  : "text-muted-foreground hover:bg-secondary hover:text-foreground",
-              ].join(" ")}
+              className="flex items-center gap-3 rounded-xl px-2 py-2 transition hover:bg-secondary/60"
             >
-              <UserRound className="h-5 w-5" />
-              Профиль компании
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary text-primary">
+                <UserRound className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-foreground">{profileName}</p>
+                <p className="text-xs text-muted-foreground">Подрядчик</p>
+              </div>
             </Link>
-
-            <Link
-              href="/contractor/settings"
-              className="mt-1 flex min-h-12 items-center gap-3 rounded-2xl px-4 text-sm font-semibold text-muted-foreground transition hover:bg-secondary hover:text-foreground"
-            >
-              <Settings className="h-5 w-5" />
-              Настройки
-            </Link>
+            <div>{signOutControl}</div>
           </div>
         </aside>
 
-        {/* Main content */}
-
         <div className="min-w-0 flex-1">
-          <header className="sticky top-0 z-30 hidden h-20 items-center justify-between border-b border-border bg-background/80 px-8 backdrop-blur-xl lg:flex">
-            <div>
-              <p className="text-sm font-semibold text-primary">
-                StroySelect
-              </p>
+          <header className="sticky top-0 z-40 border-b border-border/80 bg-background/92 backdrop-blur-xl">
+            <div className="flex min-h-[72px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8 xl:px-10">
+              <Link
+                href="/contractor/dashboard"
+                className="flex items-center gap-2 xl:hidden"
+                aria-label="СтройВыбор — кабинет подрядчика"
+              >
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+                  <House className="h-5 w-5" aria-hidden="true" />
+                </span>
+                <span className="hidden text-base font-black tracking-tight text-foreground sm:inline">
+                  СтройВыбор
+                </span>
+              </Link>
 
-              <p className="text-xs text-muted-foreground">
-                Кабинет подрядчика
-              </p>
-            </div>
+              <Link
+                href="/contractor/projects"
+                className="mx-auto hidden min-h-11 w-full max-w-[520px] items-center gap-3 rounded-xl border border-border bg-card px-4 text-sm text-muted-foreground shadow-sm transition hover:border-primary/25 hover:text-foreground md:flex"
+                aria-label="Перейти к поиску новых проектов"
+              >
+                <Search className="h-4 w-4" aria-hidden="true" />
+                <span className="truncate">Поиск проектов по специализации и городу…</span>
+              </Link>
 
-            <Link
-              href="/contractor/company"
-              className="flex items-center gap-3 rounded-2xl border border-border bg-card px-3 py-2 transition hover:border-primary/25 hover:shadow-sm"
-            >
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary text-primary">
-                <UserRound className="h-4 w-4" />
+              <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+                {notificationControl}
+                <Link
+                  href="/contractor/company"
+                  className="hidden min-h-11 items-center gap-3 rounded-xl px-2 transition hover:bg-secondary sm:flex"
+                  aria-label={`Компания и профиль: ${profileName}`}
+                >
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-primary">
+                    <UserRound className="h-4 w-4" aria-hidden="true" />
+                  </span>
+                  <span className="hidden max-w-40 truncate text-sm font-semibold text-foreground lg:block">
+                    {profileName}
+                  </span>
+                </Link>
               </div>
-
-              <span className="text-sm font-semibold text-foreground">
-                Профиль
-              </span>
-            </Link>
+            </div>
           </header>
 
-          <div className="pb-24 lg:pb-0">
-            {children}
-          </div>
+          <div className="pb-24 xl:pb-0">{children}</div>
         </div>
       </div>
 
-      {/* Mobile bottom navigation */}
-
-      <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-card/95 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-10px_35px_rgba(66,43,30,0.08)] backdrop-blur-xl lg:hidden">
-        <div className="mx-auto grid max-w-xl grid-cols-4">
-          {navigation.map((item) => {
-            const Icon = item.icon;
-
-            const active =
-              pathname === item.href ||
-              pathname.startsWith(`${item.href}/`);
-
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={[
-                  "flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl text-[11px] font-semibold transition",
-                  active
-                    ? "text-primary"
-                    : "text-muted-foreground",
-                ].join(" ")}
-              >
-                <div
-                  className={[
-                    "flex h-8 w-12 items-center justify-center rounded-full transition",
-                    active
-                      ? "bg-secondary"
-                      : "",
-                  ].join(" ")}
-                >
-                  <Icon className="h-5 w-5" />
-                </div>
-
-                {item.label}
-              </Link>
-            );
-          })}
+      <nav
+        className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-card/96 px-2 pb-[max(0.55rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-8px_28px_rgba(20,35,27,0.08)] backdrop-blur-xl xl:hidden"
+        aria-label="Мобильная навигация подрядчика"
+      >
+        <div className="mx-auto grid max-w-xl grid-cols-5 items-end">
+          <MobileItem
+            href="/contractor/dashboard"
+            label="Главная"
+            active={isActivePath(pathname, "/contractor/dashboard")}
+            icon={<Home className="h-5 w-5" aria-hidden="true" />}
+          />
+          <MobileItem
+            href="/contractor/projects"
+            label="Проекты"
+            active={isActivePath(pathname, "/contractor/projects")}
+            icon={<FolderKanban className="h-5 w-5" aria-hidden="true" />}
+          />
+          <MobileItem
+            href="/contractor/bids"
+            label="Предложения"
+            active={isActivePath(pathname, "/contractor/bids")}
+            icon={<FileText className="h-5 w-5" aria-hidden="true" />}
+          />
+          <MobileItem
+            href="/contractor/work"
+            label="Объекты"
+            active={isActivePath(pathname, "/contractor/work")}
+            icon={<BriefcaseBusiness className="h-5 w-5" aria-hidden="true" />}
+          />
+          <MobileItem
+            href="/contractor/company"
+            label="Компания"
+            active={isActivePath(pathname, "/contractor/company")}
+            icon={<Building2 className="h-5 w-5" aria-hidden="true" />}
+          />
         </div>
       </nav>
     </div>
   );
+}
+
+function MobileItem({
+  href,
+  label,
+  active,
+  icon,
+}: {
+  href: string;
+  label: string;
+  active: boolean;
+  icon: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      className={[
+        "flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-semibold transition",
+        active ? "text-primary" : "text-muted-foreground",
+      ].join(" ")}
+    >
+      {icon}
+      <span className="max-w-full truncate">{label}</span>
+    </Link>
+  );
+}
+
+function isActivePath(pathname: string, href: string) {
+  return pathname === href || pathname.startsWith(`${href}/`);
 }
