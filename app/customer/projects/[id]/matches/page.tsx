@@ -65,7 +65,7 @@ export default async function CustomerProjectMatchesPage({ params }: Props) {
             <div className="max-w-4xl">
               <div className="inline-flex items-center gap-2 rounded-full bg-secondary px-3 py-1.5 text-xs font-bold text-primary">
                 <Sparkles className="h-4 w-4" aria-hidden="true" />
-                Умный подбор подрядчиков
+                StroySelect Matching 2.0
               </div>
               <h1 className="mt-3 text-2xl font-black tracking-[-0.035em] text-foreground sm:text-3xl lg:text-4xl">
                 Подходящие подрядчики
