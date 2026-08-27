@@ -551,8 +551,8 @@ function DocumentsActionsCard({ projectId, fileCount }: { projectId: string; fil
     },
     {
       href: `/customer/work/${projectId}/issues`,
-      label: "Замечания",
-      description: "Контроль недочётов",
+      label: "Контроль недочётов",
+      description: "Задачи и исправления",
       icon: ShieldCheck,
     },
   ];
