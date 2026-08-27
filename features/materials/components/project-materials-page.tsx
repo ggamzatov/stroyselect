@@ -141,7 +141,7 @@ export async function ProjectMaterialsPage({ projectId, role, query }: Props) {
                 <div>
                   <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">Закупки объекта</p>
                   <h1 className="mt-1 text-2xl font-black tracking-[-0.035em] text-foreground sm:text-3xl lg:text-4xl">
-                    Материалы
+                    Стройматериалы
                   </h1>
                 </div>
               </div>
