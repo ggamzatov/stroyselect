@@ -67,7 +67,7 @@ export function ChatMessageList({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3 sm:space-y-4">
       {messages.map(
         (
           message,
@@ -147,16 +147,12 @@ function DateSeparator({
   value: string;
 }) {
   return (
-    <div className="my-5 flex items-center gap-3">
-      <div className="h-px flex-1 bg-border" />
-
-      <span className="rounded-full bg-card px-3 py-1 text-[11px] font-semibold text-muted-foreground shadow-sm">
+    <div className="my-4 flex items-center justify-center sm:my-5">
+      <span className="rounded-full border border-border/80 bg-card/92 px-3 py-1 text-[10px] font-semibold text-muted-foreground shadow-sm backdrop-blur sm:text-[11px]">
         {formatChatDate(
           value
         )}
       </span>
-
-      <div className="h-px flex-1 bg-border" />
     </div>
   );
 }
