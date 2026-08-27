@@ -201,7 +201,7 @@ export default async function CustomerWorkspacePage({ params }: Props) {
                         href={`/customer/work/${project.id}/documents`}
                         className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 text-sm font-semibold text-foreground hover:border-primary/30"
                       >
-                        Документы
+                        Файлы этапа
                         <ChevronRight className="h-4 w-4" />
                       </Link>
                     )}
@@ -261,7 +261,7 @@ export default async function CustomerWorkspacePage({ params }: Props) {
                   href={`/customer/work/${project.id}/documents`}
                   className="inline-flex min-h-10 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-primary hover:bg-secondary/60"
                 >
-                  Все документы
+                  Все файлы
                   <ChevronRight className="h-4 w-4" />
                 </Link>
               </div>
@@ -344,7 +344,7 @@ export default async function CustomerWorkspacePage({ params }: Props) {
           </div>
 
           <aside className="space-y-4 xl:sticky xl:top-24">
-            <ContractorCard contractor={contractor} projectId={project.id} />
+            <ContractorCard contractor={contractor} />
             <BudgetCard project={project} bid={selectedBid} />
             <DocumentsActionsCard projectId={project.id} fileCount={files.length} />
             <ProjectDatesCard project={project} />
@@ -415,7 +415,6 @@ function StageProgressRail({ stages }: { stages: ProgressStage[] }) {
 
 function ContractorCard({
   contractor,
-  projectId,
 }: {
   contractor: {
     public_name: string;
@@ -426,7 +425,6 @@ function ContractorCard({
     rating_count: number;
     verification_status: string;
   } | null;
-  projectId: string;
 }) {
   return (
     <section className="rounded-[1.5rem] border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
@@ -460,7 +458,7 @@ function ContractorCard({
 
           <div className="mt-5 grid grid-cols-[1fr_auto] gap-2">
             <Link
-              href={`#project-chat`}
+              href="#project-chat"
               className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-3 text-sm font-semibold text-primary hover:bg-primary/10"
             >
               <MessageCircle className="h-4 w-4" />
@@ -541,7 +539,7 @@ function DocumentsActionsCard({ projectId, fileCount }: { projectId: string; fil
   const items = [
     {
       href: `/customer/work/${projectId}/documents`,
-      label: "Документы проекта",
+      label: "Файлы проекта",
       description: `${fileCount} файлов по этапам`,
       icon: FileText,
     },
