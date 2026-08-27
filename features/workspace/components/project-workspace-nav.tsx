@@ -22,7 +22,7 @@ type Props = {
 
 const items = [
   { suffix: "", label: "Обзор", icon: FolderOpen, requiresContract: false },
-  { suffix: "/changes", label: "Финансы", icon: Banknote, requiresContract: true },
+  { suffix: "/changes", label: "Бюджет и платежи", icon: Banknote, requiresContract: true },
   { suffix: "/materials", label: "Материалы", icon: ShoppingCart, requiresContract: true },
   { suffix: "/documents", label: "Документы", icon: FileText, requiresContract: true },
   { suffix: "/appointments", label: "Встречи", icon: CalendarClock, requiresContract: false },
