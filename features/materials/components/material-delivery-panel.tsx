@@ -1,81 +1,653 @@
 import type { ReactNode } from "react";
-import { Clock3, PackageOpen, RefreshCw, Route, Truck } from "lucide-react";
+import {
+  CheckCircle2,
+  Clock3,
+  MapPin,
+  PackageOpen,
+  RefreshCw,
+  Route,
+  Ruler,
+  Truck,
+  UsersRound,
+  Weight,
+} from "lucide-react";
 import { redirect } from "next/navigation";
 
+import {
+  acceptMaterialDeliveryClaim,
+  calculateMaterialDeliveryOffers,
+  createMaterialDeliveryClaim,
+  refreshMaterialDeliveryStatus,
+} from "@/features/materials/actions/material-delivery";
 import { requireActiveUser } from "@/lib/auth/require-active-user";
 import { db } from "@/lib/db/pool";
 import { getMaterialProjectParticipant } from "@/lib/materials/get-material-project-participant";
 import { yandexDeliveryConfigured } from "@/lib/materials/yandex-delivery";
-import { acceptMaterialDeliveryClaim, calculateMaterialDeliveryOffers, createMaterialDeliveryClaim, refreshMaterialDeliveryStatus } from "@/features/materials/actions/material-delivery";
 
-type Role="customer"|"contractor";
-type Props={projectId:string;role:Role;query:Record<string,string|string[]|undefined>};
-type OrderRow={id:string;supplier_id:string;status:string;supplier_name_snapshot:string;region:string|null;city:string|null;address:string|null};
-type LocationRow={id:string;name:string;address:string;city:string|null};
-type RequestRow={id:string;status:string;provider_claim_id:string|null;provider_status:string|null;selected_offer_id:string|null;destination_address:string;shipment_weight_kg:string|number;cargo_type:string;cargo_loaders:number;created_at:Date|string;accepted_at:Date|string|null;picked_up_at:Date|string|null;delivered_at:Date|string|null};
-type OfferRow={id:string;description:string|null;total_price_with_vat_minor:string|number;currency:string;pickup_from:Date|string|null;pickup_to:Date|string|null;delivery_from:Date|string|null;delivery_to:Date|string|null;expires_at:Date|string;selected_at:Date|string|null;is_active:boolean};
+type Role = "customer" | "contractor";
+type Props = {
+  projectId: string;
+  role: Role;
+  query: Record<string, string | string[] | undefined>;
+};
+type OrderRow = {
+  id: string;
+  supplier_id: string;
+  status: string;
+  supplier_name_snapshot: string;
+  region: string | null;
+  city: string | null;
+  address: string | null;
+};
+type LocationRow = { id: string; name: string; address: string; city: string | null };
+type RequestRow = {
+  id: string;
+  status: string;
+  provider_claim_id: string | null;
+  provider_status: string | null;
+  selected_offer_id: string | null;
+  destination_address: string;
+  shipment_weight_kg: string | number;
+  cargo_type: string;
+  cargo_loaders: number;
+  created_at: Date | string;
+  accepted_at: Date | string | null;
+  picked_up_at: Date | string | null;
+  delivered_at: Date | string | null;
+};
+type OfferRow = {
+  id: string;
+  description: string | null;
+  total_price_with_vat_minor: string | number;
+  currency: string;
+  pickup_from: Date | string | null;
+  pickup_to: Date | string | null;
+  delivery_from: Date | string | null;
+  delivery_to: Date | string | null;
+  expires_at: Date | string;
+  selected_at: Date | string | null;
+  is_active: boolean;
+};
 
-export async function MaterialDeliveryPanel({projectId,role,query}:Props){
-  const activeUser=await requireActiveUser();
-  if(!activeUser.success)redirect("/login");
-  if(activeUser.profile.role!==role)redirect("/dashboard");
-  const ctx=await getMaterialProjectParticipant(projectId,activeUser.user.id,activeUser.profile.role);
-  if(!ctx.success)return null;
+export async function MaterialDeliveryPanel({ projectId, role, query }: Props) {
+  const activeUser = await requireActiveUser();
+  if (!activeUser.success) redirect("/login");
+  if (activeUser.profile.role !== role) redirect("/dashboard");
 
-  const orderResult=await db.query<OrderRow>(`
-    SELECT mo.id,mo.supplier_id,mo.status,mo.supplier_name_snapshot,p.region,p.city,p.address
-    FROM public.material_orders mo JOIN public.projects p ON p.id=mo.project_id
-    WHERE mo.project_id=$1::uuid AND mo.status IN ('paid','supplier_confirmed','delivery_pending','in_delivery','delivered','completed')
-    ORDER BY mo.created_at DESC LIMIT 1
-  `,[projectId]);
-  const order=orderResult.rows[0];if(!order)return null;
-  const [locationsResult,requestResult]=await Promise.all([
-    db.query<LocationRow>(`SELECT id,name,address,city FROM public.material_supplier_locations WHERE supplier_id=$1::uuid AND is_active=true AND latitude IS NOT NULL AND longitude IS NOT NULL ORDER BY name`,[order.supplier_id]),
-    db.query<RequestRow>(`SELECT id,status,provider_claim_id,provider_status,selected_offer_id,destination_address,shipment_weight_kg,cargo_type,cargo_loaders,created_at,accepted_at,picked_up_at,delivered_at FROM public.material_delivery_requests WHERE order_id=$1::uuid ORDER BY created_at DESC LIMIT 1`,[order.id]),
+  const ctx = await getMaterialProjectParticipant(
+    projectId,
+    activeUser.user.id,
+    activeUser.profile.role
+  );
+  if (!ctx.success) return null;
+
+  const orderResult = await db.query<OrderRow>(
+    `
+      SELECT mo.id,mo.supplier_id,mo.status,mo.supplier_name_snapshot,p.region,p.city,p.address
+      FROM public.material_orders mo JOIN public.projects p ON p.id=mo.project_id
+      WHERE mo.project_id=$1::uuid AND mo.status IN ('paid','supplier_confirmed','delivery_pending','in_delivery','delivered','completed')
+      ORDER BY mo.created_at DESC LIMIT 1
+    `,
+    [projectId]
+  );
+  const order = orderResult.rows[0];
+  if (!order) return null;
+
+  const [locationsResult, requestResult] = await Promise.all([
+    db.query<LocationRow>(
+      `SELECT id,name,address,city FROM public.material_supplier_locations WHERE supplier_id=$1::uuid AND is_active=true AND latitude IS NOT NULL AND longitude IS NOT NULL ORDER BY name`,
+      [order.supplier_id]
+    ),
+    db.query<RequestRow>(
+      `SELECT id,status,provider_claim_id,provider_status,selected_offer_id,destination_address,shipment_weight_kg,cargo_type,cargo_loaders,created_at,accepted_at,picked_up_at,delivered_at FROM public.material_delivery_requests WHERE order_id=$1::uuid ORDER BY created_at DESC LIMIT 1`,
+      [order.id]
+    ),
   ]);
-  const request=requestResult.rows[0]??null;
-  const offersResult=request?await db.query<OfferRow>(`SELECT id,description,total_price_with_vat_minor,currency,pickup_from,pickup_to,delivery_from,delivery_to,expires_at,selected_at,(expires_at>now()) AS is_active FROM public.material_delivery_offers WHERE delivery_request_id=$1::uuid ORDER BY total_price_with_vat_minor,created_at`,[request.id]):{rows:[] as OfferRow[]};
-  const offers=offersResult.rows;
-  const selected=request?.selected_offer_id?offers.find(offer=>offer.id===request.selected_offer_id)??null:null;
-  const customer=role==="customer";
-  const configured=yandexDeliveryConfigured();
-  const exactAddress=order.address?.trim()??"";
-  const projectAddress=[order.region,order.city,exactAddress].filter(Boolean).join(", ");
-  const notice=deliveryNotice(query);
-  const terminal=request&&["failed","cancelled"].includes(request.status);
-  const canCalculate=customer&&configured&&Boolean(exactAddress)&&locationsResult.rows.length>0&&["paid","supplier_confirmed","delivery_pending"].includes(order.status);
 
-  return <section className="app-container pb-10" data-testid="material-delivery-panel"><div className="rounded-[1.75rem] border border-border bg-card p-6 shadow-[var(--shadow-soft)] md:p-7">
-    {notice&&<div className="mb-5 rounded-xl border border-border bg-secondary/40 px-4 py-3 text-sm font-semibold">{notice}</div>}
-    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div className="flex items-start gap-3"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-secondary text-primary"><Truck className="h-5 w-5"/></div><div><p className="text-sm font-semibold text-primary">Логистика заказа</p><h2 className="mt-1 text-2xl font-bold">Яндекс Доставка</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">Точка назначения берётся из адреса объекта проекта. В форме задаются только координаты объекта и параметры груза, необходимые Яндекс Доставке.</p></div></div>{request&&!terminal&&<span className="w-fit rounded-full bg-secondary px-3 py-1.5 text-xs font-bold text-primary">{deliveryStatusLabel(request.status)}</span>}</div>
+  const request = requestResult.rows[0] ?? null;
+  const offersResult = request
+    ? await db.query<OfferRow>(
+        `SELECT id,description,total_price_with_vat_minor,currency,pickup_from,pickup_to,delivery_from,delivery_to,expires_at,selected_at,(expires_at>now()) AS is_active FROM public.material_delivery_offers WHERE delivery_request_id=$1::uuid ORDER BY total_price_with_vat_minor,created_at`,
+        [request.id]
+      )
+    : { rows: [] as OfferRow[] };
+  const offers = offersResult.rows;
+  const selected = request?.selected_offer_id
+    ? offers.find((offer) => offer.id === request.selected_offer_id) ?? null
+    : null;
+  const customer = role === "customer";
+  const configured = yandexDeliveryConfigured();
+  const exactAddress = order.address?.trim() ?? "";
+  const projectAddress = [order.region, order.city, exactAddress].filter(Boolean).join(", ");
+  const notice = deliveryNotice(query);
+  const terminal = Boolean(request && ["failed", "cancelled"].includes(request.status));
+  const canCalculate =
+    customer &&
+    configured &&
+    Boolean(exactAddress) &&
+    locationsResult.rows.length > 0 &&
+    ["paid", "supplier_confirmed", "delivery_pending"].includes(order.status);
 
-    {!configured&&<Message title="Интеграция ещё не активирована">Для реального расчёта администратор должен добавить токен Яндекс Доставки в защищённые переменные окружения.</Message>}
-    {!exactAddress&&<Message title="Нет точного адреса объекта">Добавьте адрес в карточку проекта. StroySelect не создаёт второй адрес доставки и использует адрес объекта как единый источник данных.</Message>}
-    {locationsResult.rows.length===0&&<Message title="Поставщик не настроил отгрузку">Для {order.supplier_name_snapshot} пока нет активной точки с координатами. Её добавляет администратор в разделе поставщиков.</Message>}
+  return (
+    <section className="app-container pb-10" data-testid="material-delivery-panel" aria-labelledby="delivery-heading">
+      <div className="ui-v2-panel overflow-hidden p-5 sm:p-6 lg:p-7">
+        {notice ? (
+          <div className="mb-5 rounded-xl border border-border bg-secondary/55 px-4 py-3 text-sm font-semibold text-foreground" aria-live="polite">
+            {notice}
+          </div>
+        ) : null}
 
-    {request&&!terminal&&<div className="mt-6 grid gap-3 md:grid-cols-3"><Info icon={<Route className="h-4 w-4"/>} label="Маршрут" value={request.destination_address}/><Info icon={<PackageOpen className="h-4 w-4"/>} label="Груз" value={`${formatNumber(request.shipment_weight_kg)} кг · ${cargoLabel(request.cargo_type)}${request.cargo_loaders?` · грузчиков: ${request.cargo_loaders}`:""}`}/><Info icon={<Clock3 className="h-4 w-4"/>} label="Статус Яндекса" value={request.provider_status??"Ожидает создания заявки"}/></div>}
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex min-w-0 items-start gap-4">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-secondary text-primary">
+              <Truck className="h-6 w-6" aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">Логистика заказа</p>
+              <h2 id="delivery-heading" className="mt-1 text-2xl font-black tracking-[-0.03em] text-foreground sm:text-3xl">
+                Яндекс Доставка
+              </h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+                Материалы доставляются на адрес объекта проекта. Стоимость логистики рассчитывается отдельно от заказа и фиксируется в выбранном предложении Яндекса.
+              </p>
+            </div>
+          </div>
 
-    {(!request||terminal)&&canCalculate&&<DeliveryForm orderId={order.id} projectAddress={projectAddress} locations={locationsResult.rows}/>} 
-    {(!request||terminal)&&!customer&&<p className="mt-6 text-sm font-semibold text-muted-foreground">Расчёт и подтверждение доставки выполняет заказчик проекта.</p>}
-    {terminal&&<div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">Предыдущая заявка: {deliveryStatusLabel(request.status)}. Можно выполнить новый расчёт.</div>}
+          {request && !terminal ? (
+            <span className="inline-flex w-fit items-center gap-2 rounded-full bg-secondary px-3 py-1.5 text-xs font-bold text-primary">
+              <span className="h-2 w-2 rounded-full bg-primary" />
+              {deliveryStatusLabel(request.status)}
+            </span>
+          ) : null}
+        </div>
 
-    {request?.status==="offers_ready"&&<div className="mt-6"><h3 className="text-lg font-bold">Варианты доставки</h3><p className="mt-1 text-sm text-muted-foreground">Цена доставки хранится отдельно от стоимости материалов и фиксируется в оффере Яндекса.</p><div className="mt-4 grid gap-3 lg:grid-cols-2">{offers.map(offer=><article key={offer.id} className="rounded-2xl border border-border bg-background/60 p-4"><div className="flex items-start justify-between gap-4"><div><p className="font-bold">{offer.description||"Грузовая доставка"}</p><p className="mt-1 text-xs text-muted-foreground">Забор: {interval(offer.pickup_from,offer.pickup_to)} · доставка: {interval(offer.delivery_from,offer.delivery_to)}</p><p className="mt-1 text-xs text-muted-foreground">Оффер действует до {dateTime(offer.expires_at)}</p></div><p className="text-lg font-black">{money(offer.total_price_with_vat_minor,offer.currency)}</p></div>{customer&&offer.is_active&&<form action={createMaterialDeliveryClaim} className="mt-4"><input type="hidden" name="requestId" value={request.id}/><input type="hidden" name="offerId" value={offer.id}/><button className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground">Создать заявку</button></form>}</article>)}</div>{offers.length>0&&offers.every(offer=>!offer.is_active)&&customer&&<p className="mt-4 text-sm font-semibold text-amber-700">Срок вариантов истёк. Выполните новый расчёт.</p>}</div>}
+        <DeliveryRail request={request} terminal={terminal} />
 
-    {request?.status==="claim_created"&&<div className="mt-6 rounded-2xl border border-primary/25 bg-secondary/30 p-5"><h3 className="font-bold">Заявка создана, но ещё не подтверждена</h3><p className="mt-2 text-sm leading-6 text-muted-foreground">Яндекс сначала оценивает заявку. После статуса ready_for_approval заказчик подтверждает её, и только тогда начинается поиск машины.</p>{selected&&<p className="mt-3 text-sm font-bold">Стоимость: {money(selected.total_price_with_vat_minor,selected.currency)}</p>}<div className="mt-4 flex flex-wrap gap-3">{customer&&<form action={acceptMaterialDeliveryClaim}><input type="hidden" name="requestId" value={request.id}/><button className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground">Подтвердить доставку</button></form>}<RefreshForm requestId={request.id}/></div></div>}
+        {!configured ? (
+          <Message title="Интеграция ещё не активирована">
+            Для реального расчёта администратор должен добавить токен Яндекс Доставки в защищённые переменные окружения.
+          </Message>
+        ) : null}
+        {!exactAddress ? (
+          <Message title="Нет точного адреса объекта">
+            Добавьте адрес в карточку проекта. StroySelect не создаёт второй адрес доставки и использует адрес объекта как единый источник данных.
+          </Message>
+        ) : null}
+        {locationsResult.rows.length === 0 ? (
+          <Message title="Поставщик не настроил отгрузку">
+            Для {order.supplier_name_snapshot} пока нет активной точки с координатами. Её добавляет администратор в разделе поставщиков.
+          </Message>
+        ) : null}
 
-    {request&&["accepted","in_delivery","delivered"].includes(request.status)&&<div className="mt-6 rounded-2xl border border-border bg-background/60 p-5"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-semibold text-muted-foreground">Текущий этап</p><h3 className="mt-1 text-xl font-black">{deliveryStatusLabel(request.status)}</h3><p className="mt-2 text-sm text-muted-foreground">{request.status==="accepted"?"Заявка подтверждена, Яндекс ищет машину или водитель едет к точке отгрузки.":request.status==="in_delivery"?"Материалы забраны у поставщика и едут на объект.":"Яндекс сообщил о завершении доставки."}</p></div>{selected&&<p className="text-lg font-black">{money(selected.total_price_with_vat_minor,selected.currency)}</p>}</div>{request.status!=="delivered"&&<div className="mt-4"><RefreshForm requestId={request.id}/></div>}</div>}
-  </div></section>;
+        {request && !terminal ? (
+          <div className="mt-6 grid gap-3 md:grid-cols-3">
+            <Info
+              icon={<Route className="h-4 w-4" />}
+              label="Маршрут"
+              value={request.destination_address}
+            />
+            <Info
+              icon={<PackageOpen className="h-4 w-4" />}
+              label="Груз"
+              value={`${formatNumber(request.shipment_weight_kg)} кг · ${cargoLabel(request.cargo_type)}${request.cargo_loaders ? ` · грузчиков: ${request.cargo_loaders}` : ""}`}
+            />
+            <Info
+              icon={<Clock3 className="h-4 w-4" />}
+              label="Статус Яндекса"
+              value={request.provider_status ?? "Ожидает создания заявки"}
+            />
+          </div>
+        ) : null}
+
+        {(!request || terminal) && canCalculate ? (
+          <DeliveryForm
+            orderId={order.id}
+            projectAddress={projectAddress}
+            locations={locationsResult.rows}
+          />
+        ) : null}
+
+        {(!request || terminal) && !customer ? (
+          <div className="mt-6 rounded-2xl bg-muted px-4 py-4 text-sm font-semibold text-muted-foreground">
+            Расчёт и подтверждение доставки выполняет заказчик проекта.
+          </div>
+        ) : null}
+
+        {terminal && request ? (
+          <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
+            Предыдущая заявка: {deliveryStatusLabel(request.status)}. Можно выполнить новый расчёт.
+          </div>
+        ) : null}
+
+        {request?.status === "offers_ready" ? (
+          <div className="mt-7 border-t border-border pt-6">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.1em] text-primary">Шаг 2</p>
+                <h3 className="mt-1 text-xl font-black text-foreground">Варианты доставки</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Выберите актуальное предложение. Цена хранится отдельно от стоимости материалов.
+                </p>
+              </div>
+              <span className="text-xs font-semibold text-muted-foreground">{offers.length} вариантов</span>
+            </div>
+
+            <div className="mt-4 grid gap-3 lg:grid-cols-2">
+              {offers.map((offer) => (
+                <article
+                  key={offer.id}
+                  className="rounded-2xl border border-border bg-background/55 p-4 transition hover:border-primary/25 hover:shadow-[var(--shadow-soft)] sm:p-5"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="font-bold text-foreground">{offer.description || "Грузовая доставка"}</p>
+                      <div className="mt-3 space-y-2 text-xs leading-5 text-muted-foreground">
+                        <p><span className="font-semibold text-foreground">Забор:</span> {interval(offer.pickup_from, offer.pickup_to)}</p>
+                        <p><span className="font-semibold text-foreground">На объект:</span> {interval(offer.delivery_from, offer.delivery_to)}</p>
+                        <p>Оффер действует до {dateTime(offer.expires_at)}</p>
+                      </div>
+                    </div>
+                    <p className="shrink-0 text-xl font-black tracking-[-0.03em] text-foreground">
+                      {money(offer.total_price_with_vat_minor, offer.currency)}
+                    </p>
+                  </div>
+
+                  {customer && offer.is_active ? (
+                    <form action={createMaterialDeliveryClaim} className="mt-5">
+                      <input type="hidden" name="requestId" value={request.id} />
+                      <input type="hidden" name="offerId" value={offer.id} />
+                      <button className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-primary px-4 text-sm font-bold text-primary-foreground sm:w-auto">
+                        Создать заявку
+                      </button>
+                    </form>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+
+            {offers.length > 0 && offers.every((offer) => !offer.is_active) && customer ? (
+              <p className="mt-4 text-sm font-semibold text-amber-700">
+                Срок вариантов истёк. Выполните новый расчёт.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
+        {request?.status === "claim_created" ? (
+          <div className="mt-7 rounded-2xl border border-primary/20 bg-[linear-gradient(135deg,var(--secondary),var(--card))] p-5 sm:p-6">
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                <Clock3 className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-bold uppercase tracking-[0.1em] text-primary">Следующее действие</p>
+                <h3 className="mt-1 text-lg font-black text-foreground">Заявка создана, но ещё не подтверждена</h3>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  Яндекс сначала оценивает заявку. После статуса ready_for_approval заказчик подтверждает её, и только тогда начинается поиск машины.
+                </p>
+                {selected ? (
+                  <p className="mt-3 text-base font-black text-foreground">
+                    Стоимость: {money(selected.total_price_with_vat_minor, selected.currency)}
+                  </p>
+                ) : null}
+                <div className="mt-5 flex flex-wrap gap-3">
+                  {customer ? (
+                    <form action={acceptMaterialDeliveryClaim}>
+                      <input type="hidden" name="requestId" value={request.id} />
+                      <button className="min-h-11 rounded-xl bg-primary px-4 text-sm font-bold text-primary-foreground">
+                        Подтвердить доставку
+                      </button>
+                    </form>
+                  ) : null}
+                  <RefreshForm requestId={request.id} />
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {request && ["accepted", "in_delivery", "delivered"].includes(request.status) ? (
+          <div className="mt-7 rounded-2xl border border-border bg-background/55 p-5 sm:p-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex items-start gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary text-primary">
+                  {request.status === "delivered" ? (
+                    <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
+                  ) : (
+                    <Truck className="h-5 w-5" aria-hidden="true" />
+                  )}
+                </span>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.1em] text-primary">Текущий этап</p>
+                  <h3 className="mt-1 text-xl font-black text-foreground">{deliveryStatusLabel(request.status)}</h3>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                    {request.status === "accepted"
+                      ? "Заявка подтверждена, Яндекс ищет машину или водитель едет к точке отгрузки."
+                      : request.status === "in_delivery"
+                        ? "Материалы забраны у поставщика и едут на объект."
+                        : "Яндекс сообщил о завершении доставки."}
+                  </p>
+                </div>
+              </div>
+              {selected ? (
+                <p className="text-lg font-black text-foreground">
+                  {money(selected.total_price_with_vat_minor, selected.currency)}
+                </p>
+              ) : null}
+            </div>
+            {request.status !== "delivered" ? (
+              <div className="mt-5 border-t border-border pt-4">
+                <RefreshForm requestId={request.id} />
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    </section>
+  );
 }
 
-function DeliveryForm({orderId,projectAddress,locations}:{orderId:string;projectAddress:string;locations:LocationRow[]}){return <form action={calculateMaterialDeliveryOffers} className="mt-6 rounded-2xl border border-border bg-background/60 p-5" data-testid="delivery-calculation-form"><h3 className="font-bold">Рассчитать грузовую доставку</h3><div className="mt-4 grid gap-3 md:grid-cols-2"><label className="grid gap-1.5 text-sm font-semibold">Адрес объекта<input value={projectAddress} readOnly className="rounded-xl border border-border bg-secondary/40 px-3 py-3 font-normal text-muted-foreground"/></label><label className="grid gap-1.5 text-sm font-semibold">Точка отгрузки<select name="supplierLocationId" required className="rounded-xl border border-border bg-background px-3 py-3 font-normal">{locations.map(location=><option key={location.id} value={location.id}>{location.name} · {location.address}</option>)}</select></label><label className="grid gap-1.5 text-sm font-semibold">Широта объекта<input name="destinationLatitude" type="number" step="0.0000001" min="-90" max="90" required placeholder="42.9849000" className="rounded-xl border border-border bg-background px-3 py-3 font-normal"/></label><label className="grid gap-1.5 text-sm font-semibold">Долгота объекта<input name="destinationLongitude" type="number" step="0.0000001" min="-180" max="180" required placeholder="47.5047000" className="rounded-xl border border-border bg-background px-3 py-3 font-normal"/></label><label className="grid gap-1.5 text-sm font-semibold">Вес груза, кг<input name="weightKg" type="number" step="0.001" min="0.001" required defaultValue="100" className="rounded-xl border border-border bg-background px-3 py-3 font-normal"/></label><label className="grid gap-1.5 text-sm font-semibold">Тип машины<select name="cargoType" defaultValue="lcv_m" className="rounded-xl border border-border bg-background px-3 py-3 font-normal"><option value="van">Фургон</option><option value="lcv_m">Грузовой M</option><option value="lcv_l">Грузовой L</option><option value="lcv_xl">Грузовой XL</option></select></label><label className="grid gap-1.5 text-sm font-semibold">Длина, м<input name="lengthM" type="number" step="0.001" min="0.001" required defaultValue="1" className="rounded-xl border border-border bg-background px-3 py-3 font-normal"/></label><label className="grid gap-1.5 text-sm font-semibold">Ширина, м<input name="widthM" type="number" step="0.001" min="0.001" required defaultValue="1" className="rounded-xl border border-border bg-background px-3 py-3 font-normal"/></label><label className="grid gap-1.5 text-sm font-semibold">Высота, м<input name="heightM" type="number" step="0.001" min="0.001" required defaultValue="1" className="rounded-xl border border-border bg-background px-3 py-3 font-normal"/></label><label className="grid gap-1.5 text-sm font-semibold">Грузчики<select name="loaders" defaultValue="0" className="rounded-xl border border-border bg-background px-3 py-3 font-normal"><option value="0">Не нужны</option><option value="1">1 грузчик</option><option value="2">2 грузчика</option></select></label></div><input type="hidden" name="orderId" value={orderId}/><button className="mt-4 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground">Рассчитать доставку</button></form>}
-function RefreshForm({requestId}:{requestId:string}){return <form action={refreshMaterialDeliveryStatus}><input type="hidden" name="requestId" value={requestId}/><button className="inline-flex items-center gap-2 rounded-xl border border-primary px-4 py-2.5 text-sm font-semibold text-primary"><RefreshCw className="h-4 w-4"/>Обновить статус</button></form>}
-function Message({title,children}:{title:string;children:ReactNode}){return <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"><p className="font-bold">{title}</p><p className="mt-1 leading-6">{children}</p></div>}
-function Info({icon,label,value}:{icon:ReactNode;label:string;value:string}){return <div className="rounded-2xl border border-border bg-background/60 p-4"><div className="flex items-center gap-2 text-primary">{icon}<span className="text-xs font-semibold text-muted-foreground">{label}</span></div><p className="mt-2 break-words text-sm font-semibold">{value}</p></div>}
-function money(value:string|number,currency:string){return new Intl.NumberFormat("ru-RU",{style:"currency",currency,maximumFractionDigits:0}).format(Number(value)/100)}
-function formatNumber(value:string|number){return new Intl.NumberFormat("ru-RU",{maximumFractionDigits:3}).format(Number(value))}
-function dateTime(value:Date|string){return new Intl.DateTimeFormat("ru-RU",{dateStyle:"short",timeStyle:"short"}).format(new Date(value))}
-function interval(from:Date|string|null,to:Date|string|null){if(!from&&!to)return"уточняется";return`${from?dateTime(from):"?"} — ${to?dateTime(to):"?"}`}
-function cargoLabel(value:string){return({van:"фургон",lcv_m:"грузовой M",lcv_l:"грузовой L",lcv_xl:"грузовой XL"} as Record<string,string>)[value]??value}
-function deliveryStatusLabel(value:string){return({draft:"Черновик",offers_ready:"Варианты рассчитаны",claim_created:"Ожидает подтверждения",accepted:"Ожидает забора",in_delivery:"В доставке",delivered:"Доставлено",cancelled:"Отменена",failed:"Не выполнена"} as Record<string,string>)[value]??value}
-function deliveryNotice(query:Record<string,string|string[]|undefined>){if(query.delivery==="offers")return"Варианты Яндекс Доставки рассчитаны.";if(query.delivery==="claim_created")return"Заявка создана в Яндекс Доставке. Подтвердите её после успешной оценки.";if(query.delivery==="accepted")return"Доставка подтверждена. Ожидается забор материалов.";if(query.delivery==="refreshed")return"Статус доставки обновлён.";if(query.delivery==="existing")return"Для этого заказа уже есть активная заявка доставки.";if(query.delivery_error)return deliveryError(String(query.delivery_error));return null}
-function deliveryError(code:string){const messages:Record<string,string>={provider:"Яндекс Доставка сейчас недоступна или не настроена.",cargo:"Проверьте координаты и параметры груза.",access:"Точка отгрузки недоступна для этого заказа.",status:"На текущем статусе заказа доставка не может быть изменена.",address:"В проекте не указан точный адрес объекта.",contact:"В профиле заказчика не указан телефон получателя.",pickup_contact:"У точки отгрузки не указан телефон.",no_offers:"Яндекс не вернул доступных вариантов доставки.",save:"Не удалось сохранить расчёт доставки.",offer:"Выбранный вариант доставки недоступен.",offer_expired:"Срок выбранного варианта истёк. Рассчитайте доставку заново.",claim:"Не удалось создать заявку в Яндекс Доставке.",claim_status:"Яндекс завершил заявку без доставки. Можно выполнить новый расчёт.",not_ready:"Яндекс ещё оценивает заявку. Обновите статус немного позже.",version:"Не удалось получить актуальную версию заявки.",accept:"Не удалось подтвердить заявку в Яндекс Доставке."};return messages[code]??"Операция доставки не выполнена."}
+function DeliveryRail({ request, terminal }: { request: RequestRow | null; terminal: boolean }) {
+  let current = 0;
+  if (request && !terminal) {
+    if (request.status === "offers_ready") current = 1;
+    else if (request.status === "claim_created") current = 2;
+    else if (["accepted", "in_delivery", "delivered"].includes(request.status)) current = 3;
+  }
+
+  const steps = ["Параметры", "Вариант", "Подтверждение", "Доставка"];
+  return (
+    <div className="mt-6 overflow-x-auto pb-1" aria-label="Этапы оформления доставки">
+      <div className="flex min-w-[540px] items-center">
+        {steps.map((label, index) => (
+          <div key={label} className="flex min-w-0 flex-1 items-center last:flex-none">
+            <div className="flex shrink-0 items-center gap-2">
+              <span
+                className={[
+                  "flex h-8 w-8 items-center justify-center rounded-full border text-xs font-black",
+                  index <= current
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-card text-muted-foreground",
+                ].join(" ")}
+              >
+                {index < current ? <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> : index + 1}
+              </span>
+              <span className={index === current ? "text-xs font-bold text-foreground" : "text-xs font-semibold text-muted-foreground"}>
+                {label}
+              </span>
+            </div>
+            {index < steps.length - 1 ? (
+              <span className={[
+                "mx-3 h-px min-w-5 flex-1",
+                index < current ? "bg-primary/55" : "bg-border",
+              ].join(" ")} />
+            ) : null}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DeliveryForm({
+  orderId,
+  projectAddress,
+  locations,
+}: {
+  orderId: string;
+  projectAddress: string;
+  locations: LocationRow[];
+}) {
+  const fieldClass = "min-h-12 w-full rounded-xl border border-input bg-card px-3 py-3 font-normal text-foreground outline-none focus:border-primary focus:ring-4 focus:ring-primary/10";
+  return (
+    <form
+      action={calculateMaterialDeliveryOffers}
+      className="mt-7 rounded-2xl border border-border bg-background/45 p-4 sm:p-6"
+      data-testid="delivery-calculation-form"
+    >
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary text-primary">
+          <Route className="h-5 w-5" aria-hidden="true" />
+        </span>
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.1em] text-primary">Шаг 1</p>
+          <h3 className="mt-1 text-lg font-black text-foreground">Рассчитать грузовую доставку</h3>
+          <p className="mt-1 text-sm text-muted-foreground">Укажите координаты объекта и параметры груза для расчёта доступных вариантов.</p>
+        </div>
+      </div>
+
+      <div className="mt-6 grid gap-5 xl:grid-cols-2">
+        <fieldset className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+          <legend className="px-1 text-sm font-black text-foreground">Маршрут</legend>
+          <div className="mt-2 space-y-4">
+            <label className="grid gap-1.5 text-sm font-semibold text-foreground">
+              Адрес объекта
+              <span className="relative">
+                <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                <input value={projectAddress} readOnly className={`${fieldClass} bg-secondary/40 pl-9 text-muted-foreground`} />
+              </span>
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold text-foreground">
+              Точка отгрузки
+              <select name="supplierLocationId" required className={fieldClass}>
+                {locations.map((location) => (
+                  <option key={location.id} value={location.id}>
+                    {location.name} · {location.address}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="grid gap-1.5 text-sm font-semibold text-foreground">
+                Широта объекта
+                <input
+                  name="destinationLatitude"
+                  type="number"
+                  step="0.0000001"
+                  min="-90"
+                  max="90"
+                  required
+                  placeholder="42.9849000"
+                  className={fieldClass}
+                />
+              </label>
+              <label className="grid gap-1.5 text-sm font-semibold text-foreground">
+                Долгота объекта
+                <input
+                  name="destinationLongitude"
+                  type="number"
+                  step="0.0000001"
+                  min="-180"
+                  max="180"
+                  required
+                  placeholder="47.5047000"
+                  className={fieldClass}
+                />
+              </label>
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+          <legend className="px-1 text-sm font-black text-foreground">Груз и машина</legend>
+          <div className="mt-2 space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="grid gap-1.5 text-sm font-semibold text-foreground">
+                Вес груза, кг
+                <span className="relative">
+                  <Weight className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                  <input name="weightKg" type="number" step="0.001" min="0.001" required defaultValue="100" className={`${fieldClass} pl-9`} />
+                </span>
+              </label>
+              <label className="grid gap-1.5 text-sm font-semibold text-foreground">
+                Тип машины
+                <select name="cargoType" defaultValue="lcv_m" className={fieldClass}>
+                  <option value="van">Фургон</option>
+                  <option value="lcv_m">Грузовой M</option>
+                  <option value="lcv_l">Грузовой L</option>
+                  <option value="lcv_xl">Грузовой XL</option>
+                </select>
+              </label>
+            </div>
+
+            <div>
+              <div className="mb-1.5 flex items-center gap-2 text-sm font-semibold text-foreground">
+                <Ruler className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                Габариты груза, м
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <label className="grid gap-1 text-xs font-semibold text-muted-foreground">
+                  Длина
+                  <input name="lengthM" type="number" step="0.001" min="0.001" required defaultValue="1" className={fieldClass} />
+                </label>
+                <label className="grid gap-1 text-xs font-semibold text-muted-foreground">
+                  Ширина
+                  <input name="widthM" type="number" step="0.001" min="0.001" required defaultValue="1" className={fieldClass} />
+                </label>
+                <label className="grid gap-1 text-xs font-semibold text-muted-foreground">
+                  Высота
+                  <input name="heightM" type="number" step="0.001" min="0.001" required defaultValue="1" className={fieldClass} />
+                </label>
+              </div>
+            </div>
+
+            <label className="grid gap-1.5 text-sm font-semibold text-foreground">
+              <span className="flex items-center gap-2">
+                <UsersRound className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                Грузчики
+              </span>
+              <select name="loaders" defaultValue="0" className={fieldClass}>
+                <option value="0">Не нужны</option>
+                <option value="1">1 грузчик</option>
+                <option value="2">2 грузчика</option>
+              </select>
+            </label>
+          </div>
+        </fieldset>
+      </div>
+
+      <input type="hidden" name="orderId" value={orderId} />
+      <div className="mt-5 flex justify-end">
+        <button className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-bold text-primary-foreground shadow-[0_8px_20px_rgba(8,122,80,0.18)] sm:w-auto">
+          Рассчитать доставку
+          <Route className="h-4 w-4" aria-hidden="true" />
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function RefreshForm({ requestId }: { requestId: string }) {
+  return (
+    <form action={refreshMaterialDeliveryStatus}>
+      <input type="hidden" name="requestId" value={requestId} />
+      <button className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-primary px-4 text-sm font-bold text-primary">
+        <RefreshCw className="h-4 w-4" aria-hidden="true" />
+        Обновить статус
+      </button>
+    </form>
+  );
+}
+
+function Message({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-950">
+      <p className="font-bold">{title}</p>
+      <p className="mt-1 leading-6">{children}</p>
+    </div>
+  );
+}
+
+function Info({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-border bg-background/55 p-4">
+      <div className="flex items-center gap-2 text-primary" aria-hidden="true">
+        {icon}
+      </div>
+      <p className="mt-3 text-xs font-semibold text-muted-foreground">{label}</p>
+      <p className="mt-1 break-words text-sm font-bold text-foreground">{value}</p>
+    </div>
+  );
+}
+
+function money(value: string | number, currency: string) {
+  return new Intl.NumberFormat("ru-RU", {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 0,
+  }).format(Number(value) / 100);
+}
+
+function formatNumber(value: string | number) {
+  return new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 3 }).format(Number(value));
+}
+
+function dateTime(value: Date | string) {
+  return new Intl.DateTimeFormat("ru-RU", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
+}
+
+function interval(from: Date | string | null, to: Date | string | null) {
+  if (!from && !to) return "уточняется";
+  return `${from ? dateTime(from) : "?"} — ${to ? dateTime(to) : "?"}`;
+}
+
+function cargoLabel(value: string) {
+  return (
+    {
+      van: "фургон",
+      lcv_m: "грузовой M",
+      lcv_l: "грузовой L",
+      lcv_xl: "грузовой XL",
+    } as Record<string, string>
+  )[value] ?? value;
+}
+
+function deliveryStatusLabel(value: string) {
+  return (
+    {
+      draft: "Черновик",
+      offers_ready: "Варианты рассчитаны",
+      claim_created: "Ожидает подтверждения",
+      accepted: "Ожидает забора",
+      in_delivery: "В доставке",
+      delivered: "Доставлено",
+      cancelled: "Отменена",
+      failed: "Не выполнена",
+    } as Record<string, string>
+  )[value] ?? value;
+}
+
+function deliveryNotice(query: Record<string, string | string[] | undefined>) {
+  if (query.delivery === "offers") return "Варианты Яндекс Доставки рассчитаны.";
+  if (query.delivery === "claim_created")
+    return "Заявка создана в Яндекс Доставке. Подтвердите её после успешной оценки.";
+  if (query.delivery === "accepted")
+    return "Доставка подтверждена. Ожидается забор материалов.";
+  if (query.delivery === "refreshed") return "Статус доставки обновлён.";
+  if (query.delivery === "existing")
+    return "Для этого заказа уже есть активная заявка доставки.";
+  if (query.delivery_error) return deliveryError(String(query.delivery_error));
+  return null;
+}
+
+function deliveryError(code: string) {
+  const messages: Record<string, string> = {
+    provider: "Яндекс Доставка сейчас недоступна или не настроена.",
+    cargo: "Проверьте координаты и параметры груза.",
+    access: "Точка отгрузки недоступна для этого заказа.",
+    status: "На текущем статусе заказа доставка не может быть изменена.",
+    address: "В проекте не указан точный адрес объекта.",
+    contact: "В профиле заказчика не указан телефон получателя.",
+    pickup_contact: "У точки отгрузки не указан телефон.",
+    no_offers: "Яндекс не вернул доступных вариантов доставки.",
+    save: "Не удалось сохранить расчёт доставки.",
+    offer: "Выбранный вариант доставки недоступен.",
+    offer_expired: "Срок выбранного варианта истёк. Рассчитайте доставку заново.",
+    claim: "Не удалось создать заявку в Яндекс Доставке.",
+    claim_status: "Яндекс завершил заявку без доставки. Можно выполнить новый расчёт.",
+    not_ready: "Яндекс ещё оценивает заявку. Обновите статус немного позже.",
+    version: "Не удалось получить актуальную версию заявки.",
+    accept: "Не удалось подтвердить заявку в Яндекс Доставке.",
+  };
+  return messages[code] ?? "Операция доставки не выполнена.";
+}
