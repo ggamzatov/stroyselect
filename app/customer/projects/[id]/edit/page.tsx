@@ -1,5 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import {
+  ArrowLeft,
+  CheckCircle2,
+  Clock3,
+  PencilLine,
+  ShieldCheck,
+} from "lucide-react";
 
 import { getCurrentProfile } from "@/lib/auth/get-current-profile";
 import { getServiceCategories } from "@/features/contractors/queries/get-service-categories";
@@ -22,24 +29,56 @@ export default async function EditProjectPage({ params }: Props) {
   if (project.status !== "draft") redirect(`/customer/projects/${id}`);
 
   return (
-    <main className="min-h-screen bg-background">
-      <div className="app-container max-w-7xl py-8 md:py-12">
+    <main className="px-4 py-5 sm:px-6 sm:py-7 lg:px-8 xl:px-10 xl:py-8">
+      <div className="mx-auto max-w-[1320px]">
         <Link
           href={`/customer/projects/${id}`}
-          className="inline-flex items-center text-sm font-medium text-muted-foreground transition hover:text-foreground"
+          className="inline-flex min-h-10 items-center gap-2 rounded-xl px-1 text-sm font-semibold text-muted-foreground transition hover:text-primary"
         >
-          ← Вернуться к проекту
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          Вернуться к проекту
         </Link>
 
-        <header className="mt-6 max-w-3xl">
-          <p className="text-sm font-semibold text-primary">Черновик проекта</p>
-          <h1 className="mt-2 text-3xl font-bold tracking-[-0.035em] text-foreground md:text-[2.65rem] md:leading-[1.08]">
-            Редактирование проекта
-          </h1>
-          <p className="mt-3 text-sm leading-6 text-muted-foreground md:text-base">
-            Уточните данные проекта. Набор вопросов автоматически зависит от выбранной категории работ.
-          </p>
-        </header>
+        <section className="ui-v2-panel relative mt-3 overflow-hidden p-5 sm:p-7 lg:p-8">
+          <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-[34%] bg-[radial-gradient(circle_at_68%_38%,rgba(170,216,190,0.48),transparent_60%)] lg:block" />
+          <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-accent/70 blur-3xl" />
+
+          <div className="relative grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-center">
+            <div className="max-w-3xl">
+              <div className="inline-flex items-center gap-2 rounded-full bg-secondary px-3 py-1.5 text-xs font-bold text-primary">
+                <PencilLine className="h-3.5 w-3.5" aria-hidden="true" />
+                Черновик проекта
+              </div>
+
+              <h1 className="mt-4 text-3xl font-black tracking-[-0.04em] text-foreground sm:text-4xl lg:text-[2.9rem] lg:leading-[1.06]">
+                Уточните детали проекта
+              </h1>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
+                Набор вопросов автоматически зависит от выбранной услуги. Изменения сохраняются в этом же черновике и не создают новый проект.
+              </p>
+
+              <div className="mt-5 flex flex-wrap gap-2.5">
+                <InfoChip icon={<CheckCircle2 className="h-4 w-4" />} text="Один черновик" />
+                <InfoChip icon={<ShieldCheck className="h-4 w-4" />} text="Данные можно проверить" />
+                <InfoChip icon={<Clock3 className="h-4 w-4" />} text="Сохранение между шагами" />
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-border bg-card/88 p-4 shadow-[var(--shadow-soft)] backdrop-blur-sm sm:p-5">
+              <div className="flex items-start gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary text-primary">
+                  <PencilLine className="h-5 w-5" aria-hidden="true" />
+                </span>
+                <div>
+                  <p className="text-sm font-bold text-foreground">Редактируется существующий проект</p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    После сохранения вы вернётесь к карточке проекта, где сможете проверить данные и продолжить работу с заявкой.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
 
         <div className={styles.shell}>
           <ProjectForm
@@ -71,5 +110,14 @@ export default async function EditProjectPage({ params }: Props) {
         </div>
       </div>
     </main>
+  );
+}
+
+function InfoChip({ icon, text }: { icon: React.ReactNode; text: string }) {
+  return (
+    <span className="inline-flex min-h-9 items-center gap-2 rounded-full border border-border bg-card/80 px-3 text-xs font-semibold text-foreground shadow-sm">
+      <span className="text-primary" aria-hidden="true">{icon}</span>
+      {text}
+    </span>
   );
 }
