@@ -9,9 +9,9 @@ export const metadata: Metadata = {
   title: "StroySelect",
   description: "Сервис подбора подрядчиков и управления строительными проектами",
   icons: {
-    icon: "/brand/stroyvybor-mark.png",
-    shortcut: "/brand/stroyvybor-mark.png",
-    apple: "/brand/stroyvybor-mark.png",
+    icon: "/brand/stroyvybor-mark-v3.png",
+    shortcut: "/brand/stroyvybor-mark-v3.png",
+    apple: "/brand/stroyvybor-mark-v3.png",
   },
 };
 
