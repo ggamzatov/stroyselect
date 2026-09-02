@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 type BrandLogoProps = {
   variant?: "horizontal" | "mark";
   inverse?: boolean;
@@ -22,10 +24,12 @@ export function StroyVyborLogo({
         role="img"
         aria-label={alt}
       >
-        <img
+        <Image
           src={LOGO_SRC}
           alt=""
           aria-hidden="true"
+          width={645}
+          height={92}
           className={["absolute inset-y-0 left-0 h-full max-w-none", filterClass].join(" ")}
           style={{ width: "381.66%" }}
         />
@@ -34,9 +38,11 @@ export function StroyVyborLogo({
   }
 
   return (
-    <img
+    <Image
       src={LOGO_SRC}
       alt={alt}
+      width={645}
+      height={92}
       className={["block h-auto max-w-full", filterClass, className].join(" ")}
     />
   );
