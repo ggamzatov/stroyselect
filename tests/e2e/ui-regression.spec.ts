@@ -12,6 +12,18 @@ async function expectNoHorizontalOverflow(page:Page){const overflow=await page.e
 async function expectNoLegacyEnglish(page:Page){const text=await page.locator("body").innerText();for(const phrase of ["Trust Center","Trust profile","Audit Trail","Audit trail","Change orders","Milestones & Budget Control"]){expect(text,`В интерфейсе осталась английская надпись: ${phrase}`).not.toContain(phrase)}}
 async function verify(page:Page,path:string){await page.goto(path);await expect(page.locator("body")).toBeVisible();await expectNoHorizontalOverflow(page);await expectNoLegacyEnglish(page)}
 
+test.describe("Brand assets",()=>{
+ test("brandbook logo is actually loaded and rendered",async({page,request})=>{
+  for(const asset of ["/brand/stroyvybor-logo-v3.png","/brand/stroyvybor-mark-v3.png"]){const response=await request.get(asset);expect(response.status(),`${asset} должен отдаваться приложением`).toBe(200);expect(response.headers()["content-type"]??"").toContain("image/png")}
+  await page.goto("/login");
+  const visibleLogos=page.locator('img[alt="СтройВыбор"]:visible');
+  await expect(visibleLogos.first()).toBeVisible();
+  const loaded=await visibleLogos.evaluateAll((images)=>images.map((image)=>{const img=image as HTMLImageElement;return {complete:img.complete,naturalWidth:img.naturalWidth,naturalHeight:img.naturalHeight}}));
+  expect(loaded.length,"На странице входа должен быть видимый логотип").toBeGreaterThan(0);
+  for(const image of loaded){expect(image.complete,"Логотип должен завершить загрузку").toBeTruthy();expect(image.naturalWidth,"Логотип не должен быть битым изображением").toBeGreaterThan(0);expect(image.naturalHeight,"Логотип не должен быть битым изображением").toBeGreaterThan(0)}
+ });
+});
+
 test.describe("UI regression",()=>{test.describe.configure({mode:"serial"});test.beforeEach(()=>test.skip(!fixtureAvailable,"Run npm run e2e:seed to provision fixtures"));
  test("public pages keep text inside viewport and Russian UI",async({page})=>{await page.context().clearCookies();await verify(page,"/contractors");await verify(page,"/legal/privacy");await verify(page,"/legal/terms")});
  test("customer workspace tabs keep layout and localization",async({page})=>{await login(page,customer!);for(const suffix of ["","/appointments","/contract","/changes","/documents","/issues","/disputes","/materials"]){await verify(page,`/customer/work/${workspaceProjectId}${suffix}`)}});
