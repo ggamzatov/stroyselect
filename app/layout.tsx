@@ -7,15 +7,15 @@ import { GlobalMarketplaceTracking } from "@/features/marketplace/components/mar
 
 export const metadata: Metadata = {
   title: "StroySelect",
-  description:
-    "Сервис подбора подрядчиков и управления строительными проектами",
+  description: "Сервис подбора подрядчиков и управления строительными проектами",
+  icons: {
+    icon: "/brand/stroyvybor-mark.svg",
+    shortcut: "/brand/stroyvybor-mark.svg",
+    apple: "/brand/stroyvybor-mark.svg",
+  },
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="ru">
       <body className="antialiased">
