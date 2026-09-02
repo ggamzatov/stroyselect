@@ -7,8 +7,8 @@ type BrandLogoProps = {
   alt?: string;
 };
 
-const LOGO_SRC = "/brand/stroyvybor-logo.png?v=20260902-2";
-const MARK_SRC = "/brand/stroyvybor-mark.png?v=20260902-2";
+const LOGO_SRC = "/brand/stroyvybor-logo-v3.png";
+const MARK_SRC = "/brand/stroyvybor-mark-v3.png";
 
 export function StroyVyborLogo({
   variant = "horizontal",
@@ -17,6 +17,7 @@ export function StroyVyborLogo({
   alt = "СтройВыбор",
 }: BrandLogoProps) {
   const filterClass = inverse ? "brightness-0 invert" : "";
+  const commonClassName = ["block shrink-0 object-contain", filterClass, className].join(" ");
 
   if (variant === "mark") {
     return (
@@ -25,8 +26,11 @@ export function StroyVyborLogo({
         alt={alt}
         width={512}
         height={512}
-        decoding="async"
-        className={["block h-auto max-w-full object-contain", filterClass, className].join(" ")}
+        loading="eager"
+        decoding="sync"
+        draggable={false}
+        className={commonClassName}
+        style={{ height: "auto" }}
       />
     );
   }
@@ -37,8 +41,11 @@ export function StroyVyborLogo({
       alt={alt}
       width={645}
       height={92}
-      decoding="async"
-      className={["block h-auto max-w-full object-contain", filterClass, className].join(" ")}
+      loading="eager"
+      decoding="sync"
+      draggable={false}
+      className={commonClassName}
+      style={{ height: "auto" }}
     />
   );
 }
