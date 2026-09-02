@@ -1,5 +1,3 @@
-import Image from "next/image";
-
 type BrandLogoProps = {
   variant?: "horizontal" | "mark";
   inverse?: boolean;
@@ -7,8 +5,8 @@ type BrandLogoProps = {
   alt?: string;
 };
 
-const LOGO_SRC = "/brand/stroyvybor-logo.png";
-const MARK_SRC = "/brand/stroyvybor-mark.png";
+const LOGO_SRC = "/brand/stroyvybor-logo.png?v=20260902-2";
+const MARK_SRC = "/brand/stroyvybor-mark.png?v=20260902-2";
 
 export function StroyVyborLogo({
   variant = "horizontal",
@@ -20,25 +18,25 @@ export function StroyVyborLogo({
 
   if (variant === "mark") {
     return (
-      <Image
+      <img
         src={MARK_SRC}
         alt={alt}
         width={512}
         height={512}
-        unoptimized
-        className={["block h-auto max-w-full", filterClass, className].join(" ")}
+        decoding="async"
+        className={["block h-auto max-w-full object-contain", filterClass, className].join(" ")}
       />
     );
   }
 
   return (
-    <Image
+    <img
       src={LOGO_SRC}
       alt={alt}
       width={645}
       height={92}
-      unoptimized
-      className={["block h-auto max-w-full", filterClass, className].join(" ")}
+      decoding="async"
+      className={["block h-auto max-w-full object-contain", filterClass, className].join(" ")}
     />
   );
 }
