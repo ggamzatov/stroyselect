@@ -7,8 +7,8 @@ type BrandLogoProps = {
   alt?: string;
 };
 
-const LOGO_SRC = "/brand/stroyvybor-logo.svg";
-const MARK_SRC = "/brand/stroyvybor-mark.svg";
+const LOGO_SRC = "/brand/stroyvybor-logo-hq.png";
+const MARK_SRC = "/brand/stroyvybor-mark-hq.png";
 
 export function StroyVyborLogo({
   variant = "horizontal",
@@ -23,10 +23,11 @@ export function StroyVyborLogo({
     return (
       <img
         data-brand-logo="mark"
+        data-brand-quality="hq"
         src={MARK_SRC}
         alt={alt}
-        width={512}
-        height={512}
+        width={1898}
+        height={1056}
         loading="eager"
         decoding="sync"
         draggable={false}
@@ -39,10 +40,11 @@ export function StroyVyborLogo({
   return (
     <img
       data-brand-logo="horizontal"
+      data-brand-quality="hq"
       src={LOGO_SRC}
       alt={alt}
-      width={645}
-      height={92}
+      width={1306}
+      height={266}
       loading="eager"
       decoding="sync"
       draggable={false}
