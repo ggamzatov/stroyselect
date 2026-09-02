@@ -1,3 +1,5 @@
+/* eslint-disable @next/next/no-img-element */
+
 type BrandLogoProps = {
   variant?: "horizontal" | "mark";
   inverse?: boolean;
