@@ -9,11 +9,12 @@ import {
   FileText,
   FolderKanban,
   Home,
-  House,
   Megaphone,
   Search,
   UserRound,
 } from "lucide-react";
+
+import { StroyVyborLogo } from "@/components/brand/stroyvybor-logo";
 
 type ContractorShellProps = {
   children: React.ReactNode;
@@ -32,48 +33,24 @@ const navigation = [
   { label: "Настройки компании", href: "/contractor/company", icon: Building2 },
 ];
 
-export function ContractorShell({
-  children,
-  profileName,
-  notificationControl,
-  signOutControl,
-}: ContractorShellProps) {
+export function ContractorShell({ children, profileName, notificationControl, signOutControl }: ContractorShellProps) {
   const pathname = usePathname();
 
   return (
     <div className="min-h-screen bg-background">
       <div className="mx-auto flex min-h-screen max-w-[1720px]">
         <aside className="sticky top-0 hidden h-screen w-[258px] shrink-0 flex-col border-r border-border bg-card px-4 py-6 xl:flex">
-          <Link
-            href="/contractor/dashboard"
-            className="flex min-h-12 items-center gap-3 rounded-2xl px-2"
-            aria-label="СтройВыбор — кабинет подрядчика"
-          >
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-[0_8px_22px_rgba(8,122,80,0.2)]">
-              <House className="h-6 w-6" aria-hidden="true" />
-            </span>
-            <span className="text-[20px] font-black tracking-[-0.045em] text-foreground">СтройВыбор</span>
+          <Link href="/contractor/dashboard" className="flex min-h-12 items-center rounded-2xl px-2" aria-label="СтройВыбор — кабинет подрядчика">
+            <StroyVyborLogo className="w-[178px]" />
           </Link>
 
           <nav className="mt-8 space-y-1" aria-label="Основная навигация подрядчика">
             {navigation.map((item) => {
               const Icon = item.icon;
               const active = isActivePath(pathname, item.href);
-
               return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={[
-                    "group relative flex min-h-12 items-center gap-3 rounded-xl px-4 text-sm font-semibold transition",
-                    active
-                      ? "bg-secondary text-primary"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                  ].join(" ")}
-                >
-                  {active ? (
-                    <span className="absolute inset-y-2 -left-4 w-[3px] rounded-r-full bg-primary" />
-                  ) : null}
+                <Link key={item.href} href={item.href} className={["group relative flex min-h-12 items-center gap-3 rounded-xl px-4 text-sm font-semibold transition", active ? "bg-secondary text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"].join(" ")}>
+                  {active ? <span className="absolute inset-y-2 -left-4 w-[3px] rounded-r-full bg-primary" /> : null}
                   <Icon className="h-5 w-5" aria-hidden="true" />
                   {item.label}
                 </Link>
@@ -81,31 +58,16 @@ export function ContractorShell({
             })}
           </nav>
 
-          <Link
-            href="/contractor/projects"
-            className="mt-6 rounded-2xl border border-primary/15 bg-secondary/70 p-4 transition hover:border-primary/25 hover:bg-secondary"
-          >
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-              <Search className="h-4 w-4" aria-hidden="true" />
-            </span>
+          <Link href="/contractor/projects" className="mt-6 rounded-2xl border border-primary/15 bg-secondary/70 p-4 transition hover:border-primary/25 hover:bg-secondary">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground"><Search className="h-4 w-4" aria-hidden="true" /></span>
             <p className="mt-3 text-sm font-bold text-foreground">Найти новый заказ</p>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              Откройте подборку по вашей специализации и географии.
-            </p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">Откройте подборку по вашей специализации и географии.</p>
           </Link>
 
           <div className="mt-auto space-y-3 border-t border-border pt-5">
-            <Link
-              href="/contractor/company"
-              className="flex items-center gap-3 rounded-xl px-2 py-2 transition hover:bg-secondary/60"
-            >
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary text-primary">
-                <UserRound className="h-5 w-5" aria-hidden="true" />
-              </span>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-foreground">{profileName}</p>
-                <p className="text-xs text-muted-foreground">Подрядчик</p>
-              </div>
+            <Link href="/contractor/company" className="flex items-center gap-3 rounded-xl px-2 py-2 transition hover:bg-secondary/60">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary text-primary"><UserRound className="h-5 w-5" aria-hidden="true" /></span>
+              <div className="min-w-0"><p className="truncate text-sm font-semibold text-foreground">{profileName}</p><p className="text-xs text-muted-foreground">Подрядчик</p></div>
             </Link>
             <div>{signOutControl}</div>
           </div>
@@ -114,52 +76,28 @@ export function ContractorShell({
         <div className="min-w-0 flex-1">
           <header className="sticky top-0 z-40 border-b border-border/80 bg-background/92 backdrop-blur-xl">
             <div className="flex min-h-[72px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8 xl:px-10">
-              <Link
-                href="/contractor/dashboard"
-                className="flex items-center gap-2 xl:hidden"
-                aria-label="СтройВыбор — кабинет подрядчика"
-              >
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-                  <House className="h-5 w-5" aria-hidden="true" />
-                </span>
-                <span className="hidden text-base font-black tracking-tight text-foreground sm:inline">СтройВыбор</span>
+              <Link href="/contractor/dashboard" className="flex min-h-10 items-center xl:hidden" aria-label="СтройВыбор — кабинет подрядчика">
+                <StroyVyborLogo className="w-[150px] sm:w-[166px]" />
               </Link>
 
-              <Link
-                href="/contractor/projects"
-                className="mx-auto hidden min-h-11 w-full max-w-[520px] items-center gap-3 rounded-xl border border-border bg-card px-4 text-sm text-muted-foreground shadow-sm transition hover:border-primary/25 hover:text-foreground md:flex"
-                aria-label="Перейти к поиску новых заказов"
-              >
-                <Search className="h-4 w-4" aria-hidden="true" />
-                <span className="truncate">Поиск заказов, объектов и специализаций…</span>
+              <Link href="/contractor/projects" className="mx-auto hidden min-h-11 w-full max-w-[520px] items-center gap-3 rounded-xl border border-border bg-card px-4 text-sm text-muted-foreground shadow-sm transition hover:border-primary/25 hover:text-foreground md:flex" aria-label="Перейти к поиску новых заказов">
+                <Search className="h-4 w-4" aria-hidden="true" /><span className="truncate">Поиск заказов, объектов и специализаций…</span>
               </Link>
 
               <div className="flex shrink-0 items-center gap-2 sm:gap-3">
                 {notificationControl}
-                <Link
-                  href="/contractor/company"
-                  className="hidden min-h-11 items-center gap-3 rounded-xl px-2 transition hover:bg-secondary sm:flex"
-                  aria-label={`Компания и профиль: ${profileName}`}
-                >
-                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-primary">
-                    <UserRound className="h-4 w-4" aria-hidden="true" />
-                  </span>
-                  <span className="hidden max-w-40 truncate text-sm font-semibold text-foreground lg:block">
-                    {profileName}
-                  </span>
+                <Link href="/contractor/company" className="hidden min-h-11 items-center gap-3 rounded-xl px-2 transition hover:bg-secondary sm:flex" aria-label={`Компания и профиль: ${profileName}`}>
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-primary"><UserRound className="h-4 w-4" aria-hidden="true" /></span>
+                  <span className="hidden max-w-40 truncate text-sm font-semibold text-foreground lg:block">{profileName}</span>
                 </Link>
               </div>
             </div>
           </header>
-
           <div className="pb-24 xl:pb-0">{children}</div>
         </div>
       </div>
 
-      <nav
-        className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-card/96 px-2 pb-[max(0.55rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-8px_28px_rgba(20,35,27,0.08)] backdrop-blur-xl xl:hidden"
-        aria-label="Мобильная навигация подрядчика"
-      >
+      <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-card/96 px-2 pb-[max(0.55rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-8px_28px_rgba(20,35,27,0.08)] backdrop-blur-xl xl:hidden" aria-label="Мобильная навигация подрядчика">
         <div className="mx-auto grid max-w-xl grid-cols-5 items-end">
           <MobileItem href="/contractor/dashboard" label="Главная" active={isActivePath(pathname, "/contractor/dashboard")} icon={<Home className="h-5 w-5" aria-hidden="true" />} />
           <MobileItem href="/contractor/projects" label="Заказы" active={isActivePath(pathname, "/contractor/projects")} icon={<FolderKanban className="h-5 w-5" aria-hidden="true" />} />
@@ -172,29 +110,8 @@ export function ContractorShell({
   );
 }
 
-function MobileItem({
-  href,
-  label,
-  active,
-  icon,
-}: {
-  href: string;
-  label: string;
-  active: boolean;
-  icon: React.ReactNode;
-}) {
-  return (
-    <Link
-      href={href}
-      className={[
-        "flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-semibold transition",
-        active ? "text-primary" : "text-muted-foreground",
-      ].join(" ")}
-    >
-      {icon}
-      <span className="max-w-full truncate">{label}</span>
-    </Link>
-  );
+function MobileItem({ href, label, active, icon }: { href: string; label: string; active: boolean; icon: React.ReactNode }) {
+  return <Link href={href} className={["flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-semibold transition", active ? "text-primary" : "text-muted-foreground"].join(" ")}>{icon}<span className="max-w-full truncate">{label}</span></Link>;
 }
 
 function isActivePath(pathname: string, href: string) {
