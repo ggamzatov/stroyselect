@@ -7,8 +7,8 @@ type BrandLogoProps = {
   alt?: string;
 };
 
-const LOGO_SRC = "/brand/stroyvybor-logo.svg";
-const MARK_SRC = "/brand/stroyvybor-mark.svg";
+const LOGO_SRC = "/brand/stroyvybor-logo.png";
+const MARK_SRC = "/brand/stroyvybor-mark.png";
 
 export function StroyVyborLogo({
   variant = "horizontal",
@@ -23,8 +23,9 @@ export function StroyVyborLogo({
       <Image
         src={MARK_SRC}
         alt={alt}
-        width={169}
-        height={92}
+        width={512}
+        height={512}
+        unoptimized
         className={["block h-auto max-w-full", filterClass, className].join(" ")}
       />
     );
@@ -36,6 +37,7 @@ export function StroyVyborLogo({
       alt={alt}
       width={645}
       height={92}
+      unoptimized
       className={["block h-auto max-w-full", filterClass, className].join(" ")}
     />
   );
