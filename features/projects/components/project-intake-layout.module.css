@@ -3,26 +3,20 @@
 }
 
 .shell > div {
-  display: grid;
-  grid-template-columns: minmax(250px, 290px) minmax(0, 1fr);
-  gap: 1rem;
-  align-items: start;
+  display: block;
 }
 
 .shell > div > section:first-child {
-  position: sticky;
-  top: 5.75rem;
-  margin: 0;
-  padding: 1.25rem;
+  margin: 0 0 0.85rem;
+  padding: 1rem 1.1rem;
   border: 1px solid var(--border);
-  border-radius: 1.35rem;
+  border-radius: 1.15rem;
   background: color-mix(in srgb, var(--card) 96%, transparent);
   box-shadow: var(--shadow-soft);
-  backdrop-filter: blur(14px);
 }
 
 .shell > div > section:first-child > div:first-child {
-  align-items: flex-start;
+  align-items: center;
 }
 
 .shell > div > section:first-child > div:first-child > div:first-child {
@@ -30,9 +24,11 @@
 }
 
 .shell > div > section:first-child > div:first-child > div:last-child {
-  display: block !important;
+  display: flex !important;
+  align-items: baseline;
+  gap: 0.5rem;
   flex: 0 0 auto;
-  padding-left: 0.75rem;
+  padding-left: 1rem;
 }
 
 .shell > div > section:first-child > div:first-child p:first-child {
@@ -45,38 +41,38 @@
 }
 
 .shell > div > section:first-child > div:first-child h2 {
-  margin-top: 0.5rem;
+  margin-top: 0.35rem;
   font-size: 1.2rem;
-  line-height: 1.25;
+  line-height: 1.2;
   letter-spacing: -0.025em;
 }
 
 .shell > div > section:first-child > div:first-child h2 + p {
-  margin-top: 0.5rem;
+  margin-top: 0.3rem;
   color: var(--muted-foreground);
-  font-size: 0.8rem;
-  line-height: 1.5;
+  font-size: 0.78rem;
+  line-height: 1.45;
 }
 
 .shell > div > section:first-child > div:first-child > div:last-child p:first-child {
   color: var(--foreground);
-  font-size: 1.45rem;
+  font-size: 1.15rem;
   font-weight: 900;
   letter-spacing: -0.04em;
   text-transform: none;
 }
 
 .shell > div > section:first-child > div:first-child > div:last-child p:last-child {
-  margin-top: 0.15rem;
+  margin-top: 0;
   color: var(--muted-foreground);
-  font-size: 0.65rem;
+  font-size: 0.68rem;
   white-space: nowrap;
 }
 
 .shell > div > section:first-child > div:nth-child(2) {
   display: block;
-  height: 0.42rem;
-  margin-top: 1rem;
+  height: 0.38rem;
+  margin-top: 0.8rem;
   border-radius: 999px;
   background: var(--secondary);
 }
@@ -88,20 +84,28 @@
 
 .shell > div > section:first-child > div:nth-child(3) {
   display: flex !important;
-  flex-direction: column;
   gap: 0.45rem;
-  margin-top: 1.15rem;
+  margin-top: 0.8rem;
+  overflow-x: auto;
+  padding-bottom: 0.1rem;
+  scrollbar-width: none;
+}
+
+.shell > div > section:first-child > div:nth-child(3)::-webkit-scrollbar {
+  display: none;
 }
 
 .shell > div > section:first-child > div:nth-child(3) > button {
-  width: 100%;
-  min-height: 3rem;
-  padding: 0.7rem 0.8rem !important;
-  border-radius: 0.85rem !important;
-  font-size: 0.8rem !important;
-  line-height: 1.35;
+  flex: 0 0 auto;
+  width: auto;
+  min-height: 2.55rem;
+  padding: 0.55rem 0.75rem !important;
+  border-radius: 0.75rem !important;
+  font-size: 0.74rem !important;
+  line-height: 1.2;
   text-align: left;
   box-shadow: none !important;
+  white-space: nowrap;
 }
 
 .shell > div > section:first-child > div:nth-child(3) > button[class~="text-primary-foreground"] {
@@ -122,11 +126,10 @@
 
 .shell > div > section:nth-child(2) {
   min-width: 0;
-  min-height: 38rem;
   margin: 0;
-  padding: 1.5rem;
+  padding: 1.25rem;
   border: 1px solid var(--border);
-  border-radius: 1.35rem;
+  border-radius: 1.25rem;
   background: var(--card);
   box-shadow: var(--shadow-soft);
 }
@@ -142,11 +145,11 @@
 
 .shell > div > section:nth-child(2) :global(.stroy-input),
 .shell > div > section:nth-child(2) :global(.stroy-select) {
-  min-height: 3.35rem;
+  min-height: 3.25rem;
 }
 
 .shell > div > section:nth-child(2) :global(.stroy-textarea) {
-  min-height: 8.5rem;
+  min-height: 8rem;
   resize: vertical;
 }
 
@@ -158,8 +161,8 @@
 }
 
 .shell > div > section:nth-child(2) > div:last-child {
-  margin-top: 2rem;
-  padding-top: 1.25rem;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
   border-top-color: var(--border);
 }
 
@@ -168,92 +171,44 @@
 }
 
 .shell > div > section:nth-child(2) button[class~="bg-primary"] {
-  box-shadow: 0 8px 20px rgba(8, 122, 80, 0.16);
+  box-shadow: 0 8px 20px rgba(8, 122, 80, 0.14);
 }
 
-@media (min-width: 1200px) {
+@media (min-width: 720px) {
+  .shell > div > section:first-child {
+    padding: 1.1rem 1.25rem;
+  }
+
   .shell > div > section:nth-child(2) {
-    padding: 1.9rem 2rem;
+    padding: 1.5rem;
   }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 560px) {
   .shell {
-    margin-top: 1rem;
-  }
-
-  .shell > div {
-    display: block;
+    margin-top: 0.9rem;
   }
 
   .shell > div > section:first-child {
-    position: static;
-    margin-bottom: 0.85rem;
-    padding: 1rem;
-    border-radius: 1.15rem;
+    padding: 0.85rem;
+    border-radius: 1rem;
+  }
+
+  .shell > div > section:first-child > div:first-child {
+    display: block;
   }
 
   .shell > div > section:first-child > div:first-child > div:last-child {
-    display: block !important;
+    padding-left: 0;
+    margin-top: 0.45rem;
   }
 
   .shell > div > section:first-child > div:first-child h2 {
     font-size: 1.05rem;
   }
 
-  .shell > div > section:first-child > div:first-child h2 + p {
-    max-width: none;
-    font-size: 0.76rem;
-  }
-
-  .shell > div > section:first-child > div:nth-child(3) {
-    display: flex !important;
-    flex-direction: row;
-    gap: 0.45rem;
-    overflow-x: auto;
-    margin-top: 0.9rem;
-    padding-bottom: 0.15rem;
-    scrollbar-width: none;
-  }
-
-  .shell > div > section:first-child > div:nth-child(3)::-webkit-scrollbar {
-    display: none;
-  }
-
-  .shell > div > section:first-child > div:nth-child(3) > button {
-    flex: 0 0 auto;
-    width: auto;
-    min-height: 2.65rem;
-    padding: 0.65rem 0.8rem !important;
-    white-space: nowrap;
-  }
-
-  .shell > div > section:nth-child(2) {
-    min-height: 0;
-    padding: 1.1rem;
-    border-radius: 1.15rem;
-  }
-
-  .shell > div > section:nth-child(2) > div:last-child {
-    margin-top: 1.5rem;
-    padding-top: 1rem;
-  }
-
-  .shell > div > section:nth-child(2) > div:last-child > div {
-    width: 100%;
-  }
-
-  .shell > div > section:nth-child(2) > div:last-child button {
-    min-height: 2.9rem;
-  }
-}
-
-@media (max-width: 560px) {
-  .shell > div > section:first-child > div:first-child > div:last-child p:first-child {
-    font-size: 1.2rem;
-  }
-
   .shell > div > section:nth-child(2) {
     padding: 1rem;
+    border-radius: 1rem;
   }
 }
