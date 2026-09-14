@@ -201,22 +201,22 @@ test.describe("marketplace journey", () => {
     await page.goto(`/customer/work/${workspaceProjectId}`);
 
     for (const label of ["Обзор", "Бюджет и платежи", "Документы", "Замечания", "Споры"]) {
-      await expect(page.getByRole("link", { name: label })).toBeVisible();
+      await expect(page.getByRole("link", { name: label, exact: true })).toBeVisible();
     }
 
-    await page.getByRole("link", { name: "Бюджет и платежи" }).click();
+    await page.getByRole("link", { name: "Бюджет и платежи", exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`/customer/work/${workspaceProjectId}/changes`));
     await expect(page.locator("body")).toContainText(/платеж|бюджет|изменен/i);
 
-    await page.getByRole("link", { name: "Документы" }).click();
+    await page.getByRole("link", { name: "Документы", exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`/customer/work/${workspaceProjectId}/documents`));
     await expect(page.locator("body")).toContainText(/документ|файл/i);
 
-    await page.getByRole("link", { name: "Замечания" }).click();
+    await page.getByRole("link", { name: "Замечания", exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`/customer/work/${workspaceProjectId}/issues`));
     await expect(page.locator("body")).toContainText(/замечан|работ/i);
 
-    await page.getByRole("link", { name: "Споры" }).click();
+    await page.getByRole("link", { name: "Споры", exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`/customer/work/${workspaceProjectId}/disputes`));
     await expect(page.locator("body")).toContainText(/спор|аудит/i);
   });
@@ -227,10 +227,10 @@ test.describe("marketplace journey", () => {
     await page.goto(`/contractor/work/${workspaceProjectId}`);
 
     for (const label of ["Обзор", "Бюджет и платежи", "Документы", "Замечания", "Споры"]) {
-      await expect(page.getByRole("link", { name: label })).toBeVisible();
+      await expect(page.getByRole("link", { name: label, exact: true })).toBeVisible();
     }
 
-    await page.getByRole("link", { name: "Бюджет и платежи" }).click();
+    await page.getByRole("link", { name: "Бюджет и платежи", exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`/contractor/work/${workspaceProjectId}/changes`));
     await expect(page.locator("body")).toContainText(/платеж|бюджет|изменен/i);
   });
