@@ -16,488 +16,184 @@ import { AdSlot } from "@/features/ads/components/ad-slot";
 
 export default function HomePage() {
   return (
-    <main className="min-h-screen bg-background">
-      <header className="border-b border-border bg-background/90 backdrop-blur">
-        <div className="app-container flex min-h-20 items-center justify-between gap-6">
-          <Link
-            href="/"
-            className="text-xl font-black tracking-[-0.04em] text-foreground"
-          >
-            СтройВыбор
+    <main className="min-h-screen bg-background text-foreground">
+      <header className="sticky top-0 z-40 border-b border-border/70 bg-background/85 backdrop-blur-xl">
+        <div className="app-container flex min-h-16 items-center justify-between gap-5 sm:min-h-20">
+          <Link href="/" className="text-xl font-black tracking-[-0.05em] sm:text-2xl">
+            StroySelect
           </Link>
-
-          <div className="flex items-center gap-3">
-            <Link
-              href="/login"
-              className="hidden min-h-11 items-center justify-center rounded-xl px-4 text-sm font-semibold text-foreground transition hover:bg-secondary sm:inline-flex"
-            >
+          <nav className="flex items-center gap-2 sm:gap-3" aria-label="Основная навигация">
+            <Link href="/login" className="hidden min-h-10 items-center rounded-xl px-4 text-sm font-semibold text-muted-foreground transition hover:bg-secondary hover:text-foreground sm:inline-flex">
               Войти
             </Link>
-
-            <Link
-              href="/register"
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground transition hover:bg-[#5c3b2a]"
-            >
-              Регистрация
-
-              <ArrowRight className="h-4 w-4" />
+            <Link href="/register" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-bold text-primary-foreground shadow-sm transition hover:-translate-y-0.5 hover:bg-[#5c3b2a] sm:px-5">
+              Начать
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Link>
-          </div>
+          </nav>
         </div>
       </header>
 
       <section className="relative overflow-hidden border-b border-border">
-        <div className="pointer-events-none absolute -left-40 top-20 h-96 w-96 rounded-full bg-accent/20 blur-3xl" />
-        <div className="pointer-events-none absolute -right-40 top-0 h-[500px] w-[500px] rounded-full bg-secondary blur-3xl" />
+        <div className="pointer-events-none absolute -left-48 top-0 h-[520px] w-[520px] rounded-full bg-primary/10 blur-3xl" />
+        <div className="pointer-events-none absolute -right-56 top-20 h-[620px] w-[620px] rounded-full bg-secondary blur-3xl" />
 
-        <div className="app-container relative grid min-h-[690px] items-center gap-12 py-16 lg:grid-cols-[1.05fr_0.95fr] lg:py-20">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm font-semibold text-primary shadow-[var(--shadow-soft)]">
-              <ShieldCheck className="h-4 w-4" />
-
-              Подрядчики проходят проверку
+        <div className="app-container relative grid items-center gap-12 py-14 sm:py-20 lg:min-h-[700px] lg:grid-cols-[minmax(0,1fr)_minmax(420px,520px)] lg:py-24">
+          <div className="max-w-3xl">
+            <div className="inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/5 px-3.5 py-2 text-xs font-bold text-primary sm:text-sm">
+              <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+              Проверенные подрядчики
             </div>
 
-            <h1 className="mt-7 max-w-4xl text-4xl font-black tracking-[-0.055em] text-foreground sm:text-5xl lg:text-7xl">
-              Найдите надёжного подрядчика для строительства
+            <h1 className="mt-6 text-4xl font-black leading-[1.03] tracking-[-0.055em] sm:text-5xl lg:text-7xl">
+              Решайте задачи по дому и строительству без лишней суеты
             </h1>
 
-            <p className="mt-6 max-w-2xl text-base leading-8 text-muted-foreground sm:text-lg">
-              Разместите проект, получите предложения
-              от проверенных подрядчиков, сравните цены,
-              сроки и портфолио — и ведите весь проект
-              в одном рабочем пространстве.
+            <p className="mt-6 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg sm:leading-8">
+              Опишите задачу, сравните предложения и выберите исполнителя. Дальше — договорённости, этапы, документы и контроль в одном месте.
             </p>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <Link
-                href="/register"
-                className="inline-flex min-h-13 items-center justify-center gap-2 rounded-2xl bg-primary px-6 font-semibold text-primary-foreground shadow-[0_15px_35px_rgba(107,70,50,0.22)] transition hover:-translate-y-0.5 hover:bg-[#5c3b2a]"
-              >
-                Разместить проект
-
-                <ArrowRight className="h-4 w-4" />
+              <Link href="/register" className="inline-flex min-h-13 items-center justify-center gap-2 rounded-2xl bg-primary px-6 font-bold text-primary-foreground shadow-[0_16px_36px_rgba(107,70,50,0.22)] transition hover:-translate-y-0.5 hover:bg-[#5c3b2a]">
+                Создать задачу
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Link>
-
-              <Link
-                href="/register"
-                className="inline-flex min-h-13 items-center justify-center gap-2 rounded-2xl border border-border bg-card px-6 font-semibold text-foreground transition hover:border-primary/25 hover:bg-secondary/50"
-              >
+              <Link href="/register" className="inline-flex min-h-13 items-center justify-center gap-2 rounded-2xl border border-border bg-card px-6 font-bold text-foreground transition hover:-translate-y-0.5 hover:border-primary/20 hover:bg-secondary/60">
                 Я подрядчик
+                <Hammer className="h-4 w-4" aria-hidden="true" />
               </Link>
             </div>
 
-            <div className="mt-9 flex flex-wrap gap-x-7 gap-y-3 text-sm text-muted-foreground">
-              <FeatureCheck text="Бесплатное размещение проекта" />
-              <FeatureCheck text="Сравнение предложений" />
-              <FeatureCheck text="Контроль этапов работ" />
+            <div className="mt-8 grid max-w-2xl gap-3 sm:grid-cols-3">
+              <HeroFact icon={<CheckCircle2 className="h-4 w-4" />} text="Сравнение предложений" />
+              <HeroFact icon={<CheckCircle2 className="h-4 w-4" />} text="Контроль этапов" />
+              <HeroFact icon={<CheckCircle2 className="h-4 w-4" />} text="Чат и документы" />
             </div>
           </div>
 
-          <HeroDashboardPreview />
+          <HeroPreview />
         </div>
       </section>
 
-      <AdSlot placement="home_premium" className="app-container pt-8" />
+      <AdSlot placement="home_premium" className="app-container pt-7" />
 
-      <section className="app-container py-20">
-        <div className="mx-auto max-w-3xl text-center">
-          <p className="text-sm font-semibold text-primary">
-            Как это работает
-          </p>
-
-          <h2 className="mt-3 text-3xl font-black tracking-[-0.04em] text-foreground sm:text-4xl">
-            От заявки до завершённого объекта
-          </h2>
-
-          <p className="mt-4 text-base leading-7 text-muted-foreground">
-            СтройВыбор объединяет поиск подрядчика,
-            выбор предложения и контроль строительства
-            в одном сервисе.
-          </p>
+      <section className="app-container py-16 sm:py-20">
+        <div className="max-w-3xl">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">Как это работает</p>
+          <h2 className="mt-2 text-3xl font-black tracking-[-0.045em] sm:text-4xl">Один понятный путь от задачи до результата</h2>
+          <p className="mt-4 text-sm leading-7 text-muted-foreground sm:text-base">Мы убираем лишние шаги, но сохраняем все важные данные и действия проекта.</p>
         </div>
 
-        <div className="mt-12 grid gap-5 md:grid-cols-3">
-          <StepCard
-            number="01"
-            icon={
-              <Building2 className="h-5 w-5" />
-            }
-            title="Опишите проект"
-            description="Укажите вид работ, объект, город, бюджет и желаемые сроки."
-          />
-
-          <StepCard
-            number="02"
-            icon={
-              <UsersRound className="h-5 w-5" />
-            }
-            title="Получите предложения"
-            description="Подрядчики предлагают стоимость, срок выполнения и дату начала работ."
-          />
-
-          <StepCard
-            number="03"
-            icon={
-              <CheckCircle2 className="h-5 w-5" />
-            }
-            title="Контролируйте работу"
-            description="Этапы, фотографии, документы, чат и история проекта находятся в одном месте."
-          />
+        <div className="mt-8 grid gap-4 md:grid-cols-3">
+          <StepCard number="01" icon={<Building2 className="h-5 w-5" />} title="Опишите задачу" description="Что нужно сделать, где находится объект, бюджет и желаемые сроки." />
+          <StepCard number="02" icon={<UsersRound className="h-5 w-5" />} title="Сравните исполнителей" description="Смотрите цену, сроки, профиль, опыт и условия в одном формате." />
+          <StepCard number="03" icon={<CheckCircle2 className="h-5 w-5" />} title="Контролируйте результат" description="Работа проходит по этапам с файлами, чатом и фиксацией решений." />
         </div>
       </section>
 
-      <section className="border-y border-border bg-secondary/30">
-        <div className="app-container py-20">
-          <div className="grid gap-6 lg:grid-cols-2">
+      <section className="border-y border-border bg-secondary/25">
+        <div className="app-container py-16 sm:py-20">
+          <div className="grid gap-5 lg:grid-cols-2">
             <AudienceCard
-              eyebrow="Для заказчиков"
-              title="Выбирайте подрядчика на основе фактов"
-              description="Сравнивайте предложения, рейтинг, портфолио и опыт компании до принятия решения."
-              icon={
-                <Building2 className="h-6 w-6" />
-              }
-              href="/register"
-              buttonText="Создать проект"
-              features={[
-                "Несколько предложений на один проект",
-                "Публичные профили и портфолио",
-                "Приёмка каждого этапа",
-                "Фото, документы и чат",
-              ]}
+              eyebrow="Для заказчика"
+              title="Не ищите по знакомым — сравнивайте"
+              description="Разместите задачу и принимайте решение на основе понятных параметров, а не переписок в десятках чатов."
+              icon={<Building2 className="h-6 w-6" />}
+              buttonText="Создать задачу"
+              features={["Предложения в одном списке", "Проверяемые профили", "Этапы и приёмка", "Документы и чат"]}
             />
-
             <AudienceCard
-              eyebrow="Для подрядчиков"
-              title="Получайте подходящие строительные проекты"
-              description="Создайте профиль компании, укажите специализации и откликайтесь на подходящие заказы."
-              icon={
-                <Hammer className="h-6 w-6" />
-              }
-              href="/register"
+              eyebrow="Для подрядчика"
+              title="Получайте заказы, которые вам подходят"
+              description="Покажите специализации и опыт, находите подходящие проекты и ведите работу в одном кабинете."
+              icon={<Hammer className="h-6 w-6" />}
               buttonText="Стать подрядчиком"
-              features={[
-                "Проекты по специализации и городу",
-                "Собственный профиль и портфолио",
-                "Управление этапами работ",
-                "Рейтинг и отзывы заказчиков",
-              ]}
+              features={["Проекты по специализации", "Профиль компании", "Предложения заказчику", "Управление объектами"]}
             />
           </div>
         </div>
       </section>
 
-      <section className="app-container py-20">
-        <div className="grid gap-5 md:grid-cols-3">
-          <TrustCard
-            icon={
-              <BadgeCheck className="h-5 w-5" />
-            }
-            title="Проверка подрядчиков"
-            description="Профили компаний проходят модерацию перед получением доступа к проектам."
-          />
-
-          <TrustCard
-            icon={
-              <MessageSquareText className="h-5 w-5" />
-            }
-            title="Всё зафиксировано"
-            description="Чат, этапы, документы и события проекта остаются в рабочем пространстве."
-          />
-
-          <TrustCard
-            icon={
-              <Star className="h-5 w-5" />
-            }
-            title="Репутация"
-            description="После завершения проекта заказчик может оценить качество, сроки и коммуникацию."
-          />
+      <section className="app-container py-16 sm:py-20">
+        <div className="grid gap-4 md:grid-cols-3">
+          <TrustCard icon={<BadgeCheck className="h-5 w-5" />} title="Проверка профилей" description="Статусы и данные подрядчиков видны до принятия решения." />
+          <TrustCard icon={<MessageSquareText className="h-5 w-5" />} title="Все договорённости рядом" description="Переписка, файлы и события остаются в рабочем пространстве проекта." />
+          <TrustCard icon={<Star className="h-5 w-5" />} title="История и репутация" description="После работы заказчик может оставить оценку качества, сроков и общения." />
         </div>
       </section>
 
-      <section className="app-container pb-20">
-        <div className="relative overflow-hidden rounded-[2rem] bg-primary p-7 text-primary-foreground shadow-[0_25px_70px_rgba(107,70,50,0.25)] md:p-12">
-          <div className="absolute -right-20 -top-20 h-72 w-72 rounded-full bg-white/10 blur-3xl" />
-
+      <section className="app-container pb-16 sm:pb-20">
+        <div className="relative overflow-hidden rounded-[2rem] bg-primary p-7 text-primary-foreground shadow-[0_26px_70px_rgba(107,70,50,0.2)] sm:p-10 lg:p-12">
+          <div className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full bg-white/10 blur-3xl" />
           <div className="relative flex flex-col gap-7 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="text-sm font-semibold text-primary-foreground/70">
-                Начните сейчас
-              </p>
-
-              <h2 className="mt-2 max-w-2xl text-3xl font-black tracking-[-0.04em] md:text-4xl">
-                Строительный проект начинается с правильного выбора
-              </h2>
-
-              <p className="mt-4 max-w-xl text-sm leading-7 text-primary-foreground/75">
-                Создайте заявку и получите предложения
-                от подрядчиков в одном месте.
-              </p>
+            <div className="max-w-2xl">
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-primary-foreground/65">StroySelect</p>
+              <h2 className="mt-3 text-3xl font-black tracking-[-0.04em] sm:text-4xl">Начните с одной задачи</h2>
+              <p className="mt-3 max-w-xl text-sm leading-7 text-primary-foreground/75 sm:text-base">От мелкого ремонта до крупного проекта — путь начинается одинаково: с понятного описания задачи.</p>
             </div>
-
-            <Link
-              href="/register"
-              className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-2xl bg-white px-6 font-semibold text-primary transition hover:-translate-y-0.5"
-            >
-              Создать аккаунт
-
-              <ArrowRight className="h-4 w-4" />
-            </Link>
+            <Link href="/register" className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-2xl bg-white px-6 font-bold text-primary transition hover:-translate-y-0.5">Создать аккаунт <ArrowRight className="h-4 w-4" aria-hidden="true" /></Link>
           </div>
         </div>
       </section>
 
       <footer className="border-t border-border">
-        <div className="app-container flex flex-col gap-4 py-8 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-          <p className="font-bold text-foreground">
-            СтройВыбор
-          </p>
-
-          <p>
-            Сервис для заказчиков и подрядчиков
-          </p>
+        <div className="app-container flex flex-col gap-2 py-7 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+          <p className="font-black text-foreground">StroySelect</p>
+          <p>Для заказчиков и подрядчиков</p>
         </div>
       </footer>
     </main>
   );
 }
 
-function HeroDashboardPreview() {
+function HeroFact({ icon, text }: { icon: React.ReactNode; text: string }) {
+  return <div className="flex items-center gap-2 rounded-xl border border-border bg-card/75 px-3 py-3 text-xs font-semibold text-foreground shadow-sm"><span className="text-primary">{icon}</span><span>{text}</span></div>;
+}
+
+function HeroPreview() {
   return (
     <div className="relative mx-auto w-full max-w-xl">
-      <div className="absolute -inset-5 rounded-[2.5rem] bg-primary/10 blur-3xl" />
-
-      <div className="relative rounded-[2rem] border border-border bg-card p-5 shadow-[0_30px_80px_rgba(55,35,24,0.16)] sm:p-6">
-        <div className="flex items-center justify-between">
+      <div className="absolute -inset-6 rounded-[2.5rem] bg-primary/10 blur-3xl" />
+      <div className="relative overflow-hidden rounded-[2rem] border border-border bg-card p-5 shadow-[0_30px_90px_rgba(55,35,24,0.16)] sm:p-6">
+        <div className="flex items-center justify-between gap-4">
           <div>
-            <p className="text-xs text-muted-foreground">
-              Ваш проект
-            </p>
-
-            <p className="mt-1 font-bold text-foreground">
-              Строительство частного дома
-            </p>
+            <p className="text-[11px] font-semibold text-muted-foreground">Рабочее пространство</p>
+            <p className="mt-1 text-base font-black">Ремонт квартиры</p>
           </div>
-
-          <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
-            В работе
-          </span>
+          <span className="rounded-full bg-primary/10 px-3 py-1 text-[11px] font-bold text-primary">В работе</span>
         </div>
-
-        <div className="mt-6 rounded-[1.5rem] bg-secondary/60 p-5">
-          <div className="flex items-end justify-between">
-            <div>
-              <p className="text-xs text-muted-foreground">
-                Прогресс
-              </p>
-
-              <p className="mt-1 text-3xl font-black text-primary">
-                65%
-              </p>
-            </div>
-
-            <p className="text-xs text-muted-foreground">
-              3 из 5 этапов
-            </p>
+        <div className="mt-5 rounded-[1.35rem] bg-secondary/65 p-5">
+          <div className="flex items-end justify-between gap-4">
+            <div><p className="text-[11px] text-muted-foreground">Прогресс</p><p className="mt-1 text-3xl font-black text-primary">65%</p></div>
+            <p className="text-[11px] text-muted-foreground">3 из 5 этапов</p>
           </div>
-
-          <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-background">
-            <div className="h-full w-[65%] rounded-full bg-primary" />
-          </div>
+          <div className="mt-4 h-2 overflow-hidden rounded-full bg-background"><div className="h-full w-[65%] rounded-full bg-primary" /></div>
         </div>
-
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <MiniCard
-            title="Предложения"
-            value="7"
-            description="от подрядчиков"
-          />
-
-          <MiniCard
-            title="Бюджет"
-            value="4,8 млн ₽"
-            description="принятое предложение"
-          />
+          <PreviewCard title="Предложения" value="7" note="подрядчиков" />
+          <PreviewCard title="Бюджет" value="320 000 ₽" note="принятое предложение" />
         </div>
-
-        <div className="mt-4 rounded-[1.5rem] border border-border p-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-            Текущий этап
-          </p>
-
-          <p className="mt-2 font-bold text-foreground">
-            Возведение стен
-          </p>
-
-          <div className="mt-4 flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">
-              Доля проекта
-            </span>
-
-            <strong className="text-foreground">
-              25%
-            </strong>
-          </div>
+        <div className="mt-4 rounded-[1.35rem] border border-border p-4 sm:p-5">
+          <div className="flex items-center justify-between gap-3"><div><p className="text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">Текущий этап</p><p className="mt-2 font-black">Электромонтаж</p></div><span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary"><CheckCircle2 className="h-5 w-5" /></span></div>
+          <div className="mt-4 flex items-center justify-between text-xs"><span className="text-muted-foreground">Следующее действие</span><span className="font-bold text-primary">Приёмка</span></div>
         </div>
       </div>
     </div>
   );
 }
 
-function MiniCard({
-  title,
-  value,
-  description,
-}: {
-  title: string;
-  value: string;
-  description: string;
-}) {
-  return (
-    <div className="rounded-[1.25rem] border border-border bg-background/60 p-4">
-      <p className="text-xs text-muted-foreground">
-        {title}
-      </p>
-
-      <p className="mt-2 text-xl font-black text-foreground">
-        {value}
-      </p>
-
-      <p className="mt-1 text-xs text-muted-foreground">
-        {description}
-      </p>
-    </div>
-  );
+function PreviewCard({ title, value, note }: { title: string; value: string; note: string }) {
+  return <div className="rounded-[1.2rem] border border-border bg-background/70 p-4"><p className="text-[11px] text-muted-foreground">{title}</p><p className="mt-2 text-xl font-black tracking-[-0.03em]">{value}</p><p className="mt-1 text-[11px] text-muted-foreground">{note}</p></div>;
 }
 
-function FeatureCheck({
-  text,
-}: {
-  text: string;
-}) {
-  return (
-    <span className="inline-flex items-center gap-2">
-      <CheckCircle2 className="h-4 w-4 text-primary" />
-      {text}
-    </span>
-  );
+function StepCard({ number, icon, title, description }: { number: string; icon: React.ReactNode; title: string; description: string }) {
+  return <article className="rounded-[1.5rem] border border-border bg-card p-5 shadow-[var(--shadow-soft)] sm:p-6"><div className="flex items-center justify-between"><div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-secondary text-primary">{icon}</div><span className="text-sm font-black text-primary/35">{number}</span></div><h3 className="mt-5 text-lg font-black sm:text-xl">{title}</h3><p className="mt-2 text-sm leading-6 text-muted-foreground">{description}</p></article>;
 }
 
-function StepCard({
-  number,
-  icon,
-  title,
-  description,
-}: {
-  number: string;
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-}) {
-  return (
-    <article className="rounded-[1.75rem] border border-border bg-card p-6 shadow-[var(--shadow-soft)]">
-      <div className="flex items-center justify-between">
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-secondary text-primary">
-          {icon}
-        </div>
-
-        <span className="text-sm font-black text-primary/40">
-          {number}
-        </span>
-      </div>
-
-      <h3 className="mt-6 text-xl font-black text-foreground">
-        {title}
-      </h3>
-
-      <p className="mt-3 text-sm leading-7 text-muted-foreground">
-        {description}
-      </p>
-    </article>
-  );
+function AudienceCard({ eyebrow, title, description, icon, buttonText, features }: { eyebrow: string; title: string; description: string; icon: React.ReactNode; buttonText: string; features: string[] }) {
+  return <article className="rounded-[1.75rem] border border-border bg-card p-6 shadow-[var(--shadow-soft)] sm:p-7"><div className="flex items-start justify-between gap-4"><span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary text-primary">{icon}</span><span className="rounded-full bg-muted px-3 py-1 text-[11px] font-bold text-muted-foreground">{eyebrow}</span></div><h3 className="mt-6 text-2xl font-black tracking-[-0.03em]">{title}</h3><p className="mt-3 max-w-xl text-sm leading-7 text-muted-foreground">{description}</p><div className="mt-6 grid gap-2 sm:grid-cols-2">{features.map((feature) => <div key={feature} className="flex items-center gap-2 rounded-xl bg-muted/65 px-3 py-3 text-xs font-semibold"><CheckCircle2 className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />{feature}</div>)}</div><Link href="/register" className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-bold text-primary-foreground transition hover:-translate-y-0.5 hover:bg-[#5c3b2a]">{buttonText}<ArrowRight className="h-4 w-4" aria-hidden="true" /></Link></article>;
 }
 
-function AudienceCard({
-  eyebrow,
-  title,
-  description,
-  icon,
-  href,
-  buttonText,
-  features,
-}: {
-  eyebrow: string;
-  title: string;
-  description: string;
-  icon: React.ReactNode;
-  href: string;
-  buttonText: string;
-  features: string[];
-}) {
-  return (
-    <article className="rounded-[2rem] border border-border bg-card p-7 shadow-[var(--shadow-soft)] md:p-8">
-      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
-        {icon}
-      </div>
-
-      <p className="mt-6 text-sm font-semibold text-primary">
-        {eyebrow}
-      </p>
-
-      <h3 className="mt-2 text-2xl font-black tracking-tight text-foreground">
-        {title}
-      </h3>
-
-      <p className="mt-4 text-sm leading-7 text-muted-foreground">
-        {description}
-      </p>
-
-      <div className="mt-6 space-y-3">
-        {features.map((feature) => (
-          <div
-            key={feature}
-            className="flex items-start gap-3 text-sm text-foreground"
-          >
-            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-            {feature}
-          </div>
-        ))}
-      </div>
-
-      <Link
-        href={href}
-        className="mt-7 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-secondary px-5 text-sm font-semibold text-primary transition hover:bg-primary hover:text-primary-foreground"
-      >
-        {buttonText}
-
-        <ArrowRight className="h-4 w-4" />
-      </Link>
-    </article>
-  );
-}
-
-function TrustCard({
-  icon,
-  title,
-  description,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-}) {
-  return (
-    <article className="rounded-[1.5rem] border border-border bg-card p-6">
-      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-secondary text-primary">
-        {icon}
-      </div>
-
-      <h3 className="mt-5 font-black text-foreground">
-        {title}
-      </h3>
-
-      <p className="mt-2 text-sm leading-6 text-muted-foreground">
-        {description}
-      </p>
-    </article>
-  );
+function TrustCard({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
+  return <article className="rounded-[1.5rem] border border-border bg-card p-5 shadow-[var(--shadow-soft)]"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary text-primary">{icon}</div><h3 className="mt-5 font-black">{title}</h3><p className="mt-2 text-sm leading-6 text-muted-foreground">{description}</p></article>;
 }
