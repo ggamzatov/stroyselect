@@ -46,7 +46,7 @@ export function NotificationCenter({ userId, notifications, unreadCount }: Props
       />
 
       {isOpen && (
-        <div className="absolute right-0 top-[calc(100%+10px)] z-[100] w-[min(24rem,calc(100vw-2rem))] origin-top-right animate-in fade-in zoom-in-95 duration-150">
+        <div className="absolute right-0 top-[calc(100%+10px)] z-[100] w-[min(24rem,calc(100vw-2rem))] origin-top-right transition duration-150 ease-out">
           <NotificationDropdown
             notifications={notifications}
             onClose={() => setIsOpen(false)}
