@@ -1,7 +1,6 @@
-import Link from "next/link"
 import { ArrowRight } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
+import { ButtonLink } from "@/components/ui/button"
 import { PublishProjectButton } from "@/features/projects/components/publish-project-button"
 
 type Props = { projectId: string; status: string; bidCount?: number }
@@ -18,15 +17,15 @@ export function CustomerProjectNextAction({ projectId, status, bidCount = 0 }: P
       <div className="mt-4 flex flex-wrap gap-2">
         {content.kind === "publish" ? <PublishProjectButton projectId={projectId} /> : null}
         {content.href ? (
-          <Button render={<Link href={content.href} />}>
+          <ButtonLink href={content.href}>
             {content.label}
             <ArrowRight data-icon="inline-end" aria-hidden="true" />
-          </Button>
+          </ButtonLink>
         ) : null}
         {content.secondaryHref ? (
-          <Button variant="outline" render={<Link href={content.secondaryHref} />}>
+          <ButtonLink variant="outline" href={content.secondaryHref}>
             {content.secondaryLabel}
-          </Button>
+          </ButtonLink>
         ) : null}
       </div>
     </section>

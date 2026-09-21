@@ -27,8 +27,15 @@ figures remain aligned.
 ## Primitives
 
 - `Button` has `default` (primary), `secondary`, `outline`, `ghost`,
-  `destructive`, and `link` variants, plus icon sizes. Use `loading` and
-  optional `loadingText` instead of page-specific spinners.
+  `destructive`, and `link` variants, plus icon sizes. It is for actions only:
+  it always renders a native `<button>` and defaults to `type="button"`. Use
+  `type="submit"` for form submission, `loading`, and optional `loadingText`
+  instead of page-specific spinners. `render` and `nativeButton` are
+  intentionally not part of this API.
+- `ButtonLink` is for navigation. It styles `next/link` directly and renders an
+  anchor; never use `<Button render={<Link />}>` or pass an anchor through Base
+  UI Button's `render` prop. This avoids both nested interactive elements and
+  Base UI's native-button runtime warning.
 - `Input`, `Textarea`, `Select`, `Checkbox`, `Radio`, `Switch`, `Label`,
   `FormField`, `FormHelperText`, `FormError`, and `FormSection` are
   presentation-only. Preserve form `name`, validation, `FormData`, and

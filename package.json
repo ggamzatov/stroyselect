@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "node scripts/prepare-e2e-standalone.mjs && node .next/standalone/server.js",
     "lint": "eslint",
+    "test:button-semantics": "vitest run tests/unit/button-semantics.test.tsx",
     "migrations:check": "node scripts/check-migrations.mjs",
     "migrations:apply": "node scripts/apply-migrations.mjs",
     "legacy:audit": "node scripts/audit-legacy-dependencies.mjs",

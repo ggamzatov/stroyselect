@@ -2,7 +2,7 @@ import Link from "next/link"
 import { ArrowRight, BriefcaseBusiness, CircleAlert, FolderKanban } from "lucide-react"
 import { redirect } from "next/navigation"
 
-import { Button } from "@/components/ui/button"
+import { ButtonLink } from "@/components/ui/button"
 import { PageFrame } from "@/components/layout/page-frame"
 import { PageHeader } from "@/components/patterns/page-header"
 import { ContractorBidCard } from "@/features/bids/components/contractor-bid-card"
@@ -30,7 +30,7 @@ export default async function ContractorDashboardPage() {
 
   return (
     <PageFrame size="wide" className="pb-28 md:pb-8">
-      <PageHeader eyebrow="Кабинет подрядчика" title={`Здравствуйте, ${profile.first_name || "подрядчик"}`} description="Здесь — ближайшие действия, новые заказы и объекты, с которыми вы уже работаете." actions={<Button render={<Link href="/contractor/projects" />}><BriefcaseBusiness data-icon="inline-start" />Найти заказы</Button>} />
+      <PageHeader eyebrow="Кабинет подрядчика" title={`Здравствуйте, ${profile.first_name || "подрядчик"}`} description="Здесь — ближайшие действия, новые заказы и объекты, с которыми вы уже работаете." actions={<ButtonLink href="/contractor/projects"><BriefcaseBusiness data-icon="inline-start" />Найти заказы</ButtonLink>} />
 
       {attention.length ? <section className="mt-6 rounded-[var(--radius-md)] border border-border bg-card p-5 shadow-[var(--shadow-subtle)]" aria-labelledby="attention-title"><div className="flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-warning/10 text-warning"><CircleAlert className="size-5" aria-hidden="true" /></span><div><p className="text-sm font-semibold text-primary">Требует внимания</p><h2 id="attention-title" className="mt-1 text-lg font-semibold text-foreground">Ближайшие действия</h2></div></div><div className="mt-5 grid gap-2 lg:grid-cols-2">{attention.slice(0, 4).map((item) => <AttentionItem key={item.title} {...item} />)}</div></section> : null}
 

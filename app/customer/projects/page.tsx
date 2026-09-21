@@ -1,11 +1,10 @@
-import Link from "next/link"
 import { FolderKanban, Plus } from "lucide-react"
 import { redirect } from "next/navigation"
 
 import { EmptyState } from "@/components/feedback/empty-state"
 import { PageFrame } from "@/components/layout/page-frame"
 import { PageHeader } from "@/components/patterns/page-header"
-import { Button } from "@/components/ui/button"
+import { ButtonLink } from "@/components/ui/button"
 import { CustomerProjectCard } from "@/features/projects/components/customer-project-card"
 import { getMyProjects } from "@/features/projects/queries/get-my-projects"
 import { getCurrentProfile } from "@/lib/auth/get-current-profile"
@@ -28,11 +27,11 @@ export default async function CustomerProjectsPage() {
         eyebrow="Проекты"
         title="Мои задачи"
         description="Создавайте задачи, выбирайте исполнителя и переходите к работе в одном понятном потоке."
-        actions={<Button render={<Link href="/customer/projects/new" />}><Plus data-icon="inline-start" />Создать задачу</Button>}
+        actions={<ButtonLink href="/customer/projects/new"><Plus data-icon="inline-start" />Создать задачу</ButtonLink>}
       />
 
       {projects.length === 0 ? (
-        <EmptyState className="mt-8" icon={FolderKanban} title="Задач пока нет" description="Опишите первую задачу — её можно сохранить черновиком и дополнить позже." action={<Button render={<Link href="/customer/projects/new" />}><Plus data-icon="inline-start" />Создать задачу</Button>} />
+        <EmptyState className="mt-8" icon={FolderKanban} title="Задач пока нет" description="Опишите первую задачу — её можно сохранить черновиком и дополнить позже." action={<ButtonLink href="/customer/projects/new"><Plus data-icon="inline-start" />Создать задачу</ButtonLink>} />
       ) : (
         <div className="mt-8 space-y-9">
           <ProjectSection title="Требуют внимания" description="Черновики и задачи, по которым нужна реакция" projects={attention} />

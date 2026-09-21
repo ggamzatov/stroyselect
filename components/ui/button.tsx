@@ -1,3 +1,5 @@
+import Link from "next/link"
+import type { ComponentProps } from "react"
 import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
 import { LoaderCircle } from "lucide-react"
@@ -40,6 +42,22 @@ const buttonVariants = cva(
   }
 )
 
+type ButtonProps = Omit<ButtonPrimitive.Props, "className" | "nativeButton" | "render"> &
+  VariantProps<typeof buttonVariants> & {
+    className?: string
+    loading?: boolean
+    loadingText?: string
+  }
+
+type ButtonLinkProps = Omit<ComponentProps<typeof Link>, "className"> &
+  VariantProps<typeof buttonVariants> & {
+    className?: string
+  }
+
+/**
+ * Canonical action control. It intentionally cannot replace its native button
+ * root: Base UI therefore always receives native button semantics.
+ */
 function Button({
   className,
   variant = "default",
@@ -48,15 +66,13 @@ function Button({
   loadingText,
   disabled,
   children,
+  type = "button",
   ...props
-}: ButtonPrimitive.Props &
-  VariantProps<typeof buttonVariants> & {
-    loading?: boolean
-    loadingText?: string
-  }) {
+}: ButtonProps) {
   return (
     <ButtonPrimitive
       data-slot="button"
+      type={type}
       className={cn(buttonVariants({ variant, size, className }))}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
@@ -68,4 +84,26 @@ function Button({
   )
 }
 
-export { Button, buttonVariants }
+/**
+ * Canonical navigation control. It styles Next Link directly, so it renders an
+ * anchor and never asks Base UI's button primitive to emulate link semantics.
+ */
+function ButtonLink({
+  className,
+  variant = "default",
+  size = "default",
+  children,
+  ...props
+}: ButtonLinkProps) {
+  return (
+    <Link
+      data-slot="button-link"
+      className={cn(buttonVariants({ variant, size, className }))}
+      {...props}
+    >
+      {children}
+    </Link>
+  )
+}
+
+export { Button, ButtonLink, buttonVariants }

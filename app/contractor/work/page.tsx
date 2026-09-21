@@ -1,8 +1,7 @@
-import Link from "next/link"
 import { FolderKanban } from "lucide-react"
 import { redirect } from "next/navigation"
 
-import { Button } from "@/components/ui/button"
+import { ButtonLink } from "@/components/ui/button"
 import { EmptyState } from "@/components/feedback/empty-state"
 import { PageFrame } from "@/components/layout/page-frame"
 import { PageHeader } from "@/components/patterns/page-header"
@@ -27,7 +26,7 @@ export default async function ContractorWorkPage() {
         eyebrow="Объекты"
         title="Мои объекты"
         description="Здесь собраны заказы, по которым заказчик уже выбрал вашу компанию. Этапы, файлы и диалог доступны внутри объекта."
-        actions={<Button variant="secondary" render={<Link href="/contractor/projects" />}>Найти заказы</Button>}
+        actions={<ButtonLink variant="secondary" href="/contractor/projects">Найти заказы</ButtonLink>}
       />
 
       {!projects.length ? (
@@ -36,7 +35,7 @@ export default async function ContractorWorkPage() {
           icon={FolderKanban}
           title="Назначенных объектов пока нет"
           description="После выбора вашего предложения объект появится здесь и станет доступен для работы."
-          action={<Button render={<Link href="/contractor/projects" />}>Найти заказы</Button>}
+          action={<ButtonLink href="/contractor/projects">Найти заказы</ButtonLink>}
         />
       ) : (
         <div className="mt-8 space-y-8">

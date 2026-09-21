@@ -2,7 +2,7 @@ import Link from "next/link"
 import { ArrowRight, CircleAlert, FolderKanban, Plus, UsersRound } from "lucide-react"
 import { redirect } from "next/navigation"
 
-import { Button } from "@/components/ui/button"
+import { ButtonLink } from "@/components/ui/button"
 import { PageFrame } from "@/components/layout/page-frame"
 import { Metric } from "@/components/patterns/metric"
 import { PageHeader } from "@/components/patterns/page-header"
@@ -28,7 +28,7 @@ export default async function CustomerDashboardPage() {
         eyebrow="Кабинет заказчика"
         title={`Здравствуйте, ${firstName}`}
         description="Здесь собраны только ближайшие действия по вашим задачам."
-        actions={<Button render={<Link href="/customer/projects/new" />}><Plus data-icon="inline-start" />Создать задачу</Button>}
+        actions={<ButtonLink href="/customer/projects/new"><Plus data-icon="inline-start" />Создать задачу</ButtonLink>}
       />
 
       <section className="mt-6 grid gap-3 sm:grid-cols-3" aria-label="Краткая сводка">
@@ -56,7 +56,7 @@ export default async function CustomerDashboardPage() {
               <span className="flex size-11 items-center justify-center rounded-full bg-secondary text-primary"><FolderKanban className="size-5" aria-hidden="true" /></span>
               <h2 className="mt-4 text-lg font-semibold text-foreground">Создайте первую задачу</h2>
               <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">Опишите нужные работы, а затем сможете получить и сравнить предложения специалистов.</p>
-              <Button className="mt-5" render={<Link href="/customer/projects/new" />}><Plus data-icon="inline-start" />Создать задачу</Button>
+              <ButtonLink className="mt-5" href="/customer/projects/new"><Plus data-icon="inline-start" />Создать задачу</ButtonLink>
             </section>
           )}
         </div>
@@ -82,7 +82,7 @@ export default async function CustomerDashboardPage() {
           <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-secondary text-primary"><UsersRound className="size-5" aria-hidden="true" /></span>
           <div><h2 className="font-semibold text-foreground">Нужен специалист до публикации задачи?</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">Изучите специализацию, географию, отзывы и выполненные проекты в каталоге.</p></div>
         </div>
-        <Button variant="outline" className="mt-4 sm:mt-0" render={<Link href="/customer/contractors" />}>Открыть каталог<ArrowRight data-icon="inline-end" /></Button>
+        <ButtonLink variant="outline" className="mt-4 sm:mt-0" href="/customer/contractors">Открыть каталог<ArrowRight data-icon="inline-end" /></ButtonLink>
       </section>
     </PageFrame>
   )
