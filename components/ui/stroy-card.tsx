@@ -3,6 +3,9 @@ import type {
   ReactNode,
 } from "react";
 
+import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
+
 type Props =
   HTMLAttributes<HTMLDivElement> & {
     children: ReactNode;
@@ -16,18 +19,16 @@ export function StroyCard({
   ...props
 }: Props) {
   return (
-    <div
-      className={[
-        "rounded-[1.5rem] border border-border bg-card",
-        "shadow-[var(--shadow-soft)]",
-        interactive
-          ? "transition duration-200 hover:-translate-y-1 hover:border-primary/25 hover:shadow-[var(--shadow-card)]"
-          : "",
-        className,
-      ].join(" ")}
+    <Card
+      className={cn(
+        "gap-0 py-0",
+        interactive &&
+          "transition-transform hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-[var(--shadow-elevated)]",
+        className
+      )}
       {...props}
     >
       {children}
-    </div>
+    </Card>
   );
 }

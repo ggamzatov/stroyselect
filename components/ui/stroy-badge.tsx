@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { Badge } from "@/components/ui/badge";
+
 type Variant =
   | "default"
   | "success"
@@ -12,36 +14,21 @@ type Props = {
   variant?: Variant;
 };
 
-const variants: Record<Variant, string> = {
-  default:
-    "bg-secondary text-secondary-foreground",
-
-  success:
-    "bg-emerald-50 text-emerald-700",
-
-  warning:
-    "bg-amber-50 text-amber-700",
-
-  danger:
-    "bg-red-50 text-red-700",
-
-  muted:
-    "bg-muted text-muted-foreground",
-};
+const variants = {
+  default: "secondary",
+  success: "success",
+  warning: "warning",
+  danger: "destructive",
+  muted: "neutral",
+} as const;
 
 export function StroyBadge({
   children,
   variant = "default",
 }: Props) {
   return (
-    <span
-      className={[
-        "inline-flex items-center rounded-full",
-        "px-3 py-1.5 text-xs font-semibold",
-        variants[variant],
-      ].join(" ")}
-    >
+    <Badge variant={variants[variant]}>
       {children}
-    </span>
+    </Badge>
   );
 }

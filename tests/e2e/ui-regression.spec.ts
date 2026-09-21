@@ -13,13 +13,14 @@ async function expectNoLegacyEnglish(page:Page){const text=await page.locator("b
 async function verify(page:Page,path:string){await page.goto(path);await expect(page.locator("body")).toBeVisible();await expectNoHorizontalOverflow(page);await expectNoLegacyEnglish(page)}
 
 test.describe("Brand assets",()=>{
- test("brandbook logo uses high-resolution visible artwork",async({page,request})=>{
-  for(const asset of ["/brand/stroyvybor-logo-hq.png","/brand/stroyvybor-mark-hq.png"]){const response=await request.get(asset);expect(response.status(),`${asset} должен отдаваться приложением`).toBe(200);expect(response.headers()["content-type"]??"").toContain("image/png")}
+ test("brandbook logo uses the supplied vector artwork",async({page,request})=>{
+  const vectorResponse=await request.get("/brand/stroyvybor-logo.svg");expect(vectorResponse.status(),"SVG-логотип должен отдаваться приложением").toBe(200);expect(vectorResponse.headers()["content-type"]??"").toContain("image/svg+xml");expect(await vectorResponse.text()).toContain('viewBox="0 0 645 92"');
+  const markResponse=await request.get("/brand/stroyvybor-mark-hq.png");expect(markResponse.status(),"Растровая версия mark должна отдаваться приложением").toBe(200);expect(markResponse.headers()["content-type"]??"").toContain("image/png");
   await page.goto("/login");
-  const visibleLogos=page.locator('img[data-brand-logo="horizontal"][data-brand-quality="hq"]:visible');
+  const visibleLogos=page.locator('img[data-brand-logo="horizontal"][data-brand-quality="vector"]:visible');
   await expect(visibleLogos.first()).toBeVisible();
   const rendered=await visibleLogos.first().evaluate((image)=>{const img=image as HTMLImageElement;const canvas=document.createElement("canvas");canvas.width=img.naturalWidth;canvas.height=img.naturalHeight;const context=canvas.getContext("2d");if(!context)return {complete:false,naturalWidth:0,naturalHeight:0,opaquePixels:0,totalPixels:0};context.drawImage(img,0,0);const pixels=context.getImageData(0,0,canvas.width,canvas.height).data;let opaquePixels=0;for(let index=3;index<pixels.length;index+=4){if(pixels[index]>32)opaquePixels+=1}return {complete:img.complete,naturalWidth:img.naturalWidth,naturalHeight:img.naturalHeight,opaquePixels,totalPixels:canvas.width*canvas.height}});
-  expect(rendered.complete,"Логотип должен завершить загрузку").toBeTruthy();expect(rendered.naturalWidth,"Горизонтальный логотип должен использовать HQ-ассет").toBeGreaterThanOrEqual(1200);expect(rendered.naturalHeight,"Горизонтальный логотип должен использовать HQ-ассет").toBeGreaterThanOrEqual(240);expect(rendered.opaquePixels,"Логотип должен содержать реально видимые пиксели").toBeGreaterThan(rendered.totalPixels*0.05);
+  expect(rendered.complete,"Логотип должен завершить загрузку").toBeTruthy();expect(rendered.naturalWidth,"SVG должен иметь видимые intrinsic-габариты").toBeGreaterThan(0);expect(rendered.naturalHeight,"SVG должен иметь видимые intrinsic-габариты").toBeGreaterThan(0);expect(rendered.opaquePixels,"Логотип должен содержать реально видимые пиксели").toBeGreaterThan(rendered.totalPixels*0.05);
  });
 });
 
