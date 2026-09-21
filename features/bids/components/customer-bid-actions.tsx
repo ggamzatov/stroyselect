@@ -112,6 +112,21 @@ export function CustomerBidActions({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-3">
+        <ActionButton
+          disabled={isPending}
+          onClick={() =>
+            handleDecision(
+              "accepted"
+            )
+          }
+          variant="primary"
+          icon={
+            <Check className="h-4 w-4" />
+          }
+        >
+          Принять предложение
+        </ActionButton>
+
         {currentStatus === "submitted" && (
           <ActionButton
             disabled={isPending}
@@ -145,21 +160,6 @@ export function CustomerBidActions({
           }
         >
           В короткий список
-        </ActionButton>
-
-        <ActionButton
-          disabled={isPending}
-          onClick={() =>
-            handleDecision(
-              "accepted"
-            )
-          }
-          variant="primary"
-          icon={
-            <Check className="h-4 w-4" />
-          }
-        >
-          Принять
         </ActionButton>
 
         <ActionButton
@@ -239,13 +239,13 @@ function ActionButton({
       "border border-border bg-card text-foreground hover:border-primary/25 hover:bg-secondary/50",
 
     primary:
-      "bg-primary text-primary-foreground shadow-[0_10px_24px_rgba(107,70,50,0.18)] hover:-translate-y-0.5 hover:bg-[#5c3b2a]",
+      "bg-primary text-primary-foreground shadow-[var(--shadow-subtle)] hover:bg-[var(--primary-hover)]",
 
     warning:
-      "border border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200",
+      "border border-primary/20 bg-secondary text-primary hover:bg-accent",
 
     danger:
-      "border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-200",
+      "border border-destructive/20 bg-card text-destructive hover:bg-destructive/5",
   };
 
   return (

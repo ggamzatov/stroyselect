@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 
 import { CustomerBidActions } from "@/features/bids/components/customer-bid-actions";
+import { PageFrame } from "@/components/layout/page-frame";
+import { PageHeader } from "@/components/patterns/page-header";
 import { getCustomerBids } from "@/features/bids/queries/get-customer-bids";
 import { getCurrentProfile } from "@/lib/auth/get-current-profile";
 
@@ -29,17 +31,12 @@ export default async function CustomerBidsPage() {
   const newCount = bids.filter((bid) => bid.status === "submitted").length;
 
   return (
-    <main className="px-4 py-5 sm:px-6 sm:py-7 lg:px-8 xl:px-10 xl:py-8">
-      <div className="mx-auto max-w-[1420px]">
-        <section>
-          <p className="text-sm font-semibold text-primary">Выбор исполнителя</p>
-          <h1 className="mt-1 text-3xl font-black tracking-[-0.035em] text-foreground sm:text-4xl">
-            Предложения подрядчиков
-          </h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground sm:text-base">
-            Сравнивайте стоимость, сроки, условия и профиль подрядчика перед выбором исполнителя.
-          </p>
-        </section>
+    <PageFrame size="wide" className="pb-28 md:pb-8">
+        <PageHeader
+          eyebrow="Выбор исполнителя"
+          title="Предложения специалистов"
+          description="Сравнивайте стоимость, сроки, условия и профиль специалиста перед выбором исполнителя."
+        />
 
         <section className="mt-6 grid gap-3 sm:grid-cols-3" aria-label="Сводка по предложениям">
           <SummaryCard label="Новые предложения" value={newCount} tone="blue" />
@@ -196,8 +193,7 @@ export default async function CustomerBidsPage() {
             </div>
           )}
         </section>
-      </div>
-    </main>
+    </PageFrame>
   );
 }
 

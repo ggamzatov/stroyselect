@@ -344,7 +344,24 @@ function resolveIntakeMode(category?: Category): IntakeMode {
   return "construction";
 }
 
-function buildSteps(profile: IntakeProfile): Step[] {
+function buildSteps(profile: IntakeProfile, format: "quick" | "detailed"): Step[] {
+  if (format === "quick") {
+    return [
+      {
+        key: "base",
+        title: "Что нужно сделать",
+        description: "Коротко опишите задачу, объект и город. Остальное можно дополнить позже.",
+        fields: BASE_FIELDS,
+      },
+      {
+        key: "budget",
+        title: "Бюджет и сроки",
+        description: "Эти ориентиры необязательны, но помогут специалистам лучше понять задачу.",
+        fields: BUDGET_FIELDS,
+      },
+    ];
+  }
+
   const scopeFields: FieldName[] = ["workType", "scopeDetails"];
   if (profile.showCondition) scopeFields.push("currentCondition");
   if (profile.showDimensions) scopeFields.push("dimensions");
@@ -406,6 +423,7 @@ function sanitizeForProfile(values: ProjectInput, profile: IntakeProfile): Proje
 export function ProjectForm({ categories, project }: Props) {
   const router = useRouter();
   const [step, setStep] = useState(0);
+  const [format, setFormat] = useState<"quick" | "detailed">("quick");
   const [activeProjectId, setActiveProjectId] = useState(project?.id);
   const [message, setMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -453,7 +471,7 @@ export function ProjectForm({ categories, project }: Props) {
     () => PROFILE_BY_MODE[resolveIntakeMode(selectedCategory)],
     [selectedCategory],
   );
-  const steps = useMemo(() => buildSteps(profile), [profile]);
+  const steps = useMemo(() => buildSteps(profile, format), [format, profile]);
   const current = steps[Math.min(step, steps.length - 1)];
   const progress = useMemo(
     () => Math.round(((Math.min(step, steps.length - 1) + 1) / steps.length) * 100),
@@ -492,8 +510,11 @@ export function ProjectForm({ categories, project }: Props) {
     setMessage("");
     setErrorMessage("");
 
-    const valid = await trigger(current.fields);
-    if (!valid) return;
+    const valid = await trigger(current.fields, { shouldFocus: true });
+    if (!valid) {
+      setErrorMessage("Проверьте обязательные поля на этом шаге");
+      return;
+    }
 
     const parsed = projectSchema.safeParse(getValues());
     if (!parsed.success) {
@@ -539,7 +560,7 @@ export function ProjectForm({ categories, project }: Props) {
 
   async function finish() {
     const visibleFields = steps.flatMap((item) => item.fields);
-    const valid = await trigger(visibleFields);
+    const valid = await trigger(visibleFields, { shouldFocus: true });
     if (!valid) {
       setErrorMessage("Проверьте обязательные поля перед сохранением проекта");
       return;
@@ -549,6 +570,30 @@ export function ProjectForm({ categories, project }: Props) {
 
   return (
     <div className="space-y-6">
+      <section className="rounded-[var(--radius-md)] border border-border bg-card p-4 shadow-[var(--shadow-subtle)] sm:p-5" aria-label="Формат заполнения">
+        <p className="text-sm font-semibold text-foreground">Как удобнее описать задачу?</p>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <button
+            type="button"
+            aria-pressed={format === "quick"}
+            onClick={() => { setFormat("quick"); setStep(0); setErrorMessage(""); }}
+            className={`rounded-[var(--radius-sm)] border p-3 text-left transition ${format === "quick" ? "border-primary bg-primary/5 text-foreground" : "border-border bg-card text-muted-foreground hover:bg-secondary/50"}`}
+          >
+            <span className="block text-sm font-semibold">Быстрая задача</span>
+            <span className="mt-1 block text-xs leading-5">Два коротких шага: суть работы и ориентиры.</span>
+          </button>
+          <button
+            type="button"
+            aria-pressed={format === "detailed"}
+            onClick={() => { setFormat("detailed"); setStep(0); setErrorMessage(""); }}
+            className={`rounded-[var(--radius-sm)] border p-3 text-left transition ${format === "detailed" ? "border-primary bg-primary/5 text-foreground" : "border-border bg-card text-muted-foreground hover:bg-secondary/50"}`}
+          >
+            <span className="block text-sm font-semibold">Подробный проект</span>
+            <span className="mt-1 block text-xs leading-5">Больше деталей для точного описания и подбора.</span>
+          </button>
+        </div>
+      </section>
+
       <section className="rounded-[1.75rem] border border-border bg-card p-5 shadow-[var(--shadow-soft)] md:p-6">
         <div className="flex items-center justify-between gap-4">
           <div>
@@ -793,7 +838,7 @@ export function ProjectForm({ categories, project }: Props) {
           </div>
         )}
 
-        <div className="mt-8 flex flex-col-reverse gap-3 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="sticky bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-20 -mx-5 mt-8 flex flex-col-reverse gap-3 border-y border-border bg-card/95 px-5 py-4 backdrop-blur sm:static sm:mx-0 sm:flex-row sm:items-center sm:justify-between sm:border-x-0 sm:px-0 sm:pb-0 sm:pt-5">
           <button
             type="button"
             disabled={step === 0 || isPending}

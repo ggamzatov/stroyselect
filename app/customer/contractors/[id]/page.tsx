@@ -8,12 +8,10 @@ import {
   CalendarDays,
   MapPin,
   Phone,
-  Sparkles,
   Star,
   UsersRound,
 } from "lucide-react";
 
-import { getContractorScore } from "@/features/contractors/queries/get-contractor-score";
 import { getPublicContractorCompany } from "@/features/contractors/queries/get-public-contractor-company";
 import { getContractorReviews } from "@/features/reviews/queries/get-contractor-reviews";
 import { getCurrentProfile } from "@/lib/auth/get-current-profile";
@@ -27,10 +25,9 @@ export default async function CustomerContractorPage({ params }: Props) {
   if (profile.role !== "customer") redirect("/dashboard");
 
   const { id } = await params;
-  const [company, reviews, score] = await Promise.all([
+  const [company, reviews] = await Promise.all([
     getPublicContractorCompany(id),
     getContractorReviews(id),
-    getContractorScore(id),
   ]);
 
   const services = company.contractor_services ?? [];
@@ -93,19 +90,6 @@ export default async function CustomerContractorPage({ params }: Props) {
               </div>
             </div>
 
-            {score ? (
-              <div className="min-w-[220px] rounded-xl border border-primary/15 bg-secondary/70 p-4">
-                <div className="flex items-center gap-2 text-primary">
-                  <Sparkles className="h-4 w-4" aria-hidden="true" />
-                  <span className="text-[10px] font-black uppercase tracking-[0.1em]">Рейтинг СтройВыбор</span>
-                </div>
-                <div className="mt-2 flex items-end gap-2">
-                  <span className="text-3xl font-black tracking-[-0.04em] text-foreground">{score.score}</span>
-                  <span className="pb-1 text-xs text-muted-foreground">из 100</span>
-                </div>
-                <p className="mt-1 text-xs font-bold text-foreground">{score.label}</p>
-              </div>
-            ) : null}
           </div>
 
           {company.description ? (
@@ -124,41 +108,6 @@ export default async function CustomerContractorPage({ params }: Props) {
 
         <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
           <div className="space-y-4">
-            {score ? (
-              <SectionCard title="Почему такой рейтинг СтройВыбор" eyebrow="Надёжность">
-                <p className="text-sm leading-6 text-muted-foreground">
-                  Оценка формируется из проверяемых данных платформы: статуса компании, отзывов, завершённых проектов, полноты профиля, специализаций, географии, портфолио и качества предложений.
-                </p>
-
-                <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                  {score.factors.map((factor) => (
-                    <div key={factor.key} className="rounded-xl border border-border bg-background/70 p-3.5">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-xs font-bold text-foreground">{factor.label}</p>
-                        <span className="text-xs font-black text-primary">{factor.points}/{factor.maxPoints}</span>
-                      </div>
-                      <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-secondary">
-                        <div
-                          className="h-full rounded-full bg-primary"
-                          style={{ width: `${Math.min(100, (factor.points / factor.maxPoints) * 100)}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {score.strengths.length > 0 ? (
-                  <div className="mt-4 flex flex-wrap gap-1.5">
-                    {score.strengths.map((item) => (
-                      <span key={item} className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
-                        {item}
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
-              </SectionCard>
-            ) : null}
-
             <SectionCard title="Специализации" eyebrow="Услуги">
               {services.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
@@ -300,13 +249,6 @@ export default async function CustomerContractorPage({ params }: Props) {
               </p>
             </SectionCard>
 
-            {score && score.improvements.length > 0 ? (
-              <SectionCard title="Что можно усилить" eyebrow="Прозрачность">
-                <ul className="space-y-2 text-sm leading-6 text-muted-foreground">
-                  {score.improvements.map((item) => <li key={item}>• {item}</li>)}
-                </ul>
-              </SectionCard>
-            ) : null}
           </aside>
         </div>
       </div>
