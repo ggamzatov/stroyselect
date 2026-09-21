@@ -34,8 +34,9 @@ type ProjectRoute = {
   requiresContract: boolean
 }
 
-const routes: Record<"overview" | "budget" | "materials" | "documents" | "appointments" | "contract" | "issues" | "disputes", ProjectRoute> = {
+const routes: Record<"overview" | "chat" | "budget" | "materials" | "documents" | "appointments" | "contract" | "issues" | "disputes", ProjectRoute> = {
   overview: { suffix: "", label: "Обзор", icon: FolderOpen, requiresContract: false },
+  chat: { suffix: "/chat", label: "Общение", icon: MessageCircle, requiresContract: false },
   budget: { suffix: "/changes", label: "Бюджет и платежи", icon: Banknote, requiresContract: true },
   materials: { suffix: "/materials", label: "Материалы", icon: ShoppingCart, requiresContract: true },
   documents: { suffix: "/documents", label: "Документы", icon: FileText, requiresContract: true },
@@ -144,6 +145,7 @@ export function ProjectNav({ projectId, role, executionUnlocked = false }: Proje
   const mobileRoutes = [
     routes.overview,
     ...workRoutes,
+    routes.chat,
     routes.documents,
     ...moreRoutes,
   ]
@@ -161,13 +163,7 @@ export function ProjectNav({ projectId, role, executionUnlocked = false }: Proje
               <RouteLink key={route.suffix} route={route} base={base} pathname={pathname} executionUnlocked={executionUnlocked} />
             ))}
           </NavGroup>
-          <Link
-            href={`${base}#project-chat`}
-            className="flex min-h-11 items-center gap-2 rounded-[var(--radius-sm)] px-3 text-sm font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            <MessageCircle className="size-4" aria-hidden="true" />
-            Общение
-          </Link>
+          <RouteLink route={routes.chat} base={base} pathname={pathname} executionUnlocked={executionUnlocked} />
           <RouteLink route={routes.documents} base={base} pathname={pathname} executionUnlocked={executionUnlocked} />
           <NavGroup key={moreActive ? "more-active" : "more-inactive"} label="Ещё" icon={MoreHorizontal} active={moreActive}>
             {moreRoutes.map((route) => (
@@ -193,6 +189,7 @@ export function ProjectNav({ projectId, role, executionUnlocked = false }: Proje
                 </option>
               ))}
             </optgroup>
+            <option value={routes.chat.suffix}>Общение</option>
             <option value={routes.documents.suffix} disabled={!executionUnlocked}>Документы{!executionUnlocked ? " — после договора" : ""}</option>
             <optgroup label="Ещё">
               {moreRoutes.map((route) => (
@@ -204,9 +201,9 @@ export function ProjectNav({ projectId, role, executionUnlocked = false }: Proje
           </select>
         </label>
 
-        <Link href={`${base}#project-chat`} className="mt-2 inline-flex min-h-10 items-center gap-2 px-2 text-sm font-semibold text-primary lg:hidden">
+        <Link href={`${base}/chat`} className="mt-2 inline-flex min-h-10 items-center gap-2 px-2 text-sm font-semibold text-primary lg:hidden">
           <MessageCircle className="size-4" aria-hidden="true" />
-          Открыть чат проекта
+          Открыть общение
         </Link>
       </nav>
     </div>

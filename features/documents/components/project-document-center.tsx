@@ -12,6 +12,9 @@ import {
   UploadCloud,
 } from "lucide-react";
 
+import { StageFileGallery } from "@/features/workspace/components/stage-file-gallery";
+import type { StageFile } from "@/features/workspace/types/stage-file";
+
 import {
   deleteProjectDocument,
   uploadProjectDocumentFormAction,
@@ -51,9 +54,11 @@ type Props = {
   role: "customer" | "contractor";
   documents: DocumentItem[];
   backHref: string;
+  currentUserId: string;
+  stageGroups: Array<{ stageId: string; stageTitle: string; files: StageFile[] }>;
 };
 
-export function ProjectDocumentCenter({ projectId, role, documents, backHref }: Props) {
+export function ProjectDocumentCenter({ projectId, role, documents, backHref, currentUserId, stageGroups }: Props) {
   const categoriesCount = new Set(documents.map((document) => document.category)).size;
   const versionedCount = documents.filter((document) => document.version > 1).length;
 
@@ -267,6 +272,39 @@ export function ProjectDocumentCenter({ projectId, role, documents, backHref }: 
             </section>
           </aside>
         </div>
+
+        <section className="ui-v2-panel mt-5 p-5 sm:p-6" aria-labelledby="stage-files-title">
+          <div className="flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">Материалы работ</p>
+              <h2 id="stage-files-title" className="mt-1 text-xl font-black text-foreground">Файлы по этапам</h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">Фото и рабочие документы сгруппированы по этапу, а договор остаётся в отдельном защищённом разделе.</p>
+            </div>
+            <Link href={`/${role}/work/${projectId}/contract`} className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-border bg-background px-3.5 text-xs font-bold text-primary hover:border-primary/25 hover:bg-secondary/50">
+              <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+              Открыть договор
+            </Link>
+          </div>
+
+          <div className="mt-5 space-y-4">
+            {stageGroups.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-border bg-muted/40 px-5 py-8 text-center">
+                <h3 className="font-bold text-foreground">План работ ещё не сформирован</h3>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">Файлы этапов появятся здесь после создания этапов и загрузки материалов.</p>
+              </div>
+            ) : stageGroups.map((group) => (
+              <article key={group.stageId} className="rounded-2xl border border-border bg-background/60 p-4 sm:p-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0"><p className="text-xs font-bold uppercase tracking-[0.1em] text-muted-foreground">Этап</p><h3 className="mt-1 break-words font-bold text-foreground">{group.stageTitle}</h3></div>
+                  <span className="rounded-full bg-secondary px-3 py-1.5 text-xs font-bold text-primary">{group.files.length} файлов</span>
+                </div>
+                <div className="mt-4">
+                  {group.files.length > 0 ? <StageFileGallery projectId={projectId} files={group.files} currentUserId={currentUserId} /> : <p className="rounded-xl border border-dashed border-border bg-card px-4 py-5 text-sm text-muted-foreground">Файлы для этого этапа пока не добавлены.</p>}
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
       </div>
     </main>
   );

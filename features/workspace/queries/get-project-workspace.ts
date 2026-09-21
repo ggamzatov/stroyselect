@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cache } from "react";
 import { redirect } from "next/navigation";
 
 import { db } from "@/lib/db/pool";
@@ -113,7 +114,7 @@ type FileRow = {
   created_at: Date | string;
 };
 
-export async function getProjectWorkspace(projectId: string) {
+export const getProjectWorkspace = cache(async function getProjectWorkspace(projectId: string) {
   const activeUser = await requireActiveUser();
 
   if (!activeUser.success) {
@@ -417,7 +418,7 @@ export async function getProjectWorkspace(projectId: string) {
     events,
     files,
   };
-}
+});
 
 function toNullableDateString(value: Date | string | null) {
   if (!value) return null;

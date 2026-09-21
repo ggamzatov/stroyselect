@@ -42,7 +42,7 @@ function getStageStatusConfig(
 
     case "in_progress":
       return {
-        label: "Выполняется",
+        label: "В работе",
         className:
           "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300",
         dotClassName:
@@ -51,7 +51,7 @@ function getStageStatusConfig(
 
     case "awaiting_review":
       return {
-        label: "На проверке",
+        label: "Готов к проверке",
         className:
           "bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300",
         dotClassName:
@@ -69,7 +69,7 @@ function getStageStatusConfig(
 
     case "completed":
       return {
-        label: "Завершён",
+        label: "Принят",
         className:
           "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
         dotClassName:

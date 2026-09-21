@@ -221,6 +221,30 @@
     color: var(--primary-foreground);
   }
 
+  /* Content supplied by workspace data can contain long names, messages and file names. */
+  main :where(h1, h2, h3, h4, p, li, dd, dt, a, span, strong, button) {
+    overflow-wrap: anywhere;
+    word-break: normal;
+  }
+
+  main :where(section, article, div) {
+    min-width: 0;
+  }
+
+  main :where(pre, table) {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  main :where(img, video, iframe, canvas) {
+    max-width: 100%;
+  }
+
+  main :where(input, textarea, select) {
+    max-width: 100%;
+    min-width: 0;
+  }
+
   .numeric {
     font-variant-numeric: tabular-nums;
   }

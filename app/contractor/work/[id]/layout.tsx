@@ -1,8 +1,9 @@
 import { ProjectExecutionGateBanner } from "@/features/workspace/components/project-execution-gate-banner";
 import { ProjectRiskHoldBanner } from "@/features/workspace/components/project-risk-hold-banner";
 import { ProjectWorkspaceNav } from "@/features/workspace/components/project-workspace-nav";
-import { WorkspacePageNavigator } from "@/features/workspace/components/workspace-page-navigator";
+import { WorkspaceHeader } from "@/features/workspace/components/workspace-header";
 import { getProjectRiskHoldForParticipant } from "@/features/workspace/queries/get-project-risk-hold";
+import { getProjectWorkspace } from "@/features/workspace/queries/get-project-workspace";
 import { requireActiveContract } from "@/lib/projects/require-active-contract";
 
 type Props = {
@@ -15,9 +16,10 @@ export default async function ContractorWorkLayout({
   params,
 }: Props) {
   const { id } = await params;
-  const [riskHold,contract] = await Promise.all([
+  const [riskHold,contract,workspace] = await Promise.all([
     getProjectRiskHoldForParticipant(id),
     requireActiveContract(id),
+    getProjectWorkspace(id),
   ]);
   const executionUnlocked=contract.success;
 
@@ -26,8 +28,8 @@ export default async function ContractorWorkLayout({
       <ProjectWorkspaceNav projectId={id} role="contractor" executionUnlocked={executionUnlocked} />
       <ProjectExecutionGateBanner projectId={id} role="contractor" unlocked={executionUnlocked} message={contract.success?undefined:contract.message} />
       <ProjectRiskHoldBanner state={riskHold} />
+      <WorkspaceHeader workspace={workspace} role="contractor" executionUnlocked={executionUnlocked} contractMessage={contract.success ? undefined : contract.message} />
       {children}
-      <WorkspacePageNavigator />
     </>
   );
 }
