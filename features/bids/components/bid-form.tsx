@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -56,6 +57,7 @@ const WARRANTY_OPTIONS = [0, 3, 6, 12, 24, 36, 60] as const;
 export function BidForm({ projectId, existingBid }: Props) {
   const [message, setMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [justSubmitted, setJustSubmitted] = useState(false);
   const [isPending, startTransition] = useTransition();
   const locked = Boolean(existingBid && !["submitted", "viewed", "shortlisted"].includes(existingBid.status));
 
@@ -87,7 +89,19 @@ export function BidForm({ projectId, existingBid }: Props) {
       const result = await saveBid(values);
       if (!result.success) return setErrorMessage(result.message);
       setMessage(result.message);
+      if (!existingBid) setJustSubmitted(true);
     });
+  }
+
+  if (justSubmitted) {
+    return (
+      <section className="rounded-[var(--radius-sm)] bg-secondary/55 p-4" aria-live="polite">
+        <span className="flex size-10 items-center justify-center rounded-full bg-primary text-primary-foreground"><CheckCircle2 className="size-5" aria-hidden="true" /></span>
+        <h3 className="mt-4 text-lg font-semibold text-foreground">Предложение отправлено</h3>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">Заказчик сможет сравнить ваши стоимость, сроки и условия с другими предложениями.</p>
+        <div className="mt-5 flex flex-wrap gap-2"><Link href="/contractor/bids" className="inline-flex min-h-11 items-center rounded-[var(--radius-sm)] bg-primary px-4 text-sm font-semibold text-primary-foreground">Мои предложения</Link><Link href="/contractor/projects" className="inline-flex min-h-11 items-center rounded-[var(--radius-sm)] border border-border bg-card px-4 text-sm font-semibold text-foreground">Вернуться к заказам</Link></div>
+      </section>
+    );
   }
 
   return (
@@ -99,16 +113,11 @@ export function BidForm({ projectId, existingBid }: Props) {
           <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">
             {existingBid ? "Ваше предложение" : "Новое предложение"}
           </p>
-          <h3 className="mt-1 text-xl font-black tracking-[-0.025em] text-foreground">Детализированная смета</h3>
+          <h3 className="mt-1 text-xl font-black tracking-[-0.025em] text-foreground">Условия предложения</h3>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
             Заполните только реальные условия, которые готовы зафиксировать для заказчика.
           </p>
         </div>
-        {existingBid?.completeness_score !== undefined ? (
-          <span className="shrink-0 rounded-full bg-secondary px-3 py-1.5 text-xs font-black text-primary">
-            {existingBid.completeness_score}%
-          </span>
-        ) : null}
       </div>
 
       {locked ? (
@@ -272,7 +281,7 @@ export function BidForm({ projectId, existingBid }: Props) {
       ) : null}
 
       {!locked ? (
-        <div className="border-t border-border pt-4">
+        <div className="sticky bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-20 -mx-5 border-y border-border bg-card/95 px-5 py-4 backdrop-blur sm:static sm:mx-0 sm:border-x-0 sm:px-0 sm:pb-0 sm:pt-4">
           <button
             type="submit"
             disabled={isPending}

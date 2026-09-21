@@ -15,6 +15,7 @@ import { getContractorCities } from "@/features/contractors/queries/get-contract
 import { getMyContractorPortfolio } from "@/features/contractors/portfolio/queries/get-my-contractor-portfolio";
 import { ContractorCompanyForm } from "@/features/contractors/components/contractor-company-form";
 import { PortfolioManager } from "@/features/contractors/portfolio/components/portfolio-manager";
+import { ContractorReadiness } from "@/features/contractors/components/contractor-readiness";
 
 export default async function ContractorCompanyPage() {
   const { profile } = await getCurrentProfile();
@@ -91,6 +92,8 @@ export default async function ContractorCompanyPage() {
             </div>
           ) : null}
         </section>
+
+        <ContractorReadiness className="mt-5" company={company} />
 
         <section className="mt-5 ui-v2-panel overflow-visible p-5 sm:p-6 lg:p-7" aria-labelledby="company-form-heading">
           <div className="mb-6 flex items-start gap-3 border-b border-border pb-5">
