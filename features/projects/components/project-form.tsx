@@ -10,6 +10,7 @@ import { ArrowLeft, ArrowRight, CheckCircle2, Loader2, Save } from "lucide-react
 import { projectSchema, type ProjectInput } from "@/features/projects/schemas/project-schema";
 import { saveProject } from "@/features/projects/actions/save-project";
 import { FormField } from "@/components/stroy/forms/form-field";
+import styles from "@/features/projects/components/project-intake-layout.module.css";
 
 type ProjectFormInput = z.input<typeof projectSchema>;
 type Category = { id: number; name: string; slug?: string };
@@ -569,7 +570,7 @@ export function ProjectForm({ categories, project }: Props) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="project-form space-y-6">
       <section className="rounded-[var(--radius-md)] border border-border bg-card p-4 shadow-[var(--shadow-subtle)] sm:p-5" aria-label="Формат заполнения">
         <p className="text-sm font-semibold text-foreground">Как удобнее описать задачу?</p>
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -594,6 +595,7 @@ export function ProjectForm({ categories, project }: Props) {
         </div>
       </section>
 
+      <div className={styles["project-form__layout"]}>
       <section className="rounded-[1.75rem] border border-border bg-card p-5 shadow-[var(--shadow-soft)] md:p-6">
         <div className="flex items-center justify-between gap-4">
           <div>
@@ -887,6 +889,7 @@ export function ProjectForm({ categories, project }: Props) {
           </div>
         </div>
       </section>
+      </div>
     </div>
   );
 }

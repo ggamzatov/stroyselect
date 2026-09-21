@@ -143,13 +143,13 @@ export function WorkspacePageNavigator() {
 
       {visibleItems.length >= 2 && (
         <>
-          <div className="fixed bottom-4 left-1/2 z-40 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 gap-1 overflow-x-auto rounded-2xl border border-border bg-card/95 p-2 shadow-[var(--shadow-floating)] backdrop-blur xl:hidden">
+          <div className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] left-1/2 z-40 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 gap-1 overflow-x-auto rounded-2xl border border-border bg-card/95 p-2 shadow-[var(--shadow-floating)] backdrop-blur lg:bottom-4 xl:hidden">
             {visibleItems.map((item) => (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => goTo(item.id)}
-                className={`shrink-0 rounded-xl px-3 py-2 text-xs font-semibold ${activeId === item.id ? "bg-primary text-primary-foreground" : "bg-secondary/60 text-foreground"}`}
+                className={`min-h-11 shrink-0 rounded-xl px-3 py-2 text-xs font-semibold ${activeId === item.id ? "bg-primary text-primary-foreground" : "bg-secondary/60 text-foreground"}`}
               >
                 {item.label}
               </button>
@@ -161,7 +161,7 @@ export function WorkspacePageNavigator() {
               <button
                 type="button"
                 onClick={() => setOpen(true)}
-                className="flex items-center gap-2 rounded-2xl border border-border bg-card/95 px-4 py-3 text-sm font-bold text-foreground shadow-[var(--shadow-card)] backdrop-blur"
+                className="flex min-h-11 items-center gap-2 rounded-2xl border border-border bg-card/95 px-4 py-3 text-sm font-bold text-foreground shadow-[var(--shadow-card)] backdrop-blur"
               >
                 <ListTree className="h-4 w-4 text-primary" />
                 Разделы
@@ -173,7 +173,7 @@ export function WorkspacePageNavigator() {
                     <ListTree className="h-4 w-4 shrink-0 text-primary" />
                     <span className="text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">На странице</span>
                   </div>
-                  <button type="button" onClick={() => setOpen(false)} className="rounded-lg p-1 text-muted-foreground hover:bg-secondary hover:text-foreground" aria-label="Свернуть навигацию">
+                  <button type="button" onClick={() => setOpen(false)} className="flex size-10 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground" aria-label="Свернуть навигацию">
                     <X className="h-4 w-4" />
                   </button>
                 </div>

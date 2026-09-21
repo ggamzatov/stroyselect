@@ -29,7 +29,7 @@ export function MobileNavItem({ href, label, active, icon }: MobileNavItemProps)
 export function MobileNav({ children, label }: { children: ReactNode; label: string }) {
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-card/95 px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(20,35,27,0.08)] backdrop-blur"
+      className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-card/95 px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(20,35,27,0.08)] backdrop-blur lg:hidden"
       aria-label={label}
     >
       <div className="mx-auto grid max-w-md grid-cols-4 items-end">{children}</div>

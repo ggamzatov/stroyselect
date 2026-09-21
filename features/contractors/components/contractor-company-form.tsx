@@ -169,7 +169,7 @@ export function ContractorCompanyForm({ categories, cities, company }: Props) {
         {message && <div className="rounded-[1.25rem] border border-emerald-200 bg-emerald-50 p-4 text-emerald-900"><div className="flex items-start gap-3"><CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" /><div><p className="text-sm font-semibold">Готово</p><p className="mt-1 text-sm leading-6 opacity-85">{message}</p></div></div></div>}
         {errorMessage && <div className="rounded-[1.25rem] border border-red-200 bg-red-50 p-4 text-red-900"><div className="flex items-start gap-3"><TriangleAlert className="mt-0.5 h-5 w-5 shrink-0" /><div><p className="text-sm font-semibold">Проверьте профиль</p><p className="mt-1 text-sm leading-6 opacity-85">{errorMessage}</p></div></div></div>}
 
-        <div className="sticky bottom-4 z-20 rounded-[1.5rem] border border-border bg-card/95 p-4 shadow-[var(--shadow-card)] backdrop-blur">
+        <div className="sticky bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-20 rounded-[1.5rem] border border-border bg-card/95 p-4 shadow-[var(--shadow-card)] backdrop-blur lg:bottom-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div><p className="text-sm font-semibold text-foreground">Анкета компании</p><p className="mt-1 text-xs text-muted-foreground">{formLocked ? "Анкета временно заблокирована на период проверки. Доступность для новых проектов можно менять отдельно." : isDirty ? "Есть несохранённые изменения." : "Все изменения сохранены."}</p></div>
             <div className="flex flex-wrap gap-3">
