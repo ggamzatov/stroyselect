@@ -309,7 +309,7 @@ test.describe("Full application audit", () => {
       (response) => new URL(response.url()).pathname === chatPath,
       { timeout: 15_000 }
     );
-    await page.goto(`/customer/work/${fixtures!.workspaceProjectId}`, { waitUntil: "domcontentloaded" });
+    await page.goto(`/customer/work/${fixtures!.workspaceProjectId}/chat`, { waitUntil: "domcontentloaded" });
     const chatResponse = await chatResponsePromise;
     expect(chatResponse.status()).toBe(200);
 
