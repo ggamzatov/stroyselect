@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { NotificationBell } from "@/features/notifications/components/notification-bell";
 import { NotificationDropdown } from "@/features/notifications/components/notification-dropdown";
 import { useNotifications } from "@/features/notifications/hooks/use-notifications";
@@ -15,6 +15,7 @@ type Props = {
 export function NotificationCenter({ userId, notifications, unreadCount }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const panelId = useId();
 
   useNotifications(userId);
 
@@ -42,12 +43,14 @@ export function NotificationCenter({ userId, notifications, unreadCount }: Props
       <NotificationBell
         unreadCount={unreadCount}
         isOpen={isOpen}
+        controlsId={panelId}
         onClick={() => setIsOpen((current) => !current)}
       />
 
       {isOpen && (
-        <div className="absolute right-0 top-[calc(100%+10px)] z-[100]">
+        <div className="fixed inset-x-3 top-[4.75rem] z-[100] sm:absolute sm:inset-x-auto sm:right-0 sm:top-[calc(100%+10px)]">
           <NotificationDropdown
+            panelId={panelId}
             notifications={notifications}
             onClose={() => setIsOpen(false)}
           />

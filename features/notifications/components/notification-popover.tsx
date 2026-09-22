@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useId,
   useRef,
   useState,
 } from "react";
@@ -31,6 +32,9 @@ export function NotificationPopover({
 }: Props) {
   const [open, setOpen] =
     useState(false);
+
+  const panelId =
+    useId();
 
   const containerRef =
     useRef<HTMLDivElement | null>(
@@ -82,11 +86,13 @@ export function NotificationPopover({
           )
         }
         isOpen={open}
+        controlsId={panelId}
       />
 
       {open && (
         <div className="absolute right-0 top-12 z-50">
           <NotificationDropdown
+            panelId={panelId}
             notifications={
               notifications
             }
