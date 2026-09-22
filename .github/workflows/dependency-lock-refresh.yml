@@ -33,11 +33,6 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Install dependency tree
-        if: steps.guard.outputs.skip != 'true'
-        shell: bash
-        run: npm ci --include=dev
-
       - name: Regenerate lockfile from updated package manifest
         if: steps.guard.outputs.skip != 'true'
         shell: bash
