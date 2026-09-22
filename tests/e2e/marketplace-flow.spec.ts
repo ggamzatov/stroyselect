@@ -156,7 +156,7 @@ test.describe("marketplace journey", () => {
     await page.goto(`/contractor/projects/${projectId}`);
 
     await expect(page).toHaveURL(new RegExp(`/contractor/projects/${projectId}`));
-    await expect(page.getByText("Детализированная смета")).toBeVisible();
+    await expect(page.getByText("Ваше предложение", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: /отправить предложение|обновить предложение/i })).toBeVisible();
 
     const acceptInvitation = page.getByRole("button", { name: /принять приглашение/i });
