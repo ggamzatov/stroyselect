@@ -33,11 +33,16 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Refresh dependency lock within declared semver ranges
+      - name: Install dependency tree
+        if: steps.guard.outputs.skip != 'true'
+        shell: bash
+        run: npm ci --include=dev
+
+      - name: Refresh vulnerable dependency lock
         if: steps.guard.outputs.skip != 'true'
         shell: bash
         run: |
-          npm update --package-lock-only
+          npm audit fix --package-lock-only || true
           npm audit --omit=dev --audit-level=high || true
 
       - name: Commit refreshed lockfile
