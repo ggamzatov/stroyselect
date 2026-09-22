@@ -2,9 +2,12 @@
 
 import Link from "next/link";
 import {
+  Banknote,
   Bell,
+  CalendarClock,
   CheckCheck,
   CheckCircle2,
+  Clock3,
   FileText,
   MessageSquareText,
   Pin,
@@ -253,12 +256,27 @@ function getNotificationConfig(type: string) {
         className: "border-primary/10 bg-secondary text-primary",
       };
 
+    case "new_matching_project":
+      return {
+        label: "Новый проект",
+        icon: <Pin className="h-4 w-4" />,
+        className: "border-primary/10 bg-secondary text-primary",
+      };
+
     case "bid_accepted":
       return {
         label: "Предложение",
         icon: <CheckCircle2 className="h-4 w-4" />,
         className:
           "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300",
+      };
+
+    case "bid_rejected":
+      return {
+        label: "Предложение",
+        icon: <XCircle className="h-4 w-4" />,
+        className:
+          "border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300",
       };
 
     case "contractor_selected":
@@ -283,6 +301,45 @@ function getNotificationConfig(type: string) {
         icon: <TriangleAlert className="h-4 w-4" />,
         className:
           "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300",
+      };
+
+    case "stage_due_soon":
+      return {
+        label: "Срок этапа",
+        icon: <Clock3 className="h-4 w-4" />,
+        className:
+          "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300",
+      };
+
+    case "stage_overdue":
+      return {
+        label: "Срок этапа",
+        icon: <TriangleAlert className="h-4 w-4" />,
+        className:
+          "border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300",
+      };
+
+    case "stage_payment_paid":
+      return {
+        label: "Платёж",
+        icon: <Banknote className="h-4 w-4" />,
+        className:
+          "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300",
+      };
+
+    case "appointment_reminder":
+      return {
+        label: "Встреча",
+        icon: <CalendarClock className="h-4 w-4" />,
+        className: "border-primary/10 bg-secondary text-primary",
+      };
+
+    case "project_risk_hold_enabled":
+      return {
+        label: "Риск проекта",
+        icon: <TriangleAlert className="h-4 w-4" />,
+        className:
+          "border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300",
       };
 
     case "file_uploaded":
