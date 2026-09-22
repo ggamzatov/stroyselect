@@ -216,6 +216,7 @@ export function ChatComposer({
             }
             rows={1}
             maxLength={5000}
+            aria-describedby="chat-composer-hint"
             placeholder={
               editingMessage
                 ? "Измените сообщение..."
@@ -257,8 +258,8 @@ export function ChatComposer({
           </button>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/70 px-2 pb-1 pt-2">
-          <p className="text-[11px] text-muted-foreground">
+        <div className="flex items-center justify-end gap-2 border-t border-border/70 px-2 pb-1 pt-2 sm:justify-between">
+          <p id="chat-composer-hint" className="hidden text-[11px] text-muted-foreground sm:block">
             Enter — отправить · Shift + Enter — новая строка · Esc — отменить
           </p>
 
