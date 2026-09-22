@@ -1,0 +1,34 @@
+name: Temporary dependency lock refresh
+
+on:
+  push:
+    branches:
+      - chatgpt/ci-redesign-alignment
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-lock:
+    if: ${{ !contains(github.event.head_commit.message, 'chore: refresh dependency lock') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/ci-redesign-alignment
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm audit fix --package-lock-only
+      - name: Commit refreshed lockfile
+        run: |
+          if git diff --quiet -- package-lock.json package.json; then
+            echo "No dependency changes needed"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json package.json
+          git commit -m "chore: refresh dependency lock"
+          git push origin HEAD:chatgpt/ci-redesign-alignment
