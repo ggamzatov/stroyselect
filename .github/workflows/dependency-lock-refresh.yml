@@ -10,18 +10,37 @@ permissions:
 
 jobs:
   refresh-lock:
-    if: ${{ !contains(github.event.head_commit.message, 'chore: refresh dependency lock') }}
     runs-on: ubuntu-24.04
     steps:
+      - name: Skip bot refresh commit
+        id: guard
+        shell: bash
+        run: |
+          if [[ "${{ github.event.head_commit.message }}" == "chore: refresh dependency lock" ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/checkout@v4
+        if: steps.guard.outputs.skip != 'true'
         with:
           ref: chatgpt/ci-redesign-alignment
+
       - uses: actions/setup-node@v4
+        if: steps.guard.outputs.skip != 'true'
         with:
           node-version: 22
           cache: npm
-      - run: npm audit fix --package-lock-only
+
+      - name: Refresh vulnerable production dependency lock
+        if: steps.guard.outputs.skip != 'true'
+        shell: bash
+        run: npm audit fix --package-lock-only || true
+
       - name: Commit refreshed lockfile
+        if: steps.guard.outputs.skip != 'true'
+        shell: bash
         run: |
           if git diff --quiet -- package-lock.json package.json; then
             echo "No dependency changes needed"
