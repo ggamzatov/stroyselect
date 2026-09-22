@@ -38,12 +38,12 @@ jobs:
         shell: bash
         run: npm ci --include=dev
 
-      - name: Refresh vulnerable dependency lock
+      - name: Regenerate lockfile from updated package manifest
         if: steps.guard.outputs.skip != 'true'
         shell: bash
         run: |
-          npm audit fix --package-lock-only || true
-          npm audit --omit=dev --audit-level=high || true
+          npm install --package-lock-only
+          npm audit --omit=dev --audit-level=high
 
       - name: Commit refreshed lockfile
         if: steps.guard.outputs.skip != 'true'
