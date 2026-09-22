@@ -27,6 +27,12 @@ import { useProjectChat } from
 type Props = {
   projectId: string;
 
+  projectTitle: string;
+
+  counterpartName: string;
+
+  backHref: string;
+
   currentUserId: string;
 
   initialMessages:
@@ -41,6 +47,9 @@ type Props = {
 
 export function ProjectChat({
   projectId,
+  projectTitle,
+  counterpartName,
+  backHref,
   currentUserId,
   initialMessages,
   initialUnreadCount,
@@ -58,9 +67,10 @@ export function ProjectChat({
   return (
     <div className="project-chat-v2 overflow-hidden rounded-[1.4rem] border border-border bg-card shadow-[var(--shadow-card)] sm:rounded-[1.65rem]">
       <ChatHeader
-        unreadCount={
-          chat.unreadCount
-        }
+        unreadCount={chat.unreadCount}
+        projectTitle={projectTitle}
+        counterpartName={counterpartName}
+        backHref={backHref}
       />
 
       <div className="h-[min(56svh,680px)] min-h-[360px] overflow-y-auto bg-[linear-gradient(180deg,rgba(247,250,248,0.96),rgba(242,247,244,0.98))] px-3 py-4 dark:bg-[linear-gradient(180deg,rgba(16,22,19,0.98),rgba(18,26,22,0.98))] sm:min-h-[480px] sm:px-5 sm:py-5">
