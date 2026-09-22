@@ -72,35 +72,43 @@ export function ProjectDocumentCenter({ projectId, role, documents, backHref, cu
           ← Вернуться к проекту
         </Link>
 
-        <section className="ui-v2-panel mt-4 overflow-hidden p-5 sm:p-6 lg:p-7">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-3xl">
-              <div className="flex items-center gap-3">
-                <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-secondary text-primary">
-                  <FolderOpen className="h-5 w-5" aria-hidden="true" />
-                </span>
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">Файлы проекта</p>
-                  <h1 className="mt-1 text-2xl font-black tracking-[-0.035em] text-foreground sm:text-3xl lg:text-4xl">
-                    Документы
-                  </h1>
-                </div>
+        <section className="ui-v2-panel mt-4 p-5 sm:p-6" aria-labelledby="documents-page-title">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-secondary text-primary">
+                <FolderOpen className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">Документы проекта</p>
+                <h1 id="documents-page-title" className="mt-1 text-2xl font-black tracking-[-0.035em] text-foreground sm:text-3xl">
+                  Файлы и материалы
+                </h1>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+                  Здесь собраны документы проекта, версии файлов и материалы по этапам. Договор остаётся в отдельном разделе проекта.
+                </p>
               </div>
-              <p className="mt-4 text-sm leading-6 text-muted-foreground sm:text-base">
-                Договоры, сметы, акты, счета, планы и гарантии собраны в одном защищённом разделе. Новые версии сохраняют историю и автора загрузки.
-              </p>
             </div>
 
-            <div className="grid grid-cols-3 gap-2 sm:min-w-[360px]">
-              <Metric value={documents.length} label="файлов" icon={<FileText className="h-4 w-4" />} />
-              <Metric value={categoriesCount} label="категорий" icon={<FolderOpen className="h-4 w-4" />} />
-              <Metric value={versionedCount} label="версий" icon={<FileClock className="h-4 w-4" />} />
+            <div className="flex flex-wrap gap-2 sm:justify-end">
+              <span className="rounded-full bg-secondary px-3 py-1.5 text-xs font-bold text-primary">
+                {documents.length} файлов
+              </span>
+              {categoriesCount > 0 ? (
+                <span className="rounded-full bg-muted px-3 py-1.5 text-xs font-semibold text-muted-foreground">
+                  {categoriesCount} категорий
+                </span>
+              ) : null}
+              {versionedCount > 0 ? (
+                <span className="rounded-full bg-muted px-3 py-1.5 text-xs font-semibold text-muted-foreground">
+                  {versionedCount} с версиями
+                </span>
+              ) : null}
             </div>
           </div>
         </section>
 
         <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <section className="ui-v2-panel order-2 p-4 sm:p-5 xl:order-1" aria-labelledby="project-files-title">
+          <section className="ui-v2-panel order-1 p-4 sm:p-5" aria-labelledby="project-files-title">
             <div className="flex items-center justify-between gap-4 border-b border-border pb-4">
               <div>
                 <h2 id="project-files-title" className="text-lg font-black text-foreground">Файлы проекта</h2>
@@ -137,7 +145,7 @@ export function ProjectDocumentCenter({ projectId, role, documents, backHref, cu
                         <p className="mt-2 break-words text-xs leading-5 text-muted-foreground">
                           {formatSize(document.fileSize)} · {document.uploaderName} · {formatDate(document.createdAt)}
                         </p>
-                        <p className="mt-1 truncate text-xs text-muted-foreground/70">{document.fileName}</p>
+                        <p className="mt-1 break-all text-xs leading-5 text-muted-foreground/70 sm:break-words">{document.fileName}</p>
                       </div>
                     </div>
 
@@ -175,6 +183,7 @@ export function ProjectDocumentCenter({ projectId, role, documents, backHref, cu
                         <input type="hidden" name="id" value={document.id} />
                         <input type="hidden" name="projectId" value={projectId} />
                         <button
+                          type="submit"
                           title={`Скрыть документ ${document.title}`}
                           aria-label={`Скрыть документ ${document.title}`}
                           className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-background text-red-600 transition hover:border-red-200 hover:bg-red-50"
@@ -199,7 +208,7 @@ export function ProjectDocumentCenter({ projectId, role, documents, backHref, cu
             </div>
           </section>
 
-          <aside className="order-1 space-y-4 xl:order-2">
+          <aside className="order-2 space-y-4">
             <section className="ui-v2-panel p-5 sm:p-6" aria-labelledby="upload-document-title">
               <div className="flex items-center gap-3">
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
@@ -247,7 +256,7 @@ export function ProjectDocumentCenter({ projectId, role, documents, backHref, cu
                   />
                 </label>
 
-                <button className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-bold text-primary-foreground shadow-[0_8px_20px_rgba(8,122,80,0.18)] transition hover:-translate-y-0.5 hover:bg-[#076c47]">
+                <button type="submit" className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-bold text-primary-foreground shadow-[0_8px_20px_rgba(8,122,80,0.18)] transition hover:-translate-y-0.5 hover:bg-[#076c47]">
                   <Plus className="h-4 w-4" aria-hidden="true" />
                   Загрузить документ
                 </button>
@@ -307,16 +316,6 @@ export function ProjectDocumentCenter({ projectId, role, documents, backHref, cu
         </section>
       </div>
     </main>
-  );
-}
-
-function Metric({ value, label, icon }: { value: number; label: string; icon: React.ReactNode }) {
-  return (
-    <div className="rounded-2xl border border-border bg-background/70 p-3 text-center">
-      <div className="mx-auto flex h-8 w-8 items-center justify-center rounded-lg bg-secondary text-primary">{icon}</div>
-      <p className="mt-2 text-xl font-black tracking-[-0.03em] text-foreground">{value}</p>
-      <p className="mt-0.5 text-[10px] font-semibold text-muted-foreground">{label}</p>
-    </div>
   );
 }
 
