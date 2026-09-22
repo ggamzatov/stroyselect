@@ -27,13 +27,13 @@ export default async function NotificationSettingsPage() {
 
           <PreferenceSection title="Типы событий" description="Тонкая настройка рабочих уведомлений.">
             <Toggle name="projectUpdates" defaultChecked={p.project_updates} icon={<Sparkles className="h-4 w-4" />} title="Проекты и этапы" description="Изменения проекта, этапов, документов и платежей." />
-            <Toggle name="bidUpdates" defaultChecked={p.bid_updates} icon={<Bell className="h-4 w-4" />} title="Предложения и приглашения" description="Новые bids, shortlist и ответы на приглашения." />
+            <Toggle name="bidUpdates" defaultChecked={p.bid_updates} icon={<Bell className="h-4 w-4" />} title="Предложения и приглашения" description="Новые предложения, короткий список и ответы на приглашения." />
             <Toggle name="chatUpdates" defaultChecked={p.chat_updates} icon={<MessageSquare className="h-4 w-4" />} title="Сообщения" description="Новые сообщения и вложения в рабочих чатах." />
             <Toggle name="disputeUpdates" defaultChecked={p.dispute_updates} icon={<ShieldAlert className="h-4 w-4" />} title="Споры и риски" description="Споры, приостановки проекта и решения администрации." />
             <Toggle name="marketingEnabled" defaultChecked={p.marketing_enabled} icon={<Megaphone className="h-4 w-4" />} title="Новости продукта" description="Редкие продуктовые обновления. По умолчанию выключено." />
           </PreferenceSection>
 
-          <div className="flex justify-end"><button className="min-h-11 rounded-xl bg-primary px-6 text-sm font-semibold text-primary-foreground">Сохранить настройки</button></div>
+          <div className="flex justify-end"><button type="submit" className="min-h-11 rounded-xl bg-primary px-6 text-sm font-semibold text-primary-foreground">Сохранить настройки</button></div>
         </form>
       </div>
     </main>
