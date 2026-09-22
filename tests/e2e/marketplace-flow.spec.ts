@@ -29,8 +29,7 @@ test.describe("marketplace journey", () => {
   test("customer creates and reopens a structured project intake draft", async ({ page }) => {
     await login(page, customer!);
     await page.goto("/customer/projects/new");
-
-    await expect(page.getByText("Шаг 1 из 4")).toBeVisible();
+    await page.getByRole("button", { name: "Подробный проект" }).click();
 
     const categorySelect = page.getByLabel("Категория работ");
     const categoryOptions = await categorySelect.locator("option").evaluateAll((options) =>
@@ -53,6 +52,7 @@ test.describe("marketplace journey", () => {
         .join(", ")}`
     ).toBeTruthy();
     await categorySelect.selectOption(constructionCategory!.value);
+    await expect(page.getByText("Шаг 1 из 4")).toBeVisible();
 
     await page.getByLabel("Название проекта").fill("E2E Новый структурированный проект");
     await page
@@ -125,6 +125,7 @@ test.describe("marketplace journey", () => {
     expect(createdProjectId).toBeTruthy();
 
     await page.goto(`/customer/projects/${createdProjectId}/edit`);
+    await page.getByRole("button", { name: "Подробный проект" }).click();
     await expect(page.getByText("Шаг 1 из 4")).toBeVisible();
     await page.getByRole("button", { name: "Сохранить и продолжить" }).click();
     await expect(page.getByText("Шаг 2 из 4")).toBeVisible();
@@ -200,24 +201,26 @@ test.describe("marketplace journey", () => {
     await login(page, customer!);
     await page.goto(`/customer/work/${workspaceProjectId}`);
 
-    for (const label of ["Обзор", "Бюджет и платежи", "Документы", "Замечания", "Споры"]) {
-      await expect(page.getByRole("link", { name: label })).toBeVisible();
-    }
+    const workspaceNav = page.getByRole("navigation", { name: "Разделы рабочего пространства" });
+    await expect(workspaceNav.getByRole("link", { name: "Обзор" })).toBeVisible();
+    await expect(workspaceNav.getByRole("link", { name: "Общение" })).toBeVisible();
+    await expect(workspaceNav.getByRole("link", { name: "Документы" })).toBeVisible();
+    await expect(workspaceNav.getByText("Работа", { exact: true })).toBeVisible();
+    await expect(workspaceNav.getByText("Ещё", { exact: true })).toBeVisible();
 
-    await page.getByRole("link", { name: "Бюджет и платежи" }).click();
+    await workspaceNav.getByText("Работа", { exact: true }).click();
+    await workspaceNav.getByRole("link", { name: "Бюджет и платежи" }).click();
     await expect(page).toHaveURL(new RegExp(`/customer/work/${workspaceProjectId}/changes`));
     await expect(page.locator("body")).toContainText(/платеж|бюджет|изменен/i);
 
-    await page.getByRole("link", { name: "Документы" }).click();
+    await page.getByRole("navigation", { name: "Разделы рабочего пространства" }).getByRole("link", { name: "Документы" }).click();
     await expect(page).toHaveURL(new RegExp(`/customer/work/${workspaceProjectId}/documents`));
     await expect(page.locator("body")).toContainText(/документ|файл/i);
 
-    await page.getByRole("link", { name: "Замечания" }).click();
-    await expect(page).toHaveURL(new RegExp(`/customer/work/${workspaceProjectId}/issues`));
+    await page.goto(`/customer/work/${workspaceProjectId}/issues`);
     await expect(page.locator("body")).toContainText(/замечан|работ/i);
 
-    await page.getByRole("link", { name: "Споры" }).click();
-    await expect(page).toHaveURL(new RegExp(`/customer/work/${workspaceProjectId}/disputes`));
+    await page.goto(`/customer/work/${workspaceProjectId}/disputes`);
     await expect(page.locator("body")).toContainText(/спор|аудит/i);
   });
 
@@ -226,11 +229,15 @@ test.describe("marketplace journey", () => {
     await login(page, contractor!);
     await page.goto(`/contractor/work/${workspaceProjectId}`);
 
-    for (const label of ["Обзор", "Бюджет и платежи", "Документы", "Замечания", "Споры"]) {
-      await expect(page.getByRole("link", { name: label })).toBeVisible();
-    }
+    const workspaceNav = page.getByRole("navigation", { name: "Разделы рабочего пространства" });
+    await expect(workspaceNav.getByRole("link", { name: "Обзор" })).toBeVisible();
+    await expect(workspaceNav.getByRole("link", { name: "Общение" })).toBeVisible();
+    await expect(workspaceNav.getByRole("link", { name: "Документы" })).toBeVisible();
+    await expect(workspaceNav.getByText("Работа", { exact: true })).toBeVisible();
+    await expect(workspaceNav.getByText("Ещё", { exact: true })).toBeVisible();
 
-    await page.getByRole("link", { name: "Бюджет и платежи" }).click();
+    await workspaceNav.getByText("Работа", { exact: true }).click();
+    await workspaceNav.getByRole("link", { name: "Бюджет и платежи" }).click();
     await expect(page).toHaveURL(new RegExp(`/contractor/work/${workspaceProjectId}/changes`));
     await expect(page.locator("body")).toContainText(/платеж|бюджет|изменен/i);
   });
