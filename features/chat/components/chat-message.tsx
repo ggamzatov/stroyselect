@@ -63,6 +63,7 @@ export type ChatMessageData = {
 type Props = {
   message: ChatMessageData;
   currentUserId: string;
+  showSender: boolean;
   recipientLastReadAt: string | null;
 
   onReply: (
@@ -90,6 +91,7 @@ type Props = {
 export function ChatMessage({
   message,
   currentUserId,
+  showSender,
   recipientLastReadAt,
   onReply,
   onEdit,
@@ -160,7 +162,7 @@ export function ChatMessage({
             : "items-start",
         ].join(" ")}
       >
-        {!isOwn && (
+        {!isOwn && showSender && (
           <div className="mb-1.5 flex items-center gap-2 px-1">
             <div className="flex h-7 w-7 items-center justify-center rounded-full bg-secondary text-[11px] font-bold text-primary">
               {getSenderInitials(

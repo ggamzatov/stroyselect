@@ -87,6 +87,14 @@ export function ChatMessageList({
               message.created_at
             );
 
+          const groupedWithPrevious =
+            Boolean(previous) &&
+            !showDate &&
+            shouldGroupWithPrevious(
+              previous!,
+              message
+            );
+
           return (
             <div
               key={
@@ -107,6 +115,9 @@ export function ChatMessageList({
                 }
                 currentUserId={
                   currentUserId
+                }
+                showSender={
+                  !groupedWithPrevious
                 }
                 recipientLastReadAt={
                   recipientLastReadAt
@@ -238,4 +249,43 @@ function formatChatDate(
           : undefined,
     }
   ).format(date);
+}
+
+function shouldGroupWithPrevious(
+  previous: ChatMessageData,
+  current: ChatMessageData
+) {
+  if (
+    previous.sender_id !==
+    current.sender_id
+  ) {
+    return false;
+  }
+
+  const previousTime =
+    new Date(
+      previous.created_at
+    ).getTime();
+
+  const currentTime =
+    new Date(
+      current.created_at
+    ).getTime();
+
+  if (
+    !Number.isFinite(
+      previousTime
+    ) ||
+    !Number.isFinite(
+      currentTime
+    )
+  ) {
+    return false;
+  }
+
+  return (
+    currentTime -
+      previousTime <=
+    5 * 60 * 1000
+  );
 }
